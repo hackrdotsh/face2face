@@ -5,6 +5,10 @@ The current build has sign-in with an emailed code, a verified password, or a
 passkey, password reset, and profile onboarding. The screens are placeholders.
 Proximity discovery is not implemented yet.
 
+The account screen is a scrolling pastel meadow. Pause the scenery with the
+top-right control; it also pauses while entering text, in the background, and
+when Reduce Motion is enabled. API settings are under the sliders button.
+
 ## Open on your Mac
 
 Install Xcode, launch it once, and install the iOS platform when prompted. Then:
@@ -34,6 +38,10 @@ open Face2Face.xcodeproj
 
 Do not commit the generated Xcode project. `apps/ios/project.yml` is its source.
 No third-party Swift packages, CocoaPods, or JavaScript runtime are used by the app.
+
+The **Face2Face** scheme includes UI tests for account switching, keyboard input,
+connection settings, and accessibility text sizes. Run them with **Product → Test**
+on an iPhone simulator. Layout tests do not contact the API or use saved sessions.
 
 ## Run the backend
 
