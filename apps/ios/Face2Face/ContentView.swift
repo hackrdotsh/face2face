@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var model = AppModel()
     @State private var showingConnection = false
     @State private var showingLogin = false
+    @State private var formVisible = false
     @FocusState private var focusedField: AccountField?
 
     private enum AccountField: Hashable {
@@ -59,7 +60,10 @@ struct ContentView: View {
             if let error { AccessibilityNotification.Announcement(error).post() }
         }
         .onChange(of: model.user != nil) { _, signedIn in
-            if !signedIn { showingLogin = false }
+            if !signedIn {
+                showingLogin = false
+                formVisible = false
+            }
         }
         .sheet(isPresented: $showingConnection) {
             ConnectionView(model: model)
@@ -107,9 +111,7 @@ struct ContentView: View {
     }
 
     private var loginButton: some View {
-        Button {
-            withAnimation(accountAnimation) { showingLogin = true }
-        } label: {
+        Button(action: openLogin) {
             Text("Login")
                 .font(.system(.headline, design: .rounded, weight: .heavy))
                 .frame(minWidth: 140)
@@ -197,6 +199,7 @@ struct ContentView: View {
                     Button {
                         focusedField = nil
                         withAnimation(accountAnimation) {
+                            formVisible = false
                             showingLogin = false
                             model.createAccount = false
                             model.errorMessage = nil
@@ -212,6 +215,7 @@ struct ContentView: View {
                     .accessibilityIdentifier("loginBack")
                     .disabled(model.isBusy)
                 }
+                .modifier(FormEntrance(visible: formVisible, order: 0))
 
                 VStack(alignment: .leading, spacing: 16) {
                     if model.createAccount {
@@ -224,6 +228,7 @@ struct ContentView: View {
                                 .accessibilityLabel("Name")
                                 .accessibilityIdentifier("nameField")
                         }
+                        .modifier(FormEntrance(visible: formVisible, order: 1))
                     }
                     field("Email", symbol: "envelope") {
                         TextField("you@example.com", text: $model.email)
@@ -237,6 +242,7 @@ struct ContentView: View {
                             .accessibilityLabel("Email")
                             .accessibilityIdentifier("emailField")
                     }
+                    .modifier(FormEntrance(visible: formVisible, order: model.createAccount ? 2 : 1))
                     field("Password", symbol: "lock") {
                         SecureField("Your password", text: $model.password)
                             .textContentType(model.createAccount ? .newPassword : .password)
@@ -246,19 +252,24 @@ struct ContentView: View {
                             .accessibilityLabel("Password")
                             .accessibilityIdentifier("passwordField")
                     }
+                    .modifier(FormEntrance(visible: formVisible, order: model.createAccount ? 3 : 2))
                     if model.createAccount {
                         Text("Use at least 12 characters.")
                             .font(.footnote)
                             .foregroundStyle(MeadowPalette.secondaryInk)
+                            .modifier(FormEntrance(visible: formVisible, order: 3))
                     }
                 }
                 .disabled(model.isBusy)
 
                 errorMessage
+                    .modifier(FormEntrance(visible: formVisible, order: model.createAccount ? 4 : 3))
 
                 primaryButton(
                     model.createAccount ? "Create account" : "Sign in", symbol: "arrow.right",
-                    action: authenticate)
+                    action: authenticate
+                )
+                .modifier(FormEntrance(visible: formVisible, order: model.createAccount ? 4 : 3))
 
                 Button {
                     focusedField = nil
@@ -275,6 +286,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .accessibilityIdentifier("accountModeToggle")
                 .disabled(model.isBusy)
+                .modifier(FormEntrance(visible: formVisible, order: model.createAccount ? 5 : 4))
             }
         }
         .padding(24)
@@ -348,6 +360,16 @@ struct ContentView: View {
     private func authenticate() {
         focusedField = nil
         Task { await model.authenticate() }
+    }
+
+    private func openLogin() {
+        formVisible = false
+        withAnimation(accountAnimation, completionCriteria: .logicallyComplete) {
+            showingLogin = true
+        } completion: {
+            guard showingLogin, model.user == nil else { return }
+            formVisible = true
+        }
     }
 }
 

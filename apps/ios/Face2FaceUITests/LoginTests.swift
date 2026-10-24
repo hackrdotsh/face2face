@@ -49,6 +49,12 @@ final class LoginTests: XCTestCase {
         app.buttons["loginBack"].tap()
         XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.textFields["emailField"].exists)
+
+        app.buttons["loginStart"].tap()
+        XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["emailField"].isHittable)
+        XCTAssertTrue(app.secureTextFields["passwordField"].isHittable)
+        XCTAssertTrue(app.buttons["accountSubmit"].isHittable)
     }
 
     func testAccountModesKeyboardAndConnectionSettings() {
