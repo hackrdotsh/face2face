@@ -25,7 +25,7 @@ struct Face2FaceApp: App {
                     .tabItem { Label("Pocket test", systemImage: "figure.walk") }
                     .badge(pocket.radio.isRequested ? "On" : nil)
                     NavigationStack {
-                        ConnectedDiscoveryView(model: walk)
+                        WalkDiscoveryView(model: walk)
                     }
                     .tabItem { Label("Walk test", systemImage: "person.crop.circle.badge.clock") }
                     .badge(walk.isRunning ? "On" : nil)

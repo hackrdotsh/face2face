@@ -5,9 +5,11 @@
     struct ConnectedDiscoveryView: View {
         @Environment(\.scenePhase) private var scenePhase
         @State private var model: ConnectedDiscoveryModel
+        private let managesLifecycle: Bool
 
-        init(model: ConnectedDiscoveryModel = ConnectedDiscoveryModel()) {
+        init(model: ConnectedDiscoveryModel = ConnectedDiscoveryModel(), managesLifecycle: Bool = true) {
             _model = State(initialValue: model)
+            self.managesLifecycle = managesLifecycle
         }
 
         var body: some View {
@@ -111,6 +113,12 @@
                         LabeledContent("App", value: model.isApplicationActive ? "Foreground" : "Background")
                         LabeledContent("Background upload passes", value: "\(model.backgroundPasses)")
                         LabeledContent("Deferred passes", value: "\(model.deferredPasses)")
+                        LabeledContent("New encounters this walk", value: "\(model.walkEncounterCount)")
+                        if let elapsed = model.firstRevealElapsed {
+                            LabeledContent("First foreground reveal") {
+                                Text(String(format: "%.1f seconds after Start", elapsed))
+                            }
+                        }
                     }
                     Text(model.radio.status)
                     LabeledContent("Bluetooth", value: model.radio.bluetoothStatus)
@@ -155,7 +163,7 @@
                     )
                 }
             }
-            .navigationTitle(model.allowsBackground ? "Walk test" : "Connected test")
+            .navigationTitle(model.allowsBackground ? "Walk diagnostics" : "Connected test")
             .toolbar {
                 if model.allowsBackground {
                     ShareLink(item: model.report) {
@@ -163,13 +171,13 @@
                     }
                 }
             }
-            .task { await model.refresh() }
+            .task { if managesLifecycle { await model.refresh() } }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .background, !model.allowsBackground {
+                if managesLifecycle, phase == .background, !model.allowsBackground {
                     model.stop(reason: "Stopped when the app entered the background")
                 }
             }
-            .onDisappear { model.viewClosed() }
+            .onDisappear { if managesLifecycle { model.viewClosed() } }
         }
     }
 #endif

@@ -29,6 +29,12 @@
         private(set) var deferredPasses = 0
         private(set) var encounters: [ServerEncounter] = []
         private(set) var tokenExpiresAt: Date?
+        private(set) var walkEncounters: [ServerEncounter] = []
+        private(set) var revealSequence = 0
+        private(set) var walkEncounterCount = 0
+        private(set) var firstRevealElapsed: TimeInterval?
+
+        @ObservationIgnored private var encounterTracker: WalkEncounterTracker?
 
         @ObservationIgnored private var client: APIClient?
         @ObservationIgnored private var lease: DiscoveryLease?
@@ -120,7 +126,7 @@
                 status =
                     error as? APIError == .unauthenticated
                     ? "Sign in on Account for this API, then refresh."
-                    : "Could not load discovery. Check the API connection and apply its migrations."
+                    : "Could not load the account and encounters. Check the error below, then retry."
                 errorMessage = error.localizedDescription
             }
         }
@@ -148,6 +154,9 @@
             do {
                 let api = try await configuredClient().capturingCurrentCredential()
                 let signedIn = try await api.currentUser()
+                guard generation == operation else { return }
+                // Capture before starting the radio so history cannot masquerade as a new crossing.
+                let baseline = allowsBackground ? try await api.encounters() : []
                 guard generation == operation else { return }
                 let requestStartedAt = Date()
                 let requestStartedUptime = ProcessInfo.processInfo.systemUptime
@@ -180,6 +189,11 @@
                 backgroundPolicy = BackgroundUploadPolicy()
                 if allowsBackground {
                     walkConsent = PocketTestWindow(at: requestStartedAt, uptime: requestStartedUptime)
+                    encounterTracker = WalkEncounterTracker(
+                        baseline: baseline, serverStartedAt: issued.serverTime)
+                    walkEncounters = []
+                    walkEncounterCount = 0
+                    firstRevealElapsed = nil
                 }
                 nextRefresh = .distantPast
                 isRunning = true
@@ -460,6 +474,19 @@
                 }
                 encounters = history
                 historyIsVisible = true
+                if allowsBackground, var tracker = encounterTracker {
+                    let additions = tracker.ingest(history)
+                    encounterTracker = tracker
+                    walkEncounters = tracker.encounters
+                    walkEncounterCount = tracker.encounters.count
+                    if !additions.isEmpty {
+                        revealSequence += additions.count
+                        if firstRevealElapsed == nil, let consent = walkConsent {
+                            firstRevealElapsed = max(
+                                0, ProcessInfo.processInfo.systemUptime - consent.startedUptime)
+                        }
+                    }
+                }
             } catch is CancellationError { return } catch {
                 historyIsVisible = false
                 if error as? APIError == .unauthenticated {
@@ -479,6 +506,8 @@
                 "Background passes: \(backgroundPasses); deferred: \(deferredPasses)",
                 "Submitted: \(submittedReports); queued: \(pendingUploads); discarded: \(discardedReports)",
                 "Remaining permit: \(Int(ceil(walkRemaining))) seconds",
+                "New server encounters this walk: \(walkEncounterCount)",
+                "First reciprocal reveal: \(firstRevealElapsed.map { String(format: "%.1f seconds after Start", $0) } ?? "none")",
                 "Status: \(status)",
                 "",
                 radio.report,
@@ -500,6 +529,8 @@
             tokenExpiresAt = nil
             walkPermit = nil
             walkConsent = nil
+            encounterTracker = nil
+            walkEncounters = []
             if let issued = lease, let api = client {
                 lease = nil
                 scheduleRevocation(issued.sessionId, using: api)
