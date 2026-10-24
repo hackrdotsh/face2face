@@ -163,8 +163,96 @@ try {
     bob.credential,
   );
   check(revoked.status === 410, "A revoked token was accepted");
+
+  // Rehearse a second walk with the same accounts. The previous encounter remains
+  // in history, but cannot become a fresh reciprocal record after just one report.
+  const previousHistory = await history(alice);
+  check(
+    previousHistory.length === 1,
+    "Stop unexpectedly removed encounter history",
+  );
+  const previous = previousHistory[0];
+  const nextA = await json(
+    await post("discovery/start", {}, alice.credential),
+    "Second Alice start failed",
+  );
+  leases.push([alice, nextA]);
+  const nextB = await json(
+    await post("discovery/start", {}, bob.credential),
+    "Second Bob start failed",
+  );
+  leases.push([bob, nextB]);
+  check(
+    nextA.sessionId !== a.sessionId && nextB.sessionId !== b.sessionId,
+    "Restart reused a previous discovery session",
+  );
+  const secondObservation = {
+    sessionId: nextA.sessionId,
+    peerToken: nextB.token,
+    observationId: randomUUID(),
+  };
+  const oldReceipt = await json(
+    await post("encounters/observe", secondObservation, alice.credential),
+    "Second-walk first observation failed",
+  );
+  check(
+    oldReceipt.encounter?.id === previous.id &&
+      oldReceipt.encounter.lastSeenAt === previous.lastSeenAt,
+    "One-sided restart changed the old encounter",
+  );
+  const stillOld = await history(alice);
+  check(
+    stillOld.length === 1 && stillOld[0].lastSeenAt === previous.lastSeenAt,
+    "Old reciprocal reports authorized a fresh second-walk encounter",
+  );
+  await json(
+    await post(
+      "encounters/observe",
+      {
+        sessionId: nextB.sessionId,
+        peerToken: nextA.token,
+        observationId: randomUUID(),
+      },
+      bob.credential,
+    ),
+    "Second-walk reciprocal observation failed",
+  );
+  const updated = await history(alice);
+  check(
+    updated.length === 1 &&
+      updated[0].id === previous.id &&
+      updated[0].lastSeenAt > previous.lastSeenAt &&
+      updated[0].lastSeenAt >= Math.max(nextA.serverTime, nextB.serverTime),
+    "Second walk did not refresh the existing pair after new reciprocal reports",
+  );
+  const duplicate = await json(
+    await post("encounters/observe", secondObservation, alice.credential),
+    "Second-walk retry failed",
+  );
+  check(
+    duplicate.encounter?.lastSeenAt === updated[0].lastSeenAt,
+    "Retry advanced the encounter timestamp",
+  );
+  const signedOut = await post("auth/sign-out", {}, alice.credential);
+  check(signedOut.status === 200, "Alice sign-out failed");
+  const signedOutToken = await post(
+    "encounters/observe",
+    {
+      sessionId: nextB.sessionId,
+      peerToken: nextA.token,
+      observationId: randomUUID(),
+    },
+    bob.credential,
+  );
+  check(
+    signedOutToken.status === 410,
+    "Sign-out left a discovery token active",
+  );
   console.log(
     "PASS: real HTTP auth, one-sided privacy, reciprocity, retry, rotation, and revocation.",
+  );
+  console.log(
+    "PASS: second-walk history baseline, fresh reciprocity, stable retry timestamps, and sign-out revocation.",
   );
   console.log(
     "These were synthetic API reports. No Bluetooth or physical proximity was tested.",
