@@ -62,12 +62,34 @@ retain Apple's default transport security. Use an HTTPS API before distribution.
 Sessions are stored in Keychain, scoped to the selected API server. Changing the
 server does not send its saved token to another server.
 
+## Test the backend in a browser
+
+`apps/web` is a React test client for the API. It needs no Apple developer
+account. Start the API, then the web app in a second terminal:
+
+```sh
+nix run .#dev
+nix run .#web
+```
+
+Open `http://localhost:8081`. The web app signs in the same way as the iPhone app:
+it stores a bearer token per API server and sends it in the `Authorization` header.
+It covers every sign-in method, password reset, onboarding, and passkeys. Chrome,
+Safari, and Firefox can create passkeys on `localhost`. The right column shows each
+request and response, the current session, and a console for sending any request.
+
+The default server is `http://localhost:8787`. Set `VITE_API_URL` to change it,
+or enter another URL in the header. The API only accepts browser requests from the
+origins in `WEB_ORIGINS` and passkeys from `PASSKEY_ORIGINS`. Production allows
+no browser origins yet.
+
 ## Commands
 
 | Task                                | Command                   |
 | ----------------------------------- | ------------------------- |
 | Start local API                     | `nix run .#dev`           |
 | Start API over Tailscale            | `nix run .#dev-tailscale` |
+| Start the web test client           | `nix run .#web`           |
 | Generate and open Xcode project     | `nix run .#ios`           |
 | Generate Xcode project only         | `nix run .#ios-project`   |
 | Build for the iOS simulator on Mac  | `nix run .#ios-build`     |

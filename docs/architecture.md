@@ -89,6 +89,23 @@ passkeys work on a device:
 3. Add the `webcredentials:` associated domain entitlement to `project.yml`.
 4. Set `PASSKEY_RP_ID` to the domain and `PASSKEY_ORIGINS` to its HTTPS origin.
 
+The web test client lets the browser keep the challenge cookie. It sends cookies
+only on passkey requests and uses the bearer token for everything else. The cookie
+is `SameSite=Lax`, so this works only when the web app and the API share a site,
+such as `localhost:8081` and `localhost:8787`.
+
+### Web test client
+
+`apps/web` keeps its layers separate so the placeholder screens can be replaced
+without touching the logic:
+- `src/api`: HTTP client, error mapping, and one function per endpoint.
+- `src/session`: the session provider and per-server token storage.
+- `src/flows`: hooks that hold each screen's state and actions, matching the
+  iPhone app's models.
+- `src/onboarding`: turns server-described fields into drafts and values.
+- `src/screens` and `src/devtools`: the UI only. They read hooks and render.
+- `src/components/ui`: coss ui components, added with the shadcn CLI.
+
 ## Proximity is a separate milestone
 
 No Bluetooth scan, geolocation permission, encounter upload, or matching runs yet.
