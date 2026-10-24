@@ -2,7 +2,8 @@
 
 An iPhone app for meeting people with shared interests as you pass them in real life.
 The current build has sign-in with an emailed code, a verified password, or a
-passkey, password reset, and profile onboarding. The screens are placeholders.
+passkey, password reset, and profile onboarding. The login screen uses the animated
+meadow and glass form; onboarding and account screens remain functional placeholders.
 Proximity discovery is not implemented yet.
 
 The welcome screen is a scrolling pastel meadow. **Login** expands into the
@@ -18,7 +19,7 @@ as they pass. These are decorative animations: no encounters are detected or rec
 
 ## Open on your Mac
 
-Install Xcode, launch it once, and install the iOS platform when prompted. Then:
+Install Xcode 26 or newer, launch it once, and install the iOS platform when prompted. Then:
 
 ```sh
 gh repo clone hackrdotsh/face2face

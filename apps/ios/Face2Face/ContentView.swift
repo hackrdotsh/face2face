@@ -5,23 +5,17 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Namespace private var accountTransition
-    @AppStorage("appearance") private var appearance = AppAppearance.system
-    @State private var model = AppModel()
+    @Bindable var session: SessionModel
+    let passkeys: PasskeyAuthorizer
     @State private var showingSettings = false
     @State private var showingLogin = false
     @State private var formVisible = false
     @State private var isClosingForm = false
-    @FocusState private var focusedField: AccountField?
-
-    private enum AccountField: Hashable {
-        case name, email, password
-    }
-
-    private var showingAccount: Bool { showingLogin || model.user != nil }
+    @FocusState private var focusedField: SignInField?
 
     var body: some View {
         GeometryReader { geometry in
-            let contentHeight = showingAccount ? geometry.size.height - 44 : geometry.size.height * 2 / 3
+            let contentHeight = showingLogin ? geometry.size.height - 44 : geometry.size.height * 2 / 3
             ZStack {
                 MeadowScene(
                     isMoving: focusedField == nil && !showingSettings,
@@ -32,15 +26,12 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         toolbar
-                        welcome
-                            .padding(.top, 32)
+                        welcome.padding(.top, 32)
                         Spacer(minLength: 110)
-                        if showingAccount {
-                            accountCard
-                                .transition(.opacity)
+                        if showingLogin {
+                            accountCard.transition(.opacity)
                         } else {
-                            loginButton
-                                .transition(.opacity)
+                            loginButton.transition(.opacity)
                         }
                     }
                     .frame(maxWidth: 440)
@@ -56,20 +47,8 @@ struct ContentView: View {
         }
         .foregroundStyle(MeadowPalette.ink)
         .fontDesign(.rounded)
-        .preferredColorScheme(appearance.colorScheme)
-        .task { await model.restoreSession() }
-        .onChange(of: model.errorMessage) { _, error in
-            if let error { AccessibilityNotification.Announcement(error).post() }
-        }
-        .onChange(of: model.user != nil) { _, signedIn in
-            if !signedIn {
-                showingLogin = false
-                formVisible = false
-                isClosingForm = false
-            }
-        }
         .sheet(isPresented: $showingSettings) {
-            SettingsView(model: model)
+            SettingsView(session: session)
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -125,7 +104,7 @@ struct ContentView: View {
         }
         .buttonStyle(MeadowPressStyle())
         .accessibilityIdentifier("loginStart")
-        .disabled(model.isBusy || isClosingForm)
+        .disabled(session.activity.isBusy || isClosingForm)
     }
 
     private var accountAnimation: Animation {
@@ -133,7 +112,7 @@ struct ContentView: View {
     }
 
     private func accountBackground(expanded: Bool) -> some View {
-        return Group {
+        Group {
             if reduceMotion {
                 accountSurface(expanded: expanded)
             } else {
@@ -160,12 +139,10 @@ struct ContentView: View {
         if reduceTransparency {
             shape.fill(MeadowPalette.paper)
         } else if #available(iOS 26.0, *) {
-            shape
-                .fill(.clear)
+            shape.fill(.clear)
                 .glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
         } else {
-            shape
-                .fill(.ultraThinMaterial)
+            shape.fill(.ultraThinMaterial)
                 .overlay {
                     shape.strokeBorder(
                         LinearGradient(
@@ -180,185 +157,12 @@ struct ContentView: View {
     }
 
     private var accountCard: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            if let user = model.user {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Hey, \(user.name).")
-                        .font(.system(.title, design: .rounded, weight: .heavy))
-                        .accessibilityAddTraits(.isHeader)
-                    Label("You’re signed in", systemImage: "checkmark.seal.fill")
-                        .font(.subheadline.weight(.semibold))
-                    Text("Nearby discovery isn’t available yet.")
-                        .font(.subheadline)
-                        .foregroundStyle(MeadowPalette.secondaryInk)
-                }
-                errorMessage
-                primaryButton("Sign out", symbol: "arrow.right") {
-                    Task { await model.signOut() }
-                }
-            } else {
-                HStack(alignment: .top, spacing: 12) {
-                    Text(model.createAccount ? "Join the adventure" : "Hey, you.")
-                        .font(.system(.title, design: .rounded, weight: .heavy))
-                        .accessibilityAddTraits(.isHeader)
-                    Spacer(minLength: 0)
-                    Button(action: closeLogin) {
-                        Image(systemName: "xmark")
-                            .font(.system(.subheadline, weight: .semibold))
-                            .frame(width: 44, height: 44)
-                            .background(MeadowPalette.field, in: Circle())
-                    }
-                    .buttonStyle(MeadowPressStyle())
-                    .accessibilityLabel("Back to welcome")
-                    .accessibilityIdentifier("loginBack")
-                    .disabled(model.isBusy)
-                }
-                .modifier(formEntrance(order: 0))
-
-                VStack(alignment: .leading, spacing: 16) {
-                    if model.createAccount {
-                        field("Name", symbol: "person") {
-                            TextField("Your name", text: $model.name)
-                                .textContentType(.name)
-                                .focused($focusedField, equals: .name)
-                                .submitLabel(.next)
-                                .onSubmit { focusedField = .email }
-                                .accessibilityLabel("Name")
-                                .accessibilityIdentifier("nameField")
-                        }
-                        .modifier(formEntrance(order: 1))
-                    }
-                    field("Email", symbol: "envelope") {
-                        TextField("you@example.com", text: $model.email)
-                            .textContentType(.username)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .focused($focusedField, equals: .email)
-                            .submitLabel(.next)
-                            .onSubmit { focusedField = .password }
-                            .accessibilityLabel("Email")
-                            .accessibilityIdentifier("emailField")
-                    }
-                    .modifier(formEntrance(order: model.createAccount ? 2 : 1))
-                    field("Password", symbol: "lock") {
-                        SecureField("Your password", text: $model.password)
-                            .textContentType(model.createAccount ? .newPassword : .password)
-                            .focused($focusedField, equals: .password)
-                            .submitLabel(.go)
-                            .onSubmit(authenticate)
-                            .accessibilityLabel("Password")
-                            .accessibilityIdentifier("passwordField")
-                    }
-                    .modifier(formEntrance(order: model.createAccount ? 3 : 2))
-                    if model.createAccount {
-                        Text("Use at least 12 characters.")
-                            .font(.footnote)
-                            .foregroundStyle(MeadowPalette.secondaryInk)
-                            .modifier(formEntrance(order: 3))
-                    }
-                }
-                .disabled(model.isBusy)
-
-                errorMessage
-                    .modifier(formEntrance(order: model.createAccount ? 4 : 3))
-
-                primaryButton(
-                    model.createAccount ? "Create account" : "Sign in", symbol: "arrow.right",
-                    action: authenticate
-                )
-                .modifier(formEntrance(order: model.createAccount ? 4 : 3))
-
-                Button {
-                    focusedField = nil
-                    model.createAccount.toggle()
-                    model.errorMessage = nil
-                } label: {
-                    Text(model.createAccount ? "Already a member? " : "New around here? ")
-                        .foregroundStyle(MeadowPalette.secondaryInk)
-                        + Text(model.createAccount ? "Sign in" : "Create account")
-                        .foregroundStyle(MeadowPalette.ink)
-                        .bold()
-                }
-                .font(.footnote)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .accessibilityIdentifier("accountModeToggle")
-                .disabled(model.isBusy)
-                .modifier(formEntrance(order: model.createAccount ? 5 : 4))
-            }
-        }
+        SignInView(
+            session: session, passkeys: passkeys, contentVisible: formVisible,
+            focusedField: $focusedField, onClose: closeLogin
+        )
         .padding(24)
         .background { accountBackground(expanded: true) }
-    }
-
-    @ViewBuilder
-    private var errorMessage: some View {
-        if let error = model.errorMessage {
-            Label(error, systemImage: "exclamationmark.circle.fill")
-                .font(.footnote)
-                .foregroundStyle(MeadowPalette.errorInk)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("authError")
-        }
-    }
-
-    private func field<Content: View>(
-        _ label: String, symbol: String, @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(label)
-                .font(.system(.caption, design: .rounded, weight: .bold))
-            HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .foregroundStyle(MeadowPalette.secondaryInk)
-                    .accessibilityHidden(true)
-                content()
-                    .font(.body)
-                    .tint(MeadowPalette.ink)
-            }
-            .padding(15)
-            .frame(minHeight: 52)
-            .background(MeadowPalette.field, in: RoundedRectangle(cornerRadius: 12))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(MeadowPalette.fieldBorder, lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
-        }
-    }
-
-    private func primaryButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Spacer(minLength: 0)
-                Text(title)
-                if model.isBusy {
-                    ProgressView().tint(MeadowPalette.accentInk)
-                } else {
-                    Image(systemName: symbol)
-                        .accessibilityHidden(true)
-                }
-                Spacer(minLength: 0)
-            }
-            .font(.system(.headline, design: .rounded, weight: .heavy))
-            .foregroundStyle(MeadowPalette.accentInk)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 18)
-            .background {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(MeadowPalette.accent)
-                    .shadow(color: MeadowPalette.accentShadow, radius: 0, y: 4)
-            }
-        }
-        .buttonStyle(MeadowPressStyle())
-        .accessibilityValue(model.isBusy ? "Loading" : "")
-        .accessibilityIdentifier("accountSubmit")
-        .disabled(model.isBusy)
-    }
-
-    private func authenticate() {
-        focusedField = nil
-        Task { await model.authenticate() }
     }
 
     private func openLogin() {
@@ -367,21 +171,16 @@ struct ContentView: View {
         withAnimation(accountAnimation, completionCriteria: .logicallyComplete) {
             showingLogin = true
         } completion: {
-            guard showingLogin, model.user == nil else { return }
+            guard showingLogin else { return }
             formVisible = true
         }
-    }
-
-    private func formEntrance(order: Int) -> FormEntrance {
-        FormEntrance(visible: formVisible, order: order, lastOrder: model.createAccount ? 5 : 4)
     }
 
     private func closeLogin() {
         guard showingLogin, !isClosingForm else { return }
         focusedField = nil
         isClosingForm = true
-        let duration = FormEntrance.exitDuration(
-            lastOrder: model.createAccount ? 5 : 4, reduceMotion: reduceMotion)
+        let duration = FormEntrance.exitDuration(lastOrder: 6, reduceMotion: reduceMotion)
         withAnimation(.easeIn(duration: duration), completionCriteria: .logicallyComplete) {
             formVisible = false
         } completion: {
@@ -389,8 +188,6 @@ struct ContentView: View {
             withAnimation(accountAnimation, completionCriteria: .logicallyComplete) {
                 showingLogin = false
             } completion: {
-                model.createAccount = false
-                model.errorMessage = nil
                 isClosingForm = false
             }
         }

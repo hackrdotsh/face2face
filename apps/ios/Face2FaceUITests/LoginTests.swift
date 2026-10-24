@@ -36,16 +36,15 @@ final class LoginTests: XCTestCase {
 
     func testRegistrationClosesAndReopensAsSignIn() {
         let app = launchApp()
-        reveal(app.buttons["accountModeToggle"], in: app)
-        app.buttons["accountModeToggle"].tap()
-        XCTAssertTrue(app.textFields["nameField"].exists)
+        selectMethod("Create account", in: app)
+        XCTAssertTrue(app.secureTextFields["passwordField"].exists)
         app.swipeDown()
         app.buttons["loginBack"].tap()
         XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.textFields["nameField"].exists)
+        XCTAssertFalse(app.secureTextFields["passwordField"].exists)
         app.buttons["loginStart"].tap()
         XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.textFields["nameField"].exists)
+        XCTAssertTrue(app.segmentedControls["signInMethod"].buttons["Email code"].isSelected)
     }
 
     func testLoginPillEdgesAreTappable() {
@@ -99,7 +98,9 @@ final class LoginTests: XCTestCase {
         app.buttons["loginStart"].tap()
         XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.textFields["emailField"].isHittable)
+        selectMethod("Password", in: app)
         XCTAssertTrue(app.secureTextFields["passwordField"].isHittable)
+        reveal(app.buttons["accountSubmit"], in: app)
         XCTAssertTrue(app.buttons["accountSubmit"].isHittable)
     }
 
@@ -110,14 +111,11 @@ final class LoginTests: XCTestCase {
 
         XCTAssertFalse(app.buttons["sceneryToggle"].exists)
 
-        reveal(app.buttons["accountModeToggle"], in: app)
-        app.buttons["accountModeToggle"].tap()
-        XCTAssertTrue(app.textFields["nameField"].exists)
-        reveal(app.textFields["nameField"], in: app)
+        selectMethod("Create account", in: app)
+        XCTAssertTrue(app.secureTextFields["passwordField"].exists)
+        reveal(app.textFields["emailField"], in: app)
         capture("Create account")
-        app.textFields["nameField"].tap()
-        app.textFields["nameField"].typeText("Meadow Tester")
-        nextKey(in: app).tap()
+        app.textFields["emailField"].tap()
         app.textFields["emailField"].typeText("meadow@example.test")
         nextKey(in: app).tap()
         app.secureTextFields["passwordField"].typeText("test-password-123")
@@ -125,9 +123,9 @@ final class LoginTests: XCTestCase {
         capture("Keyboard")
         app.toolbars.buttons["Done"].tap()
 
-        reveal(app.buttons["accountModeToggle"], in: app)
-        app.buttons["accountModeToggle"].tap()
-        XCTAssertFalse(app.textFields["nameField"].exists)
+        selectMethod("Password", in: app)
+        XCTAssertTrue(app.buttons["Forgot password?"].exists)
+        XCTAssertTrue(app.buttons["Sign in with a passkey"].exists)
         app.swipeDown()
         app.swipeDown()
         app.buttons["appSettings"].tap()
@@ -140,11 +138,10 @@ final class LoginTests: XCTestCase {
 
     func testLargeTextCanReachAccountControls() {
         let app = launchApp(largeText: true)
-        let toggle = app.buttons["accountModeToggle"]
-        reveal(toggle, in: app)
-        XCTAssertTrue(toggle.isHittable)
+        reveal(app.buttons["accountSubmit"], in: app)
+        XCTAssertTrue(app.buttons["accountSubmit"].isHittable)
         capture("Large text sign in")
-        toggle.tap()
+        selectMethod("Create account", in: app)
         reveal(app.buttons["accountSubmit"], in: app)
         XCTAssertTrue(app.buttons["accountSubmit"].isHittable)
         capture("Large text create account")
@@ -156,7 +153,7 @@ final class LoginTests: XCTestCase {
         app.buttons["accountSubmit"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["authError"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["accountSubmit"].isEnabled)
-        XCTAssertTrue(app.buttons["accountModeToggle"].isEnabled)
+        XCTAssertTrue(app.segmentedControls["signInMethod"].isEnabled)
         capture("Sign in error")
     }
 
@@ -164,6 +161,15 @@ final class LoginTests: XCTestCase {
         app.keyboards.buttons.matching(
             NSPredicate(format: "label ==[c] 'next' OR identifier == 'Next:'")
         ).firstMatch
+    }
+
+    private func selectMethod(_ title: String, in app: XCUIApplication) {
+        let method = app.segmentedControls["signInMethod"].buttons[title]
+        for _ in 0..<6 {
+            if method.isHittable { break }
+            app.swipeDown()
+        }
+        method.tap()
     }
 
     private func launchApp(

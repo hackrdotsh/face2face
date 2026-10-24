@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Chooses the screen for the current session phase. Screens own their models; this view owns shared services.
 struct RootView: View {
+    @AppStorage("appearance") private var appearance = AppAppearance.system
     @State private var session = SessionModel()
     @State private var passkeys = PasskeyAuthorizer()
 
@@ -10,9 +11,11 @@ struct RootView: View {
         NavigationStack {
             screen
                 .navigationTitle("face2face")
+                .toolbar(session.phase == .signedOut ? .hidden : .visible, for: .navigationBar)
                 .activityAlert(session.activity)
         }
         .task { await session.restore() }
+        .preferredColorScheme(appearance.colorScheme)
     }
 
     @ViewBuilder private var screen: some View {
@@ -20,7 +23,7 @@ struct RootView: View {
         case nil:
             ProgressView().accessibilityLabel("Loading")
         case .signedOut:
-            SignInView(session: session, passkeys: passkeys)
+            ContentView(session: session, passkeys: passkeys)
         case .needsOnboarding:
             OnboardingView(session: session)
         case .ready(let account):
