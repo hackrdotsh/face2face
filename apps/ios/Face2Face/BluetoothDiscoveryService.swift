@@ -10,10 +10,11 @@
         let message: String
     }
 
-    /// Foreground-only hardware experiment. All managers and callbacks use the main queue.
+    /// Explicitly started experiments. Only the timed anonymous Pocket mode opts into restoration.
     @MainActor
     @Observable
     final class BluetoothDiscoveryService: NSObject {
+        private static weak var activeOwner: BluetoothDiscoveryService?
         private static let serviceID = CBUUID(string: "C5D1A704-9D2E-4B29-A541-2C3138E64001")
         private static let tokenID = CBUUID(string: "C5D1A704-9D2E-4B29-A541-2C3138E64002")
         private static let exchangeTimeout: TimeInterval = 8
@@ -26,6 +27,10 @@
             static let isSimulator = false
         #endif
 
+        private(set) var isPocketMode = false
+        private(set) var isApplicationActive = true
+        private(set) var isRestorationPending = false
+        private(set) var restorationCallbacks = 0
         private(set) var isRequested = false
         private(set) var isScanning = false
         private(set) var isAdvertising = false
@@ -38,6 +43,13 @@
 
         @ObservationIgnored var onEncounter: ((DiscoveryEncounter) -> Void)?
         @ObservationIgnored var onStopped: (() -> Void)?
+        @ObservationIgnored var onRestored: (() -> Void)?
+        @ObservationIgnored private var pocketWindow: PocketTestWindow?
+        @ObservationIgnored private var pocketExpiry: Task<Void, Never>?
+        @ObservationIgnored private var centralStateReported = false
+        @ObservationIgnored private var advertiserStateReported = false
+        @ObservationIgnored private var restoredConnections: [CBPeripheral] = []
+        @ObservationIgnored private var resetRestoredPeripheral = false
         @ObservationIgnored private var generation = UUID()
         @ObservationIgnored private var central: CBCentralManager?
         @ObservationIgnored private var advertiser: CBPeripheralManager?
@@ -83,25 +95,53 @@
 
         deinit {
             heartbeat?.cancel()
+            pocketExpiry?.cancel()
         }
 
-        func start(token: DiscoveryToken = DiscoveryToken()) {
-            guard !isRequested, !Self.isSimulator else { return }
+        func start(token: DiscoveryToken = DiscoveryToken(), pocketWindow: PocketTestWindow? = nil) {
+            guard !isRequested, !isRestorationPending, !Self.isSimulator else { return }
+            if let pocketWindow, pocketWindow.remaining(uptime: ProcessInfo.processInfo.systemUptime) <= 0 {
+                return
+            }
+            if let owner = Self.activeOwner, owner !== self {
+                owner.stop(reason: "Another discovery test was started")
+            }
+            Self.activeOwner = self
+            self.pocketWindow = pocketWindow
+            isPocketMode = pocketWindow != nil
+            restorationCallbacks = 0
             generation = UUID()
-            session = DiscoverySession(token: token)
+            session = DiscoverySession(token: token, startedAt: pocketWindow?.startedAt ?? Date())
             events = []
             lastIssue = nil
             isRequested = true
             status = "Starting discovery"
             bluetoothStatus = "Checking Bluetooth"
             log("Started a fresh anonymous test session.")
-            // Instantiate only after explicit consent through Start; never on app launch.
-            central = CBCentralManager(
-                delegate: self, queue: .main,
-                options: [CBCentralManagerOptionShowPowerAlertKey: false])
-            advertiser = CBPeripheralManager(
-                delegate: self, queue: .main,
-                options: [CBPeripheralManagerOptionShowPowerAlertKey: false])
+            makeManagers(restorable: isPocketMode)
+            startHeartbeat()
+            schedulePocketExpiry()
+        }
+
+        private func makeManagers(restorable: Bool) {
+            centralStateReported = false
+            advertiserStateReported = false
+            var centralOptions: [String: Any] = [CBCentralManagerOptionShowPowerAlertKey: false]
+            var peripheralOptions: [String: Any] = [CBPeripheralManagerOptionShowPowerAlertKey: false]
+            if restorable {
+                centralOptions[CBCentralManagerOptionRestoreIdentifierKey] =
+                    "sh.hackr.face2face.pocket.central.v1"
+                peripheralOptions[CBPeripheralManagerOptionRestoreIdentifierKey] =
+                    "sh.hackr.face2face.pocket.peripheral.v1"
+            }
+            central = CBCentralManager(delegate: self, queue: .main, options: centralOptions)
+            advertiser = CBPeripheralManager(delegate: self, queue: .main, options: peripheralOptions)
+        }
+
+        private func startHeartbeat() {
+            heartbeat?.cancel()
+            heartbeat = nil
+            guard isApplicationActive else { return }
             heartbeat = Task { [weak self] in
                 while !Task.isCancelled {
                     do { try await Task.sleep(for: .seconds(0.5)) } catch { return }
@@ -109,6 +149,98 @@
                     self.tick()
                 }
             }
+        }
+
+        private var consentIsCurrent: Bool {
+            guard let pocketWindow else { return true }
+            return pocketWindow.remaining(uptime: ProcessInfo.processInfo.systemUptime) > 0
+        }
+
+        private func allowRadioOperations() -> Bool {
+            guard isRequested else { return false }
+            guard consentIsCurrent else {
+                stop(reason: "Five-minute Pocket test expired")
+                return false
+            }
+            return true
+        }
+
+        private func schedulePocketExpiry() {
+            pocketExpiry?.cancel()
+            guard let pocketWindow else { return }
+            let remaining = pocketWindow.remaining(uptime: ProcessInfo.processInfo.systemUptime)
+            pocketExpiry = Task { [weak self] in
+                do { try await Task.sleep(for: .seconds(remaining)) } catch { return }
+                guard let self, self.pocketWindow?.id == pocketWindow.id else { return }
+                self.stop(reason: "Five-minute Pocket test expired")
+            }
+        }
+
+        func setApplicationActive(_ active: Bool) {
+            isApplicationActive = active
+            guard isPocketMode, allowRadioOperations() else { return }
+            if active {
+                startHeartbeat()
+                tick()
+                log("App foregrounded; foreground retry timer enabled.")
+            } else {
+                heartbeat?.cancel()
+                heartbeat = nil
+                log("App backgrounded; radio work now depends on Bluetooth callbacks.")
+            }
+            guard isRequested, central?.state == .poweredOn else { return }
+            central?.stopScan()
+            isScanning = false
+            startRadiosIfReady()
+        }
+
+        /// Prepare managers at launch, but never start a scan merely because a checkpoint exists.
+        func prepareForRestoration(window: PocketTestWindow, applicationActive: Bool) {
+            guard !Self.isSimulator, !isRequested, central == nil else { return }
+            guard window.remaining(uptime: ProcessInfo.processInfo.systemUptime) > 0 else {
+                status = "Saved Pocket consent expired"
+                onStopped?()
+                return
+            }
+            pocketWindow = window
+            isPocketMode = true
+            isApplicationActive = applicationActive
+            isRestorationPending = true
+            restorationCallbacks = 0
+            generation = UUID()
+            // No token is persisted. An OS restoration receives a fresh anonymous test code.
+            session = DiscoverySession(startedAt: window.startedAt)
+            status = "Checking iOS radio restoration state"
+            log("Prepared restoration managers; no scan has been requested.")
+            schedulePocketExpiry()
+            makeManagers(restorable: true)
+        }
+
+        private func acceptRestoration(_ description: String) -> Bool {
+            guard isPocketMode, pocketWindow != nil, consentIsCurrent else {
+                stop(reason: "Restoration refused because consent expired")
+                return false
+            }
+            guard Self.activeOwner == nil || Self.activeOwner === self else {
+                stop(reason: "Another radio test already owns discovery")
+                return false
+            }
+            Self.activeOwner = self
+            isRequested = true
+            isRestorationPending = false
+            restorationCallbacks += 1
+            log("iOS delivered " + description + " restoration state.")
+            onRestored?()
+            startHeartbeat()
+            return true
+        }
+
+        private func finishRestorationWithoutState() {
+            guard isRestorationPending, centralStateReported, advertiserStateReported,
+                central?.state != .unknown, central?.state != .resetting,
+                advertiser?.state != .unknown, advertiser?.state != .resetting
+            else { return }
+            stop(reason: "iOS did not restore the saved test. Tap Start for a new test")
         }
 
         func rotateToken(to token: DiscoveryToken) {
@@ -123,6 +255,13 @@
             isRequested = false
             heartbeat?.cancel()
             heartbeat = nil
+            pocketExpiry?.cancel()
+            pocketExpiry = nil
+            isRestorationPending = false
+            pocketWindow = nil
+            restoredConnections.removeAll()
+            resetRestoredPeripheral = false
+            if Self.activeOwner === self { Self.activeOwner = nil }
             if let central, central.state == .poweredOn {
                 central.stopScan()
                 if let outbound { central.cancelPeripheralConnection(outbound.peripheral) }
@@ -158,7 +297,7 @@
         }
 
         private func updateAvailability() {
-            guard isRequested else { return }
+            guard allowRadioOperations() else { return }
             let states = [central?.state ?? .unknown, advertiser?.state ?? .unknown]
             if states.allSatisfy({ $0 == .poweredOn }) {
                 bluetoothStatus = "Ready"
@@ -200,8 +339,28 @@
         }
 
         private func startRadiosIfReady() {
-            guard isRequested, central?.state == .poweredOn, advertiser?.state == .poweredOn else { return }
+            guard allowRadioOperations(), central?.state == .poweredOn, advertiser?.state == .poweredOn else {
+                return
+            }
             guard let advertiser, let central else { return }
+            if !restoredConnections.isEmpty {
+                central.stopScan()
+                isScanning = false
+                for peer in restoredConnections {
+                    peer.delegate = nil
+                    central.cancelPeripheralConnection(peer)
+                }
+                restoredConnections.removeAll()
+            }
+            if resetRestoredPeripheral {
+                advertiser.stopAdvertising()
+                advertiser.removeAllServices()
+                publishedService = nil
+                serviceReady = false
+                advertisingPending = false
+                isAdvertising = false
+                resetRestoredPeripheral = false
+            }
             if publishedService == nil {
                 advertiser.removeAllServices()
                 let characteristic = CBMutableCharacteristic(
@@ -221,17 +380,25 @@
             if !isScanning {
                 central.scanForPeripherals(
                     withServices: [Self.serviceID],
-                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: isApplicationActive])
                 isScanning = central.isScanning
                 log("Scanning for the Face2Face test service.")
             }
             status = isAdvertising && isScanning ? "Discovering nearby test devices" : "Starting the radios"
         }
 
-        private func tick() {
-            guard isRequested else { return }
+        private func pruneInboundReads() {
             let now = Date()
-            inboundReads = inboundReads.filter { now.timeIntervalSince($0.value) < Self.exchangeTimeout }
+            inboundReads = inboundReads.filter {
+                let age = now.timeIntervalSince($0.value)
+                return age >= 0 && age < Self.exchangeTimeout
+            }
+        }
+
+        private func tick() {
+            guard allowRadioOperations() else { return }
+            let now = Date()
+            pruneInboundReads()
             candidates = candidates.filter {
                 now.timeIntervalSince($0.value.lastSeen) < 20 || $0.key == outbound?.peripheral.identifier
             }
@@ -248,7 +415,8 @@
         }
 
         private func connectNextPeer() {
-            guard isRequested, serviceReady, isScanning, outbound == nil, let token = session?.token,
+            guard allowRadioOperations(), serviceReady, isScanning, outbound == nil,
+                let token = session?.token,
                 let central, central.state == .poweredOn
             else { return }
             let now = Date()
@@ -273,9 +441,13 @@
         }
 
         private func currentExchange(_ peer: CBPeripheral) -> Exchange? {
-            guard isRequested, let outbound, outbound.peripheral === peer,
+            guard allowRadioOperations(), let outbound, outbound.peripheral === peer,
                 outbound.generation == generation
             else { return nil }
+            if outbound.phase != .disconnecting, Date() >= outbound.deadline {
+                failExchange("The peer's exchange deadline passed.")
+                return nil
+            }
             return outbound
         }
 
@@ -307,7 +479,7 @@
         }
 
         private func record(_ token: DiscoveryToken, direction: String) {
-            guard isRequested, var session else { return }
+            guard allowRadioOperations(), var session else { return }
             if let encounter = session.record(token) {
                 self.session = session
                 onEncounter?(encounter)
@@ -331,7 +503,11 @@
             }
             return
                 ([
-                    "Face2Face Stage 1 — foreground Bluetooth experiment",
+                    isPocketMode
+                        ? "Face2Face Stage 3 — anonymous Pocket experiment"
+                        : "Face2Face Stage 1 — foreground Bluetooth experiment",
+                    "Application active: \(isApplicationActive)",
+                    "Actual iOS restoration callbacks: \(restorationCallbacks)",
                     "OS: \(ProcessInfo.processInfo.operatingSystemVersionString)",
                     "Simulator: \(Self.isSimulator)",
                     "Status: \(status)",
@@ -346,8 +522,20 @@
     }
 
     extension BluetoothDiscoveryService: @preconcurrency CBCentralManagerDelegate {
+
+        func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
+            guard central === self.central, acceptRestoration("central manager") else { return }
+            restoredConnections = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] ?? []
+            // Pending old-token handshakes are canceled after the manager becomes powered on.
+        }
+
         func centralManagerDidUpdateState(_ central: CBCentralManager) {
             guard central === self.central else { return }
+            centralStateReported = true
+            if isRestorationPending {
+                finishRestorationWithoutState()
+                return
+            }
             updateAvailability()
             log("Bluetooth: \(bluetoothStatus).")
         }
@@ -356,7 +544,9 @@
             _ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
             advertisementData: [String: Any], rssi: NSNumber
         ) {
-            guard central === self.central, isRequested, serviceReady else { return }
+            guard central === self.central, allowRadioOperations(), serviceReady else { return }
+            tick()
+            guard isRequested else { return }
             // Device names, RSSI, addresses and account data are deliberately not recorded.
             if let candidate = candidates[peripheral.identifier] {
                 candidate.lastSeen = Date()
@@ -386,6 +576,7 @@
             peripheral.delegate = nil
             outbound = nil
             exchangeStatus = "Idle"
+            connectNextPeer()
         }
     }
 
@@ -470,14 +661,28 @@
     }
 
     extension BluetoothDiscoveryService: @preconcurrency CBPeripheralManagerDelegate {
+
+        func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String: Any]) {
+            guard peripheral === advertiser, acceptRestoration("peripheral manager") else { return }
+            resetRestoredPeripheral = true
+            // Rebuild the service with a new in-memory token; do not reuse restored token state.
+        }
+
         func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
             guard peripheral === advertiser else { return }
+            advertiserStateReported = true
+            if isRestorationPending {
+                finishRestorationWithoutState()
+                return
+            }
             updateAvailability()
             log("Bluetooth: \(bluetoothStatus).")
         }
 
         func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
-            guard peripheral === advertiser, isRequested, service === publishedService else { return }
+            guard peripheral === advertiser, allowRadioOperations(), service === publishedService else {
+                return
+            }
             guard error == nil else {
                 stop(reason: "Could not publish the Bluetooth service")
                 lastIssue = "Tap Start discovery to try publishing the service again."
@@ -489,7 +694,7 @@
         }
 
         func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
-            guard peripheral === advertiser, isRequested, serviceReady else { return }
+            guard peripheral === advertiser, allowRadioOperations(), serviceReady else { return }
             advertisingPending = false
             guard error == nil else {
                 stop(reason: "Could not advertise the Bluetooth service")
@@ -503,8 +708,10 @@
 
         func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
             guard peripheral === advertiser else { return }
-            guard isRequested, serviceReady, let token = session?.token else {
+            pruneInboundReads()
+            guard isRequested, consentIsCurrent, serviceReady, let token = session?.token else {
                 peripheral.respond(to: request, withResult: .insufficientAuthorization)
+                if !consentIsCurrent { stop(reason: "Five-minute Pocket test expired") }
                 return
             }
             guard request.characteristic.uuid == Self.tokenID else {
@@ -533,9 +740,11 @@
 
         func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
             guard peripheral === advertiser, let request = requests.first else { return }
+            pruneInboundReads()
             // One response for the whole batch, and no partial application of malformed writes.
-            guard isRequested, serviceReady, let token = session?.token else {
+            guard isRequested, consentIsCurrent, serviceReady, let token = session?.token else {
                 peripheral.respond(to: request, withResult: .insufficientAuthorization)
+                if !consentIsCurrent { stop(reason: "Five-minute Pocket test expired") }
                 return
             }
             guard requests.count == 1, request.characteristic.uuid == Self.tokenID else {
