@@ -20,7 +20,17 @@ public struct URLSessionTransport: HTTPTransport {
         guard let response = response as? HTTPURLResponse else { throw APIError.invalidResponse }
         return HTTPResponse(
             status: response.statusCode, data: data,
-            authToken: response.value(forHTTPHeaderField: "set-auth-token"))
+            authToken: response.value(forHTTPHeaderField: "set-auth-token"),
+            cookies: response.url.map { Self.cookies(fromHeaders: response.allHeaderFields, for: $0) } ?? [:])
+    }
+
+    static func cookies(fromHeaders allHeaderFields: [AnyHashable: Any], for url: URL) -> [String: String] {
+        var headers: [String: String] = [:]
+        for (name, value) in allHeaderFields {
+            if let name = name as? String, let value = value as? String { headers[name] = value }
+        }
+        let parsed = HTTPCookie.cookies(withResponseHeaderFields: headers, for: url)
+        return Dictionary(parsed.map { ($0.name, $0.value) }, uniquingKeysWith: { _, last in last })
     }
 }
 

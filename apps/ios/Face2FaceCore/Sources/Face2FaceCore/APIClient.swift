@@ -4,27 +4,6 @@ import Foundation
     import FoundationNetworking
 #endif
 
-public enum APIError: Error, LocalizedError, Equatable {
-    case invalidServerURL
-    case insecureServerURL
-    case unauthenticated
-    case invalidResponse
-    case server(Int)
-
-    public var errorDescription: String? {
-        switch self {
-        case .invalidServerURL: "Enter the API's base URL without a path, query, or credentials."
-        case .insecureServerURL: "Use an HTTPS API URL. HTTP is only allowed in debug builds."
-        case .unauthenticated: "Sign in to continue."
-        case .invalidResponse: "The API returned an unexpected response."
-        case .server(400): "Check the name, email, and password, then try again."
-        case .server(401): "Check your email and password, then try again."
-        case .server(429): "Too many attempts. Wait a minute and try again."
-        case .server(let status): "The API returned HTTP \(status). Try again."
-        }
-    }
-}
-
 public struct APIConfiguration: Sendable {
     public let baseURL: URL
 
@@ -45,20 +24,17 @@ public struct APIConfiguration: Sendable {
     }
 }
 
-public struct User: Codable, Sendable, Equatable {
-    public let id: String
-    public let name: String
-}
-
 public struct HTTPResponse: Sendable {
     public let status: Int
     public let data: Data
     public let authToken: String?
+    public let cookies: [String: String]
 
-    public init(status: Int, data: Data, authToken: String? = nil) {
+    public init(status: Int, data: Data, authToken: String? = nil, cookies: [String: String] = [:]) {
         self.status = status
         self.data = data
         self.authToken = authToken
+        self.cookies = cookies
     }
 }
 
@@ -69,6 +45,15 @@ public protocol HTTPTransport: Sendable {
 public protocol TokenStore: Sendable {
     func load() async throws -> String?
     func save(_ token: String?) async throws
+}
+
+struct APIRequest {
+    var path: String
+    var method = "GET"
+    var query: [URLQueryItem] = []
+    var body: Data?
+    var authenticated = false
+    var cookie: String?
 }
 
 public actor APIClient {
@@ -86,7 +71,7 @@ public actor APIClient {
     }
 
     public func checkHealth() async throws {
-        let response = try await send(path: "health")
+        let response = try await send(APIRequest(path: "health"))
         struct Health: Decodable {
             let status: String
             let service: String
@@ -95,72 +80,67 @@ public actor APIClient {
         guard health.status == "ok", health.service == "face2face-api" else { throw APIError.invalidResponse }
     }
 
-    public func signIn(email: String, password: String) async throws -> User {
-        struct Credentials: Encodable {
-            let email: String
-            let password: String
-        }
-        let body = try JSONEncoder().encode(Credentials(email: email, password: password))
-        return try await authenticate(path: "api/auth/sign-in/email", body: body)
+    public func currentAccount() async throws -> Account {
+        try decode(Account.self, from: try await send(APIRequest(path: "api/me", authenticated: true)))
     }
 
-    public func signUp(name: String, email: String, password: String) async throws -> User {
-        struct Registration: Encodable {
-            let name: String
-            let email: String
-            let password: String
-        }
-        let body = try JSONEncoder().encode(Registration(name: name, email: email, password: password))
-        return try await authenticate(path: "api/auth/sign-up/email", body: body)
-    }
-
-    public func currentUser() async throws -> User {
-        let response = try await send(path: "api/me", authenticated: true)
-        return try decode(UserEnvelope.self, from: response).user
-    }
-
-    public func signOut() async throws {
-        _ = try await send(
-            path: "api/auth/sign-out", method: "POST", body: Data("{}".utf8), authenticated: true)
-        try await tokens.save(nil)
-    }
-
-    private struct UserEnvelope: Decodable { let user: User }
-
-    private func authenticate(path: String, body: Data) async throws -> User {
-        let response = try await send(path: path, method: "POST", body: body)
-        let user = try decode(UserEnvelope.self, from: response).user
-        guard let token = response.authToken, !token.isEmpty else { throw APIError.invalidResponse }
-        try await tokens.save(token)
-        return user
-    }
-
-    private func send(path: String, method: String = "GET", body: Data? = nil, authenticated: Bool = false)
-        async throws -> HTTPResponse
-    {
-        var request = URLRequest(url: configuration.baseURL.appendingPathComponent(path))
-        request.httpMethod = method
-        request.httpBody = body
-        request.timeoutInterval = 10
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("face2face://", forHTTPHeaderField: "Origin")
-        if method == "POST" { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
-        if authenticated {
+    func send(_ request: APIRequest) async throws -> HTTPResponse {
+        var urlRequest = URLRequest(url: try url(for: request))
+        urlRequest.httpMethod = request.method
+        urlRequest.httpBody = request.body
+        urlRequest.timeoutInterval = 10
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        urlRequest.setValue("face2face://", forHTTPHeaderField: "Origin")
+        if request.body != nil { urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type") }
+        if let cookie = request.cookie { urlRequest.setValue(cookie, forHTTPHeaderField: "Cookie") }
+        if request.authenticated {
             guard let token = try await tokens.load() else { throw APIError.unauthenticated }
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        let response = try await transport.send(request)
-        if response.status == 401 && authenticated {
+        let response = try await transport.send(urlRequest)
+        if response.status == 401 && request.authenticated {
             try await tokens.save(nil)
             throw APIError.unauthenticated
         }
-        guard (200..<300).contains(response.status) else { throw APIError.server(response.status) }
+        guard (200..<300).contains(response.status) else {
+            throw APIError.from(status: response.status, body: response.data)
+        }
         return response
     }
 
-    private func decode<T: Decodable>(_ type: T.Type, from response: HTTPResponse) throws -> T {
+    func post(_ path: String, _ body: some Encodable, authenticated: Bool = false, cookie: String? = nil)
+        async throws -> HTTPResponse
+    {
+        try await send(
+            APIRequest(
+                path: path, method: "POST", body: try JSONEncoder().encode(body),
+                authenticated: authenticated,
+                cookie: cookie))
+    }
+
+    func saveSessionToken(from response: HTTPResponse) async throws {
+        guard let token = response.authToken, !token.isEmpty else { throw APIError.invalidResponse }
+        try await tokens.save(token)
+    }
+
+    func clearSessionToken() async throws {
+        try await tokens.save(nil)
+    }
+
+    func decode<T: Decodable>(_ type: T.Type, from response: HTTPResponse) throws -> T {
         do { return try JSONDecoder().decode(type, from: response.data) } catch {
             throw APIError.invalidResponse
         }
+    }
+
+    private func url(for request: APIRequest) throws -> URL {
+        let url = configuration.baseURL.appendingPathComponent(request.path)
+        guard !request.query.isEmpty else { return url }
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            throw APIError.invalidServerURL
+        }
+        components.queryItems = request.query
+        guard let withQuery = components.url else { throw APIError.invalidServerURL }
+        return withQuery
     }
 }
