@@ -3,6 +3,7 @@ import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { RawConsole } from "./RawConsole";
 import { RequestLogView } from "./RequestLogView";
 import { SessionInspector } from "./SessionInspector";
+import { SimulatorPanel } from "./SimulatorPanel";
 
 export function DevPanel() {
   return (
@@ -13,6 +14,7 @@ export function DevPanel() {
             <TabsTab value="requests">Requests</TabsTab>
             <TabsTab value="session">Session</TabsTab>
             <TabsTab value="console">Console</TabsTab>
+            <TabsTab value="simulator">Simulator</TabsTab>
           </TabsList>
           <TabsPanel value="requests">
             <RequestLogView />
@@ -22,6 +24,9 @@ export function DevPanel() {
           </TabsPanel>
           <TabsPanel value="console">
             <RawConsole />
+          </TabsPanel>
+          <TabsPanel value="simulator">
+            <SimulatorPanel />
           </TabsPanel>
         </Tabs>
       </CardPanel>

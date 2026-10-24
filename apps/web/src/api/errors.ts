@@ -6,6 +6,8 @@ export type APIErrorKind =
   | "onboardingRequired"
   | "invalidFields"
   | "rateLimited"
+  | "notFound"
+  | "conflict"
   | "network"
   | "server";
 
@@ -17,6 +19,9 @@ const messages: Record<APIErrorKind, string> = {
   onboardingRequired: "Finish setting up your profile to continue.",
   invalidFields: "Check the highlighted fields, then try again.",
   rateLimited: "Too many attempts. Wait a minute and try again.",
+  notFound: "That no longer exists. Refresh and try again.",
+  conflict:
+    "That changed since you last looked. Refresh to see where it stands.",
   network: "Could not reach the API. Check the server URL.",
   server: "The API returned an error. Try again.",
 };
@@ -60,6 +65,8 @@ export class APIError extends Error {
     if (status === 403 && code === "onboarding_required") {
       return new APIError("onboardingRequired", status);
     }
+    if (status === 404) return new APIError("notFound", status);
+    if (status === 409) return new APIError("conflict", status);
     if (status === 429) return new APIError("rateLimited", status);
     return new APIError("server", status);
   }

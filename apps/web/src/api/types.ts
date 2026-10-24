@@ -56,3 +56,97 @@ export interface CoordinatorStatus {
   ready: boolean;
   storage: string;
 }
+
+export type ConnectionStatus =
+  | "pending"
+  | "expired"
+  | "private"
+  | "public"
+  | "blocked";
+export type ConnectionDecision = "accepted" | "declined";
+
+export interface PublicProfile {
+  userId: string;
+  name: string;
+  age: number | null;
+  interests: string[];
+}
+
+/** A connection as one participant sees it. `them` stays null until both people go public. */
+export interface Connection {
+  id: string;
+  status: ConnectionStatus;
+  sharedInterests: string[];
+  you: {
+    decision: ConnectionDecision | null;
+    decidedAt: string | null;
+    publicAt: string | null;
+  };
+  them: PublicProfile | null;
+  createdAt: string;
+  expiresAt: string;
+  resolvedAt: string | null;
+}
+
+export type NotificationEvent =
+  | {
+      kind: "encounter";
+      connectionId: string;
+      sharedInterests: string[];
+      expiresAt: string;
+    }
+  | { kind: "connected"; connectionId: string }
+  | { kind: "public"; connectionId: string };
+
+export type AppNotification = NotificationEvent & {
+  id: string;
+  createdAt: string;
+};
+
+export interface SocketTicket {
+  ticket: string;
+  expiresAt: string;
+}
+
+export interface DevUser {
+  id: string;
+  name: string;
+  email: string;
+  seeded: boolean;
+  interests: string[];
+}
+
+/** A raw connection row, with the low and high sides the API hides from participants. */
+export interface DevConnection {
+  id: string;
+  userLowId: string;
+  userHighId: string;
+  status: ConnectionStatus;
+  sharedInterests: string[];
+  lowDecision: ConnectionDecision | null;
+  highDecision: ConnectionDecision | null;
+  lowPublicAt: string | null;
+  highPublicAt: string | null;
+  blockedBy: "low" | "high" | null;
+  createdAt: string;
+  expiresAt: string;
+  resolvedAt: string | null;
+}
+
+export interface SimulatedEncounter {
+  simulated: true;
+  outcome: "created" | "alreadyActive" | "ignored";
+  connection: DevConnection | null;
+}
+
+export interface InterestChoice {
+  id: string;
+  name: string;
+  memberCount: number;
+  selected: boolean;
+}
+
+export interface InterestChoices {
+  maxSelected: number;
+  interests: InterestChoice[];
+}
