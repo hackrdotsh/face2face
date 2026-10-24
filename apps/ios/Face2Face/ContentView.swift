@@ -17,11 +17,11 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let contentHeight = showingAccount ? geometry.size.height - 44 : geometry.size.height / 2
+            let contentHeight = showingAccount ? geometry.size.height - 44 : geometry.size.height * 2 / 3
             ZStack {
                 MeadowScene(
                     isMoving: focusedField == nil && !showingConnection,
-                    encounterBottomInset: geometry.safeAreaInsets.bottom + 64
+                    encounterBottomInset: geometry.safeAreaInsets.bottom + 104
                 )
                 .ignoresSafeArea()
 
