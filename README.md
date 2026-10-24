@@ -7,7 +7,8 @@ Proximity discovery is not implemented yet.
 
 The welcome screen is a scrolling pastel meadow. **Login** expands into the
 account form, then the controls pop in sequentially after the glass finishes
-expanding; the close button returns to the welcome screen. Reduce Motion uses
+expanding; closing reverses the sequence before the glass shrinks back to the
+Login pill. Reduce Motion uses
 a crossfade instead. The scenery pauses while entering text, in the background,
 and when Reduce Motion is enabled. API settings are under the sliders button.
 The camera follows one walker, with occasional oncoming walkers and a brief wave

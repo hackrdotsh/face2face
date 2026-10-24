@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var showingConnection = false
     @State private var showingLogin = false
     @State private var formVisible = false
+    @State private var isClosingForm = false
     @FocusState private var focusedField: AccountField?
 
     private enum AccountField: Hashable {
@@ -63,6 +64,7 @@ struct ContentView: View {
             if !signedIn {
                 showingLogin = false
                 formVisible = false
+                isClosingForm = false
             }
         }
         .sheet(isPresented: $showingConnection) {
@@ -122,7 +124,7 @@ struct ContentView: View {
         }
         .buttonStyle(MeadowPressStyle())
         .accessibilityIdentifier("loginStart")
-        .disabled(model.isBusy)
+        .disabled(model.isBusy || isClosingForm)
     }
 
     private var accountAnimation: Animation {
@@ -196,15 +198,7 @@ struct ContentView: View {
                         .font(.system(.title, design: .rounded, weight: .heavy))
                         .accessibilityAddTraits(.isHeader)
                     Spacer(minLength: 0)
-                    Button {
-                        focusedField = nil
-                        withAnimation(accountAnimation) {
-                            formVisible = false
-                            showingLogin = false
-                            model.createAccount = false
-                            model.errorMessage = nil
-                        }
-                    } label: {
+                    Button(action: closeLogin) {
                         Image(systemName: "xmark")
                             .font(.system(.subheadline, weight: .semibold))
                             .frame(width: 44, height: 44)
@@ -215,7 +209,7 @@ struct ContentView: View {
                     .accessibilityIdentifier("loginBack")
                     .disabled(model.isBusy)
                 }
-                .modifier(FormEntrance(visible: formVisible, order: 0))
+                .modifier(formEntrance(order: 0))
 
                 VStack(alignment: .leading, spacing: 16) {
                     if model.createAccount {
@@ -228,7 +222,7 @@ struct ContentView: View {
                                 .accessibilityLabel("Name")
                                 .accessibilityIdentifier("nameField")
                         }
-                        .modifier(FormEntrance(visible: formVisible, order: 1))
+                        .modifier(formEntrance(order: 1))
                     }
                     field("Email", symbol: "envelope") {
                         TextField("you@example.com", text: $model.email)
@@ -242,7 +236,7 @@ struct ContentView: View {
                             .accessibilityLabel("Email")
                             .accessibilityIdentifier("emailField")
                     }
-                    .modifier(FormEntrance(visible: formVisible, order: model.createAccount ? 2 : 1))
+                    .modifier(formEntrance(order: model.createAccount ? 2 : 1))
                     field("Password", symbol: "lock") {
                         SecureField("Your password", text: $model.password)
                             .textContentType(model.createAccount ? .newPassword : .password)
@@ -252,24 +246,24 @@ struct ContentView: View {
                             .accessibilityLabel("Password")
                             .accessibilityIdentifier("passwordField")
                     }
-                    .modifier(FormEntrance(visible: formVisible, order: model.createAccount ? 3 : 2))
+                    .modifier(formEntrance(order: model.createAccount ? 3 : 2))
                     if model.createAccount {
                         Text("Use at least 12 characters.")
                             .font(.footnote)
                             .foregroundStyle(MeadowPalette.secondaryInk)
-                            .modifier(FormEntrance(visible: formVisible, order: 3))
+                            .modifier(formEntrance(order: 3))
                     }
                 }
                 .disabled(model.isBusy)
 
                 errorMessage
-                    .modifier(FormEntrance(visible: formVisible, order: model.createAccount ? 4 : 3))
+                    .modifier(formEntrance(order: model.createAccount ? 4 : 3))
 
                 primaryButton(
                     model.createAccount ? "Create account" : "Sign in", symbol: "arrow.right",
                     action: authenticate
                 )
-                .modifier(FormEntrance(visible: formVisible, order: model.createAccount ? 4 : 3))
+                .modifier(formEntrance(order: model.createAccount ? 4 : 3))
 
                 Button {
                     focusedField = nil
@@ -286,7 +280,7 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .accessibilityIdentifier("accountModeToggle")
                 .disabled(model.isBusy)
-                .modifier(FormEntrance(visible: formVisible, order: model.createAccount ? 5 : 4))
+                .modifier(formEntrance(order: model.createAccount ? 5 : 4))
             }
         }
         .padding(24)
@@ -363,12 +357,37 @@ struct ContentView: View {
     }
 
     private func openLogin() {
+        guard !isClosingForm else { return }
         formVisible = false
         withAnimation(accountAnimation, completionCriteria: .logicallyComplete) {
             showingLogin = true
         } completion: {
             guard showingLogin, model.user == nil else { return }
             formVisible = true
+        }
+    }
+
+    private func formEntrance(order: Int) -> FormEntrance {
+        FormEntrance(visible: formVisible, order: order, lastOrder: model.createAccount ? 5 : 4)
+    }
+
+    private func closeLogin() {
+        guard showingLogin, !isClosingForm else { return }
+        focusedField = nil
+        isClosingForm = true
+        let duration = FormEntrance.exitDuration(
+            lastOrder: model.createAccount ? 5 : 4, reduceMotion: reduceMotion)
+        withAnimation(.easeIn(duration: duration), completionCriteria: .logicallyComplete) {
+            formVisible = false
+        } completion: {
+            guard isClosingForm else { return }
+            withAnimation(accountAnimation, completionCriteria: .logicallyComplete) {
+                showingLogin = false
+            } completion: {
+                model.createAccount = false
+                model.errorMessage = nil
+                isClosingForm = false
+            }
         }
     }
 }

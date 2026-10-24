@@ -2,6 +2,20 @@ import XCTest
 
 @MainActor
 final class LoginTests: XCTestCase {
+    func testRegistrationClosesAndReopensAsSignIn() {
+        let app = launchApp()
+        reveal(app.buttons["accountModeToggle"], in: app)
+        app.buttons["accountModeToggle"].tap()
+        XCTAssertTrue(app.textFields["nameField"].exists)
+        app.swipeDown()
+        app.buttons["loginBack"].tap()
+        XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["nameField"].exists)
+        app.buttons["loginStart"].tap()
+        XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["nameField"].exists)
+    }
+
     func testLoginPillEdgesAreTappable() {
         let app = launchApp(openLogin: false)
         let edges = [
