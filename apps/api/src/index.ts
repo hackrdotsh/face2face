@@ -3,12 +3,18 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
+import type { AppEnv } from "./app-env";
 import { createAuth } from "./auth";
+import { createDatabase } from "./db/client";
+import { requireOnboarded, requireSession } from "./middleware/session";
+import { onboardingFields } from "./onboarding/fields";
+import { getOnboardingState } from "./onboarding/onboarding";
 import { webOrigins } from "./origins";
+import { onboardingRoutes } from "./routes/onboarding";
 
 export { UserCoordinator } from "./user-coordinator";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AppEnv>();
 
 app.use("*", secureHeaders());
 app.use("/api/*", async (context, next) => {
@@ -21,7 +27,7 @@ app.use("*", (context, next) =>
     credentials: true,
     allowHeaders: ["Content-Type", "Authorization"],
     exposeHeaders: ["set-auth-token"],
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PATCH", "OPTIONS"],
   })(context, next),
 );
 app.use("/api/*", bodyLimit({ maxSize: 16 * 1024 }));
@@ -30,25 +36,33 @@ app.get("/health", (context) =>
   context.json({ status: "ok", service: "face2face-api" }),
 );
 app.on(["GET", "POST"], "/api/auth/*", (context) =>
-  createAuth(context.env).handler(context.req.raw),
+  createAuth(context.env, context.executionCtx).handler(context.req.raw),
 );
-app.get("/api/me", async (context) => {
-  const session = await createAuth(context.env).api.getSession({
-    headers: context.req.raw.headers,
-  });
-  if (!session) return context.json({ error: "unauthorized" }, 401);
+app.get("/api/me", requireSession, async (context) => {
+  const { id, name, email } = context.var.user;
+  const onboarding = await getOnboardingState(
+    createDatabase(context.env),
+    onboardingFields,
+    id,
+    new Date(),
+  );
   return context.json({
-    user: { id: session.user.id, name: session.user.name },
+    user: { id, name, email },
+    onboardingComplete: onboarding.complete,
   });
 });
-app.get("/api/coordinator", async (context) => {
-  const session = await createAuth(context.env).api.getSession({
-    headers: context.req.raw.headers,
-  });
-  if (!session) return context.json({ error: "unauthorized" }, 401);
-  const coordinator = context.env.USER_COORDINATORS.getByName(session.user.id);
-  return context.json(await coordinator.status());
-});
+app.route("/api/onboarding", onboardingRoutes);
+app.get(
+  "/api/coordinator",
+  requireSession,
+  requireOnboarded,
+  async (context) => {
+    const coordinator = context.env.USER_COORDINATORS.getByName(
+      context.var.user.id,
+    );
+    return context.json(await coordinator.status());
+  },
+);
 app.notFound((context) => context.json({ error: "not_found" }, 404));
 app.onError((error, context) => {
   if (error instanceof HTTPException) return error.getResponse();

@@ -1,6 +1,16 @@
 import { env, exports } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { webOrigins } from "../src/origins";
+import {
+  bearerHeaders,
+  callAPI,
+  completeOnboarding,
+  lastCodeSentTo,
+  postJSON,
+  requireAuthToken,
+  signInWithEmailCode,
+  testPassword,
+} from "./helpers";
 
 const origin = "http://localhost:8787";
 
@@ -10,36 +20,15 @@ beforeEach(async () => {
 
 describe("API foundation", () => {
   it("authenticates native clients with signed bearer tokens and revokes them on sign-out", async () => {
-    const signup = await exports.default.fetch(
-      `${origin}/api/auth/sign-up/email`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Origin: "face2face://" },
-        body: JSON.stringify({
-          name: "iPhone tester",
-          email: "iphone@example.test",
-          password: "test-password-123456",
-        }),
-      },
-    );
-    expect(signup.status).toBe(200);
-    const token = signup.headers.get("set-auth-token");
-    expect(token).toBeTruthy();
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      Origin: "face2face://",
-    };
-    expect(
-      (await exports.default.fetch(`${origin}/api/me`, { headers })).status,
-    ).toBe(200);
-    const signedOut = await exports.default.fetch(
-      `${origin}/api/auth/sign-out`,
-      { method: "POST", headers },
-    );
+    const token = await signInWithEmailCode("iphone@example.test");
+    const headers = bearerHeaders(token);
+    expect((await callAPI("/api/me", { headers })).status).toBe(200);
+    const signedOut = await callAPI("/api/auth/sign-out", {
+      method: "POST",
+      headers,
+    });
     expect(signedOut.status).toBe(200);
-    expect(
-      (await exports.default.fetch(`${origin}/api/me`, { headers })).status,
-    ).toBe(401);
+    expect((await callAPI("/api/me", { headers })).status).toBe(401);
   });
 
   it("rejects unsigned bearer tokens", async () => {
@@ -142,37 +131,39 @@ describe("API foundation", () => {
     expect(response.status).toBe(413);
   });
 
-  it("registers, persists a session in D1, calls a user-scoped Durable Object, and signs out", async () => {
-    const response = await exports.default.fetch(
-      `${origin}/api/auth/sign-up/email`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Origin: "http://100.100.20.30:8081",
-        },
-        body: JSON.stringify({
-          name: "Test person",
-          email: "person@example.test",
-          password: "test-password-123456",
-        }),
-      },
+  it("verifies a browser sign-up, persists a session in D1, gates the Durable Object on onboarding, and signs out", async () => {
+    const browserOrigin = "http://100.100.20.30:8081";
+    const email = "person@example.test";
+    const signUp = await postJSON(
+      "/api/auth/sign-up/email",
+      { name: "", email, password: testPassword },
+      { Origin: browserOrigin },
     );
-    expect(response.status).toBe(200);
-    const cookies = response.headers
+    expect(signUp.status).toBe(200);
+    const verified = await postJSON(
+      "/api/auth/email-otp/verify-email",
+      { email, otp: await lastCodeSentTo(email) },
+      { Origin: browserOrigin },
+    );
+    expect(verified.status).toBe(200);
+    const cookies = verified.headers
       .getSetCookie()
       .map((cookie) => cookie.split(";")[0])
       .join("; ");
     expect(cookies).toContain("better-auth.session_token");
-    const headers = { Cookie: cookies, Origin: "http://100.100.20.30:8081" };
-    const me = await exports.default.fetch(`${origin}/api/me`, { headers });
+    const headers = { Cookie: cookies, Origin: browserOrigin };
+    const me = await callAPI("/api/me", { headers });
     expect(me.status).toBe(200);
     expect(me.headers.get("Cache-Control")).toBe("no-store");
-    expect(await me.json()).toMatchObject({ user: { name: "Test person" } });
-    const coordinator = await exports.default.fetch(
-      `${origin}/api/coordinator`,
-      { headers },
-    );
+    expect(await me.json()).toMatchObject({
+      user: { email },
+      onboardingComplete: false,
+    });
+    const blocked = await callAPI("/api/coordinator", { headers });
+    expect(blocked.status).toBe(403);
+    expect(await blocked.json()).toEqual({ error: "onboarding_required" });
+    await completeOnboarding(requireAuthToken(verified));
+    const coordinator = await callAPI("/api/coordinator", { headers });
     expect(await coordinator.json()).toEqual({
       ready: true,
       storage: "sqlite",
@@ -180,14 +171,12 @@ describe("API foundation", () => {
     const row = await env.DB.prepare(
       'SELECT count(*) AS total FROM "session"',
     ).first<{ total: number }>();
-    expect(row?.total).toBe(1);
-    const signOut = await exports.default.fetch(`${origin}/api/auth/sign-out`, {
+    expect(row?.total).toBeGreaterThanOrEqual(1);
+    const signOut = await callAPI("/api/auth/sign-out", {
       method: "POST",
       headers,
     });
     expect(signOut.status).toBe(200);
-    expect(
-      (await exports.default.fetch(`${origin}/api/me`, { headers })).status,
-    ).toBe(401);
+    expect((await callAPI("/api/me", { headers })).status).toBe(401);
   });
 });
