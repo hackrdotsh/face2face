@@ -1,8 +1,9 @@
 # face2face
 
 An iPhone app for meeting people with shared interests as you pass them in real life.
-The current build has API connection checks, account creation, sign-in, session
-restoration, and sign-out. Proximity discovery is not implemented yet.
+The current build has sign-in with an emailed code, a verified password, or a
+passkey, password reset, and profile onboarding. The screens are placeholders.
+Proximity discovery is not implemented yet.
 
 ## Open on your Mac
 
@@ -42,7 +43,8 @@ From the repository root, after the setup commands above:
 nix run .#dev
 ```
 
-The Hono Worker listens on port 8787. In the iOS simulator, use
+In development, sign-in and verification codes appear in the API log, not in an
+inbox. The Hono Worker listens on port 8787. In the iOS simulator, use
 `http://localhost:8787` in the app's **API URL** field. For a physical iPhone,
 use the Mac's reachable LAN address or run the API over Tailscale:
 
@@ -98,11 +100,13 @@ No cloud resources are created by development, tests, or builds. To deploy:
 3. Set the returned `database_id` in `apps/api/wrangler.jsonc`.
 4. Set `BETTER_AUTH_URL` to the HTTPS API URL and configure `WEB_ORIGINS` if needed.
 5. Set the secret with `pnpm --filter @face2face/api exec wrangler secret put BETTER_AUTH_SECRET`.
+   Set `RESEND_API_KEY` the same way. Set `EMAIL_TRANSPORT` to `resend` and
+   `EMAIL_FROM` to an address on a domain that Resend verified.
+   Configure passkeys as described in [architecture](docs/architecture.md#passkeys).
 6. Run `pnpm --filter @face2face/api exec wrangler d1 migrations apply DB --remote`.
 7. Run `pnpm --filter @face2face/api exec wrangler deploy`.
 
-Before inviting users, add email verification and account recovery, decide the
-registration policy, and review abuse controls. Do not treat the hackathon
+Before inviting users, decide the registration policy and review abuse controls. Do not treat the hackathon
 development configuration as a production-ready public service.
 
 The Swift migration preserves the D1 schema and backend data. The previous
