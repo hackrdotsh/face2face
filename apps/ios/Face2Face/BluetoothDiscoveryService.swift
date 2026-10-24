@@ -36,6 +36,9 @@
         private(set) var session: DiscoverySession?
         private(set) var events: [DiscoveryLogEntry] = []
 
+        @ObservationIgnored var onEncounter: ((DiscoveryEncounter) -> Void)?
+        @ObservationIgnored var onStopped: (() -> Void)?
+        @ObservationIgnored private var generation = UUID()
         @ObservationIgnored private var central: CBCentralManager?
         @ObservationIgnored private var advertiser: CBPeripheralManager?
         @ObservationIgnored private var publishedService: CBMutableService?
@@ -66,13 +69,15 @@
 
             let peripheral: CBPeripheral
             let localToken: DiscoveryToken
+            let generation: UUID
             var peerToken: DiscoveryToken?
             var phase = Phase.connecting
             var deadline = Date().addingTimeInterval(BluetoothDiscoveryService.exchangeTimeout)
 
-            init(peripheral: CBPeripheral, localToken: DiscoveryToken) {
+            init(peripheral: CBPeripheral, localToken: DiscoveryToken, generation: UUID) {
                 self.peripheral = peripheral
                 self.localToken = localToken
+                self.generation = generation
             }
         }
 
@@ -80,9 +85,10 @@
             heartbeat?.cancel()
         }
 
-        func start() {
+        func start(token: DiscoveryToken = DiscoveryToken()) {
             guard !isRequested, !Self.isSimulator else { return }
-            session = DiscoverySession()
+            generation = UUID()
+            session = DiscoverySession(token: token)
             events = []
             lastIssue = nil
             isRequested = true
@@ -103,6 +109,13 @@
                     self.tick()
                 }
             }
+        }
+
+        func rotateToken(to token: DiscoveryToken) {
+            guard isRequested, var current = session else { return }
+            current.rotate(to: token)
+            session = current
+            log("Rotated the anonymous discovery token.")
         }
 
         func stop(reason: String = "Stopped") {
@@ -136,6 +149,7 @@
             bluetoothStatus = "Not in use"
             status = reason
             log(reason + ". Radios stopped; results retained until the next Start.")
+            onStopped?()
         }
 
         private func log(_ message: String) {
@@ -247,7 +261,7 @@
             guard let candidate else { return }
             candidate.attempts += 1
             let peer = candidate.peripheral
-            outbound = Exchange(peripheral: peer, localToken: token)
+            outbound = Exchange(peripheral: peer, localToken: token, generation: generation)
             peer.delegate = self
             exchangeStatus = "Connecting (attempt \(candidate.attempts) of \(Self.retryLimit))"
             log(exchangeStatus)
@@ -260,7 +274,7 @@
 
         private func currentExchange(_ peer: CBPeripheral) -> Exchange? {
             guard isRequested, let outbound, outbound.peripheral === peer,
-                outbound.localToken == session?.token
+                outbound.generation == generation
             else { return nil }
             return outbound
         }
@@ -296,6 +310,7 @@
             guard isRequested, var session else { return }
             if let encounter = session.record(token) {
                 self.session = session
+                onEncounter?(encounter)
                 log(
                     "\(direction) exchange: \(token.shortCode), \(String(format: "%.1f", encounter.elapsed)) seconds since Start."
                 )

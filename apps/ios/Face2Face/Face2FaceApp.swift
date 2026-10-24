@@ -10,6 +10,10 @@ struct Face2FaceApp: App {
                         DiscoveryDiagnosticView()
                     }
                     .tabItem { Label("Device test", systemImage: "antenna.radiowaves.left.and.right") }
+                    NavigationStack {
+                        ConnectedDiscoveryView()
+                    }
+                    .tabItem { Label("Connected test", systemImage: "person.2.wave.2") }
                     ContentView()
                         .tabItem { Label("Account", systemImage: "person.crop.circle") }
                 }
