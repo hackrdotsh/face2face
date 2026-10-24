@@ -2,6 +2,18 @@ import XCTest
 
 @MainActor
 final class LoginTests: XCTestCase {
+    func testGreetingAnimationKeepsWelcomeInteractive() {
+        let app = launchApp(openLogin: false)
+        capture("Approaching walker")
+        let crossing = expectation(description: "First decorative crossing")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) { crossing.fulfill() }
+        wait(for: [crossing], timeout: 6)
+        capture("Walking greeting")
+        XCTAssertTrue(app.buttons["loginStart"].isHittable)
+        app.buttons["loginStart"].tap()
+        XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
+    }
+
     func testLoginExpandsIntoFormAndReturnsToWelcome() {
         let app = launchApp(openLogin: false)
         XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))

@@ -9,6 +9,8 @@ The welcome screen is a scrolling pastel meadow. **Login** expands into the
 account form; the close button returns to the welcome screen. Reduce Motion uses
 a crossfade instead. The scenery pauses while entering text, in the background,
 and when Reduce Motion is enabled. API settings are under the sliders button.
+The camera follows one walker, with occasional oncoming walkers and a brief wave
+as they pass. These are decorative animations: no encounters are detected or recorded.
 
 ## Open on your Mac
 
