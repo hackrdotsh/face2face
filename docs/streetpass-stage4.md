@@ -14,14 +14,15 @@ No friend request or location disclosure is added.
 1. Apply the local API migrations and make the API reachable from both iPhones using the
    Stage 2 setup. Install the same Debug revision on both physical phones.
 2. Sign in to different accounts on **Account**, with the same API selected on both.
-3. Open **Walk test**, refresh, and tap **Start five-minute Walk test** while unlocked.
+3. Open **Walk test**, refresh, and tap **Start five-minute walk** while unlocked.
    Grant Bluetooth access. Keep other radio tests stopped.
 4. First test with both screens open. Bring the phones together, inspect radio state and
    submitted reports, and confirm both account names appear after reciprocal server reports.
 5. Stop both and start fresh runs. Repeat with one app backgrounded, both apps backgrounded,
    one phone locked, then both phones locked. Keep the walk within the displayed safe deadline.
 6. Reopen both apps. Compare queued/submitted/discarded counts, background pass counts,
-   event timestamps, and server encounters. Use **Share Walk test report** on both.
+   event timestamps, and server encounters under **Diagnostics and encounter history**.
+   Use **Share Walk test report** on both.
    The report contains counters and truncated diagnostic codes, not names or credentials.
 7. Repeat the failure cases below with fresh sessions. Record device models, iOS versions,
    revision, network reachability, delays, and outcomes. A build or simulator screenshot
@@ -117,3 +118,6 @@ All native Walk UI, controller, and background execution code are Debug-only. Re
 still omits Bluetooth permission and background modes. The portable permit and policy
 types are covered by Swift core tests, alongside credential snapshot/account-switch tests.
 Use this slice to measure a short hackathon walk before designing longer-lived discovery.
+
+[Stage 5](streetpass-stage5.md) adds the live Walk screen, fresh-encounter feedback,
+and the remaining Stage 6 two-phone acceptance worksheet. The limits above are unchanged.

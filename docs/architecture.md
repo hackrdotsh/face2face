@@ -50,6 +50,10 @@ bounded, event-driven background uploads. It never renews locators or polls hist
 background, never extends the original consent window, and does not restore signed walks
 after process death. Names are hidden until foreground account checks and history fetches
 succeed. Locked-screen operation remains a hardware question.
+The [Stage 5 live Walk flow](streetpass-stage5.md) tracks a pre-start history baseline
+and the new lease's server timestamp so historical records cannot trigger a fresh reveal.
+The server retains the reciprocal-report rule; presentation never infers a match from radio
+activity or an accepted one-sided observation alone.
 
 Release builds omit the diagnostic screens, native Bluetooth transport, permission, and
 background modes. Geolocation, interest matching, friend requests, and notifications are not

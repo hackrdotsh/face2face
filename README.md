@@ -10,8 +10,10 @@ report an exchange; it creates no friendships. Physical-device discovery remains
 unvalidated. A separate [five-minute Pocket experiment](docs/streetpass-stage3.md)
 adds anonymous background/restoration diagnostics. The separate
 [five-minute Walk experiment](docs/streetpass-stage4.md) adds authenticated background
-upload attempts with credentials held in memory. Passive discovery and locked-screen
-reliability are not validated or released.
+upload attempts with credentials held in memory. Its [live Walk flow](docs/streetpass-stage5.md)
+reveals new reciprocal encounters and keeps technical details in diagnostics. Passive discovery
+and locked-screen reliability are not validated or released. The remaining StreetPass
+hackathon gate is two-phone validation and fixes from those trials.
 
 ## Open on your Mac
 
