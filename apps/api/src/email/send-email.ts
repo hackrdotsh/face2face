@@ -11,8 +11,12 @@ const resendEndpoint = "https://api.resend.com/emails";
 export function createEmailSender(env: Env): SendEmail {
   if (env.EMAIL_TRANSPORT === "console") return logEmail;
   const apiKey = env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY is required to send email");
+  if (!apiKey) return rejectMissingAPIKey;
   return (message) => sendWithResend(apiKey, env.EMAIL_FROM, message);
+}
+
+async function rejectMissingAPIKey() {
+  throw new Error("RESEND_API_KEY is required to send email");
 }
 
 async function logEmail(message: EmailMessage) {

@@ -180,3 +180,12 @@ describe("API foundation", () => {
     expect((await callAPI("/api/me", { headers })).status).toBe(401);
   });
 });
+
+describe("email delivery", () => {
+  it("serves auth requests before a Resend API key is configured", async () => {
+    const { createAuth } = await import("../src/auth");
+    const auth = createAuth({ ...env, EMAIL_TRANSPORT: "resend" });
+    const session = await auth.api.getSession({ headers: new Headers() });
+    expect(session).toBeNull();
+  });
+});

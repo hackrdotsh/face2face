@@ -30,5 +30,32 @@
   },
   "exports": {
     "UserCoordinator": { "type": "durable-object", "storage": "sqlite" }
+  },
+  "env": {
+    "production": {
+      "routes": [{ "pattern": "f2f.rocky.systems", "custom_domain": true }],
+      "vars": {
+        "DEV_WEB_ORIGIN": "",
+        "BETTER_AUTH_URL": "https://f2f.rocky.systems",
+        "WEB_ORIGINS": [],
+        "EMAIL_TRANSPORT": "resend",
+        "EMAIL_FROM": "face2face <no-reply@rocky.systems>",
+        "PASSKEY_RP_ID": "f2f.rocky.systems",
+        "PASSKEY_ORIGINS": ["https://f2f.rocky.systems"]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "face2face",
+          "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "USER_COORDINATORS", "class_name": "UserCoordinator" }
+        ]
+      }
+    }
   }
 }
