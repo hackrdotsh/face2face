@@ -67,7 +67,7 @@
               src = source;
               inherit pnpm;
               fetcherVersion = 4;
-              hash = "sha256-7ySXwXWeQ+vqJbZAVHkPWbCgAh9/xoegRAstj6lpqoQ=";
+              hash = "sha256-qQ1uqQWwE53tWw3qNuVQ419m6G+n40W5goVrsOS7MZw=";
             };
             SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
             CI = "1";
@@ -181,6 +181,7 @@
           apps = {
             dev = task "dev" "exec pnpm dev";
             api = task "api" "exec pnpm dev:api";
+            web = task "web" "exec pnpm dev:web";
             ios = task "ios" "exec pnpm ios";
             ios-project = task "ios-project" "exec pnpm ios:project";
             ios-build = task "ios-build" "exec pnpm ios:build";
