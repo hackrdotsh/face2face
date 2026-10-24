@@ -13,7 +13,7 @@
     "EMAIL_TRANSPORT": "console",
     "EMAIL_FROM": "face2face <onboarding@resend.dev>",
     "PASSKEY_RP_ID": "localhost",
-    "PASSKEY_ORIGINS": ["http://localhost:8787"]
+    "PASSKEY_ORIGINS": ["http://localhost:8787", "http://localhost:8081"]
   },
   "secrets": { "required": ["BETTER_AUTH_SECRET"] },
   "d1_databases": [
