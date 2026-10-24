@@ -1,7 +1,7 @@
 import { exports } from "cloudflare:workers";
 import { afterEach, vi } from "vitest";
 
-export const origin = "http://localhost:8787";
+export const origin = "http://localhost:8080";
 export const nativeOrigin = "face2face://";
 export const testPassword = "test-password-123456";
 

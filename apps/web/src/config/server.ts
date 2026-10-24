@@ -3,7 +3,7 @@ import { readStored, writeStored } from "@/lib/storage";
 const storageKey = "face2face.serverURL";
 
 export const defaultServerURL: string =
-  import.meta.env.VITE_API_URL ?? "http://localhost:8787";
+  import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
 export function loadServerURL(): string {
   return readStored(storageKey) ?? defaultServerURL;

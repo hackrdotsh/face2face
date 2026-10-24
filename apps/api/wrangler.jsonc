@@ -5,15 +5,16 @@
   "compatibility_date": "2026-10-23",
   "compatibility_flags": ["nodejs_compat"],
   "upload_source_maps": true,
+  "dev": { "port": 8080 },
   "observability": { "enabled": true, "head_sampling_rate": 1 },
   "vars": {
     "DEV_WEB_ORIGIN": "",
-    "BETTER_AUTH_URL": "http://localhost:8787",
-    "WEB_ORIGINS": ["http://localhost:8081", "http://127.0.0.1:8081"],
+    "BETTER_AUTH_URL": "http://localhost:8080",
+    "WEB_ORIGINS": ["http://localhost:3000", "http://127.0.0.1:3000"],
     "EMAIL_TRANSPORT": "console",
     "EMAIL_FROM": "face2face <onboarding@resend.dev>",
     "PASSKEY_RP_ID": "localhost",
-    "PASSKEY_ORIGINS": ["http://localhost:8787", "http://localhost:8081"]
+    "PASSKEY_ORIGINS": ["http://localhost:8080", "http://localhost:3000"]
   },
   "secrets": { "required": ["BETTER_AUTH_SECRET"] },
   "d1_databases": [

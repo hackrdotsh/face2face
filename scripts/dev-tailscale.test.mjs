@@ -5,7 +5,7 @@ import { tailscaleURLs } from "./dev-tailscale.mjs";
 test("uses the Tailscale address for the iPhone API", () => {
   assert.deepEqual(tailscaleURLs("100.100.20.30\n"), {
     address: "100.100.20.30",
-    api: "http://100.100.20.30:8787",
+    api: "http://100.100.20.30:8080",
   });
 });
 

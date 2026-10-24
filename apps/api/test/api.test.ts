@@ -12,7 +12,7 @@ import {
   testPassword,
 } from "./helpers";
 
-const origin = "http://localhost:8787";
+const origin = "http://localhost:8080";
 
 beforeEach(async () => {
   await env.DB.prepare("DELETE FROM rate_limit").run();
@@ -66,7 +66,7 @@ describe("API foundation", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Origin: "http://localhost:8081",
+          Origin: "http://localhost:3000",
         },
         body: JSON.stringify({
           name: "Blocked",
@@ -106,9 +106,9 @@ describe("API foundation", () => {
 
   it("allows the Metro and built-preview origins to check the API", async () => {
     for (const webOrigin of [
-      "http://localhost:8081",
-      "http://127.0.0.1:8081",
-      "http://100.100.20.30:8081",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://100.100.20.30:3000",
     ]) {
       const response = await exports.default.fetch(`${origin}/health`, {
         headers: { Origin: webOrigin },
@@ -132,7 +132,7 @@ describe("API foundation", () => {
   });
 
   it("verifies a browser sign-up, persists a session in D1, gates the Durable Object on onboarding, and signs out", async () => {
-    const browserOrigin = "http://100.100.20.30:8081";
+    const browserOrigin = "http://100.100.20.30:3000";
     const email = "person@example.test";
     const signUp = await postJSON(
       "/api/auth/sign-up/email",

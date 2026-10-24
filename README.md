@@ -44,8 +44,8 @@ nix run .#dev
 ```
 
 In development, sign-in and verification codes appear in the API log, not in an
-inbox. The Hono Worker listens on port 8787. In the iOS simulator, use
-`http://localhost:8787` in the app's **API URL** field. For a physical iPhone,
+inbox. The Hono Worker listens on port 8080. In the iOS simulator, use
+`http://localhost:8080` in the app's **API URL** field. For a physical iPhone,
 use the Mac's reachable LAN address or run the API over Tailscale:
 
 ```sh
@@ -53,7 +53,7 @@ nix run .#dev-tailscale
 ```
 
 The command prints the API URL. Enter it in the app and connect both devices to
-the same tailnet. TCP 8787 must be allowed by your tailnet policy and host firewall.
+the same tailnet. TCP 8080 must be allowed by your tailnet policy and host firewall.
 The command binds the API to the Tailscale address. It creates no public tunnel
 or firewall rules. `nix run .#tailscale` and `pnpm dev:tailscale` are equivalent.
 
@@ -72,13 +72,13 @@ nix run .#dev
 nix run .#web
 ```
 
-Open `http://localhost:8081`. The web app signs in the same way as the iPhone app:
+Open `http://localhost:3000`. The web app signs in the same way as the iPhone app:
 it stores a bearer token per API server and sends it in the `Authorization` header.
 It covers every sign-in method, password reset, onboarding, and passkeys. Chrome,
 Safari, and Firefox can create passkeys on `localhost`. The right column shows each
 request and response, the current session, and a console for sending any request.
 
-The default server is `http://localhost:8787`. Set `VITE_API_URL` to change it,
+The default server is `http://localhost:8080`. Set `VITE_API_URL` to change it,
 or enter another URL in the header. The API only accepts browser requests from the
 origins in `WEB_ORIGINS` and passkeys from `PASSKEY_ORIGINS`. Production allows
 no browser origins yet.

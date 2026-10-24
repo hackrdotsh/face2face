@@ -92,7 +92,7 @@ passkeys work on a device:
 The web test client lets the browser keep the challenge cookie. It sends cookies
 only on passkey requests and uses the bearer token for everything else. The cookie
 is `SameSite=Lax`, so this works only when the web app and the API share a site,
-such as `localhost:8081` and `localhost:8787`.
+such as `localhost:3000` and `localhost:8080`.
 
 ### Web test client
 

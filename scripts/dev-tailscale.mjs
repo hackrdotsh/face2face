@@ -10,7 +10,7 @@ export function tailscaleURLs(output) {
   }
   return {
     address,
-    api: `http://${address}:8787`,
+    api: `http://${address}:8080`,
   };
 }
 
@@ -45,7 +45,7 @@ async function main() {
     );
   }
   const urls = tailscaleURLs(result.stdout);
-  await checkPort(urls.address, 8787);
+  await checkPort(urls.address, 8080);
 
   const cwd = fileURLToPath(new URL("../", import.meta.url));
   process.stdout.write(

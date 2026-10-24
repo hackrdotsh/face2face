@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 // The API trusts this origin for CORS and passkeys in development.
-const port = 8081;
+const port = 3000;
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

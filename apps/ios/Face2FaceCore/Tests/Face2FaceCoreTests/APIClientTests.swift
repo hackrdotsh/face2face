@@ -41,9 +41,9 @@ func configuration() throws -> APIConfiguration {
     #expect(
         try APIConfiguration(address: " https://api.example.test/ ").baseURL.absoluteString
             == "https://api.example.test")
-    #expect(throws: APIError.insecureServerURL) { try APIConfiguration(address: "http://100.100.20.30:8787") }
+    #expect(throws: APIError.insecureServerURL) { try APIConfiguration(address: "http://100.100.20.30:8080") }
     #expect(
-        try APIConfiguration(address: "http://100.100.20.30:8787", allowInsecureHTTP: true).baseURL.host
+        try APIConfiguration(address: "http://100.100.20.30:8080", allowInsecureHTTP: true).baseURL.host
             == "100.100.20.30")
 }
 
