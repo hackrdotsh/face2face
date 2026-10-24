@@ -168,7 +168,9 @@ private let leaseJSON =
         configuration: try APIConfiguration(address: "https://api.example.test"),
         tokens: tokens, transport: transport)
     let run = try await base.capturingCurrentCredential()
+    #expect(try await run.usesSameCredential(as: base))
     await tokens.save("new-account-token")
+    #expect(try await run.usesSameCredential(as: base) == false)
     _ = try await run.startDiscovery()
     await #expect(throws: APIError.unauthenticated) { try await run.encounters() }
     let requests = await transport.requests

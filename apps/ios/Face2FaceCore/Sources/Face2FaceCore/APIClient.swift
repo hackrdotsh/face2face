@@ -140,6 +140,18 @@ public actor APIClient {
         func save(_ token: String?) { credential = token }
     }
 
+    /// Compare account context without exposing either credential. Only call with Keychain unlocked.
+    public func usesSameCredential(as other: APIClient) async throws -> Bool {
+        guard configuration.baseURL == other.configuration.baseURL else { return false }
+        guard let current = try await tokens.load() else { return false }
+        let candidate = try await other.credentialForComparison()
+        return candidate == current
+    }
+
+    private func credentialForComparison() async throws -> String? {
+        try await tokens.load()
+    }
+
     public func startDiscovery() async throws -> DiscoveryLease {
         let response = try await send(
             path: "api/discovery/start", method: "POST", body: Data("{}".utf8), authenticated: true)
