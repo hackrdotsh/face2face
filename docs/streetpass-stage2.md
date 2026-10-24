@@ -121,3 +121,9 @@ Before the hardware gate passes, record two-phone detection timings, both upload
 permission recovery, token rotation, Stop, and an interrupted-network retry. Then run the
 separate Stage 1 worksheet as the radio baseline. Foreground success does not establish
 locked-screen or passive pocket discovery.
+
+## Independent background experiment
+
+[Stage 3 Pocket test](streetpass-stage3.md) measures anonymous background radio and
+state restoration separately. This authenticated Connected test still stops on backgrounding;
+its token lifetimes and credential protections are unchanged.

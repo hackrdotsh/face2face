@@ -38,9 +38,15 @@ held in memory on the phone. Persistent signed bearer credentials remain in Keyc
 No auth credential is included in the radio payload. The native client freezes its
 credential for each run, bounds upload retries, rotates tokens, and stops at safe expiry.
 
-Both debug experiments stop on backgrounding or closing their screen. Release builds omit
-the diagnostic screens and native Bluetooth transport. No geolocation, interest matching,
-friend requests, background restoration, or notifications are implemented in this slice.
+The two foreground experiments stop on backgrounding or closing their screen. A separate
+[Stage 3 Pocket experiment](streetpass-stage3.md) opts into five minutes of anonymous
+background radio requests and OS-driven state restoration. Only non-secret consent metadata
+is persisted; token exchange checks expiry on every resumed operation. It does not resolve
+accounts or upload observations. A process-wide owner prevents overlapping radio tests.
+
+Release builds omit the diagnostic screens, native Bluetooth transport, permission, and
+background modes. Geolocation, interest matching, friend requests, and notifications are not
+implemented in this discovery slice. Named encounters remain foreground-only.
 Physical-device validation remains pending. Follow the [Stage 1 guide](streetpass-stage1.md)
 and Stage 2 hardware checklist before claiming the two-phone gate passed.
 
@@ -59,5 +65,5 @@ Constraints for the first real-user release:
 Run both foreground hardware checklists, record actual success rates and timings, and
 integrate the encounter contract with the team's profiles and interest matching. Resolve
 blocking, reporting, retention scheduling, and disclosure policies before a real-user release.
-Background discovery is a separate measured milestone. Neither simulated nor client-reported
+Run the Pocket hardware matrix before integrating authenticated background discovery. Neither simulated nor client-reported
 encounters prove physical proximity.

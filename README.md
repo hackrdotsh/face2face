@@ -7,7 +7,9 @@ an account-free [device test](docs/streetpass-stage1.md), and an authenticated
 [connected test](docs/streetpass-stage2.md) using expiring tokens and reciprocal
 encounter reports. The connected test reveals account names after both sessions
 report an exchange; it creates no friendships. Physical-device discovery remains
-unvalidated, and passive/background discovery is not implemented.
+unvalidated. A separate [five-minute Pocket experiment](docs/streetpass-stage3.md)
+adds anonymous background/restoration diagnostics. Authenticated passive discovery
+and locked-screen reliability are not validated or released.
 
 ## Open on your Mac
 
