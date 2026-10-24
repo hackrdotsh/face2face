@@ -27,6 +27,7 @@
             static let isSimulator = false
         #endif
 
+        private(set) var isAuthenticatedWalk = false
         private(set) var isPocketMode = false
         private(set) var isApplicationActive = true
         private(set) var isRestorationPending = false
@@ -42,6 +43,9 @@
         private(set) var events: [DiscoveryLogEntry] = []
 
         @ObservationIgnored var onEncounter: ((DiscoveryEncounter) -> Void)?
+        @ObservationIgnored var onExchangeCompleted: (() -> Void)?
+        @ObservationIgnored private var authenticatedPermit: AuthenticatedRadioPermit?
+        @ObservationIgnored private var expiryGeneration = UUID()
         @ObservationIgnored var onStopped: (() -> Void)?
         @ObservationIgnored var onRestored: (() -> Void)?
         @ObservationIgnored private var pocketWindow: PocketTestWindow?
@@ -81,14 +85,19 @@
 
             let peripheral: CBPeripheral
             let localToken: DiscoveryToken
+            let localValidity: DiscoveryTokenValidity?
             let generation: UUID
             var peerToken: DiscoveryToken?
             var phase = Phase.connecting
             var deadline = Date().addingTimeInterval(BluetoothDiscoveryService.exchangeTimeout)
 
-            init(peripheral: CBPeripheral, localToken: DiscoveryToken, generation: UUID) {
+            init(
+                peripheral: CBPeripheral, localToken: DiscoveryToken, generation: UUID,
+                localValidity: DiscoveryTokenValidity?
+            ) {
                 self.peripheral = peripheral
                 self.localToken = localToken
+                self.localValidity = localValidity
                 self.generation = generation
             }
         }
@@ -98,8 +107,17 @@
             pocketExpiry?.cancel()
         }
 
-        func start(token: DiscoveryToken = DiscoveryToken(), pocketWindow: PocketTestWindow? = nil) {
+        func start(
+            token: DiscoveryToken = DiscoveryToken(), pocketWindow: PocketTestWindow? = nil,
+            authenticatedPermit: AuthenticatedRadioPermit? = nil
+        ) {
             guard !isRequested, !isRestorationPending, !Self.isSimulator else { return }
+            guard pocketWindow == nil || authenticatedPermit == nil else { return }
+            if let authenticatedPermit {
+                guard token == authenticatedPermit.token,
+                    authenticatedPermit.remaining(uptime: ProcessInfo.processInfo.systemUptime) > 0
+                else { return }
+            }
             if let pocketWindow, pocketWindow.remaining(uptime: ProcessInfo.processInfo.systemUptime) <= 0 {
                 return
             }
@@ -108,6 +126,8 @@
             }
             Self.activeOwner = self
             self.pocketWindow = pocketWindow
+            self.authenticatedPermit = authenticatedPermit
+            isAuthenticatedWalk = authenticatedPermit != nil
             isPocketMode = pocketWindow != nil
             restorationCallbacks = 0
             generation = UUID()
@@ -152,14 +172,20 @@
         }
 
         private var consentIsCurrent: Bool {
-            guard let pocketWindow else { return true }
-            return pocketWindow.remaining(uptime: ProcessInfo.processInfo.systemUptime) > 0
+            let uptime = ProcessInfo.processInfo.systemUptime
+            if let authenticatedPermit { return authenticatedPermit.remaining(uptime: uptime) > 0 }
+            return pocketWindow.map { $0.remaining(uptime: uptime) > 0 } ?? true
+        }
+
+        private var expiryReason: String {
+            isAuthenticatedWalk
+                ? "Authenticated walk consent or token expired" : "Five-minute Pocket test expired"
         }
 
         private func allowRadioOperations() -> Bool {
             guard isRequested else { return false }
             guard consentIsCurrent else {
-                stop(reason: "Five-minute Pocket test expired")
+                stop(reason: expiryReason)
                 return false
             }
             return true
@@ -167,18 +193,27 @@
 
         private func schedulePocketExpiry() {
             pocketExpiry?.cancel()
-            guard let pocketWindow else { return }
-            let remaining = pocketWindow.remaining(uptime: ProcessInfo.processInfo.systemUptime)
+            expiryGeneration = UUID()
+            let stamp = expiryGeneration
+            let uptime = ProcessInfo.processInfo.systemUptime
+            let remaining: TimeInterval
+            if let authenticatedPermit {
+                remaining = authenticatedPermit.remaining(uptime: uptime)
+            } else if let pocketWindow {
+                remaining = pocketWindow.remaining(uptime: uptime)
+            } else {
+                return
+            }
             pocketExpiry = Task { [weak self] in
                 do { try await Task.sleep(for: .seconds(remaining)) } catch { return }
-                guard let self, self.pocketWindow?.id == pocketWindow.id else { return }
-                self.stop(reason: "Five-minute Pocket test expired")
+                guard let self, self.expiryGeneration == stamp else { return }
+                self.stop(reason: self.expiryReason)
             }
         }
 
         func setApplicationActive(_ active: Bool) {
             isApplicationActive = active
-            guard isPocketMode, allowRadioOperations() else { return }
+            guard isPocketMode || isAuthenticatedWalk, allowRadioOperations() else { return }
             if active {
                 startHeartbeat()
                 tick()
@@ -203,6 +238,8 @@
                 return
             }
             pocketWindow = window
+            authenticatedPermit = nil
+            isAuthenticatedWalk = false
             isPocketMode = true
             isApplicationActive = applicationActive
             isRestorationPending = true
@@ -243,8 +280,20 @@
             stop(reason: "iOS did not restore the saved test. Tap Start for a new test")
         }
 
-        func rotateToken(to token: DiscoveryToken) {
-            guard isRequested, var current = session else { return }
+        func rotateToken(to token: DiscoveryToken, authenticatedPermit: AuthenticatedRadioPermit? = nil) {
+            guard allowRadioOperations(), var current = session else { return }
+            if isAuthenticatedWalk {
+                guard let authenticatedPermit,
+                    token == authenticatedPermit.token,
+                    authenticatedPermit.consent.id == self.authenticatedPermit?.consent.id,
+                    authenticatedPermit.remaining(uptime: ProcessInfo.processInfo.systemUptime) > 0
+                else {
+                    stop(reason: "A renewed walk permit was missing or invalid")
+                    return
+                }
+                self.authenticatedPermit = authenticatedPermit
+                schedulePocketExpiry()
+            }
             current.rotate(to: token)
             session = current
             log("Rotated the anonymous discovery token.")
@@ -259,6 +308,8 @@
             pocketExpiry = nil
             isRestorationPending = false
             pocketWindow = nil
+            authenticatedPermit = nil
+            expiryGeneration = UUID()
             restoredConnections.removeAll()
             resetRestoredPeripheral = false
             if Self.activeOwner === self { Self.activeOwner = nil }
@@ -429,7 +480,9 @@
             guard let candidate else { return }
             candidate.attempts += 1
             let peer = candidate.peripheral
-            outbound = Exchange(peripheral: peer, localToken: token, generation: generation)
+            outbound = Exchange(
+                peripheral: peer, localToken: token, generation: generation,
+                localValidity: authenticatedPermit?.validity)
             peer.delegate = self
             exchangeStatus = "Connecting (attempt \(candidate.attempts) of \(Self.retryLimit))"
             log(exchangeStatus)
@@ -444,6 +497,12 @@
             guard allowRadioOperations(), let outbound, outbound.peripheral === peer,
                 outbound.generation == generation
             else { return nil }
+            if outbound.phase != .disconnecting, let validity = outbound.localValidity,
+                validity.remaining(uptime: ProcessInfo.processInfo.systemUptime) <= 0
+            {
+                failExchange("The captured exchange token expired.")
+                return nil
+            }
             if outbound.phase != .disconnecting, Date() >= outbound.deadline {
                 failExchange("The peer's exchange deadline passed.")
                 return nil
@@ -491,6 +550,14 @@
                 }
             }
             lastIssue = nil
+            onExchangeCompleted?()
+        }
+
+        private var reportTitle: String {
+            if isAuthenticatedWalk { return "Face2Face Stage 4 — authenticated Walk experiment" }
+            return isPocketMode
+                ? "Face2Face Stage 3 — anonymous Pocket experiment"
+                : "Face2Face Stage 1 — foreground Bluetooth experiment"
         }
 
         var report: String {
@@ -503,9 +570,7 @@
             }
             return
                 ([
-                    isPocketMode
-                        ? "Face2Face Stage 3 — anonymous Pocket experiment"
-                        : "Face2Face Stage 1 — foreground Bluetooth experiment",
+                    reportTitle,
                     "Application active: \(isApplicationActive)",
                     "Actual iOS restoration callbacks: \(restorationCallbacks)",
                     "OS: \(ProcessInfo.processInfo.operatingSystemVersionString)",
@@ -711,7 +776,7 @@
             pruneInboundReads()
             guard isRequested, consentIsCurrent, serviceReady, let token = session?.token else {
                 peripheral.respond(to: request, withResult: .insufficientAuthorization)
-                if !consentIsCurrent { stop(reason: "Five-minute Pocket test expired") }
+                if !consentIsCurrent { stop(reason: expiryReason) }
                 return
             }
             guard request.characteristic.uuid == Self.tokenID else {
@@ -744,7 +809,7 @@
             // One response for the whole batch, and no partial application of malformed writes.
             guard isRequested, consentIsCurrent, serviceReady, let token = session?.token else {
                 peripheral.respond(to: request, withResult: .insufficientAuthorization)
-                if !consentIsCurrent { stop(reason: "Five-minute Pocket test expired") }
+                if !consentIsCurrent { stop(reason: expiryReason) }
                 return
             }
             guard requests.count == 1, request.characteristic.uuid == Self.tokenID else {

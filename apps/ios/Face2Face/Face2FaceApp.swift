@@ -5,6 +5,7 @@ struct Face2FaceApp: App {
     #if DEBUG
         @Environment(\.scenePhase) private var scenePhase
         @State private var pocket = PocketDiscoveryModel.shared
+        @State private var walk = ConnectedDiscoveryModel.backgroundWalk
     #endif
     var body: some Scene {
         WindowGroup {
@@ -23,12 +24,23 @@ struct Face2FaceApp: App {
                     }
                     .tabItem { Label("Pocket test", systemImage: "figure.walk") }
                     .badge(pocket.radio.isRequested ? "On" : nil)
+                    NavigationStack {
+                        ConnectedDiscoveryView(model: walk)
+                    }
+                    .tabItem { Label("Walk test", systemImage: "person.crop.circle.badge.clock") }
+                    .badge(walk.isRunning ? "On" : nil)
                     ContentView()
                         .tabItem { Label("Account", systemImage: "person.crop.circle") }
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { pocket.sceneChanged(active: true) }
-                    if phase == .background { pocket.sceneChanged(active: false) }
+                    if phase == .active {
+                        pocket.sceneChanged(active: true)
+                        walk.sceneChanged(active: true)
+                    }
+                    if phase == .background {
+                        pocket.sceneChanged(active: false)
+                        walk.sceneChanged(active: false)
+                    }
                 }
             #else
                 ContentView()
