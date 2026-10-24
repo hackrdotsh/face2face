@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Free unused Android SDK space for Swift and Nix builds
+        run: sudo rm -rf /usr/local/lib/android
       - uses: cachix/install-nix-action@d9186cbdca7adedf113a159fa91f725a27866771 # v31
       - run: nix develop --command pnpm install --frozen-lockfile
       - run: nix develop --command pnpm check
