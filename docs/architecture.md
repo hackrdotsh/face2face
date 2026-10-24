@@ -52,6 +52,12 @@ in separate tables that reference `user.id` and cascade on account deletion.
   accepts free text, which the server stores in `profile.gender_description`.
 - A field with more than one value gets its own junction table, for example
   `profile_interest(user_id, interest_id)`. Do not store lists in one column.
+  The exception is a snapshot written once and never edited, such as
+  `connection.shared_interests`.
+- `interest` is a lookup table with a unique lowercase `name`. A seed migration
+  adds the list. `member_count` is the number of people who chose it. Triggers
+  on `profile_interest` keep it current, including when an account is deleted.
+  Interests are not an onboarding field yet. Only seeded people have them.
 
 ### Onboarding fields
 
@@ -106,6 +112,83 @@ without touching the logic:
 - `src/screens` and `src/devtools`: the UI only. They read hooks and render.
 - `src/components/ui`: coss ui components, added with the shadcn CLI.
 
+## Connections
+
+An encounter between two people opens a 24-hour chance to connect. Each chance
+is one `connection` row. A pair stores its user IDs in order (`user_low_id` <
+`user_high_id`), so per-person columns are `low_*` and `high_*`. The API
+translates them into "you" and never shows low or high to a participant.
+
+`recordEncounter` in `apps/api/src/connections/encounter.ts`:
+1. Ignores the encounter if either person blocked the other. Nobody is told.
+2. Expires the pair's pending chance if its time ran out.
+3. Does nothing if the pair already has a pending, private, or public row.
+4. Inserts a pending row with the interests both people share, then sends both
+   people an `encounter` notification.
+
+A partial unique index allows one pending row per pair. After a chance expires,
+the next encounter makes a new row, so the table keeps every chance.
+
+| Status    | How a row gets there                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------ |
+| `pending` | Created by an encounter.                                                                               |
+| `expired` | 24 hours passed, or either person declined. A decline looks the same as a timeout to the other person. |
+| `private` | Both people accepted.                                                                                  |
+| `public`  | Both people agreed to go public after connecting.                                                      |
+| `blocked` | One person blocked. The row disappears for the other person, and `block` stops future chances.         |
+
+Expiry is lazy. Reads and actions mark old pending rows as expired. There is no
+scheduled job. Updates check that the row has not changed since it was read, so
+two people answering at once cannot overwrite each other.
+
+`GET /api/connections` leaves out expired chances, so a chance disappears
+from both lists when it times out or either person declines. The rows stay in
+the table.
+
+Until a connection is public, a participant sees only the shared interests and
+their own choices. They do not see the other person's ID, name, or decision.
+A public connection adds the other person's name, age, and interests.
+
+Routes, all behind `requireOnboarded`:
+- `GET /api/connections`
+- `POST /api/connections/:id/decision` with `{ "decision": "accepted" | "declined" }`
+- `POST /api/connections/:id/public`
+- `POST /api/connections/:id/block`
+
+### Notifications
+
+Each person's `UserCoordinator` Durable Object keeps their inbox, the latest
+200 notifications. The inbox is the record. A WebSocket only delivers new
+notifications while a client is open. An iPhone app in the background has no
+socket. Background delivery needs APNs later, sent from the same `notify` call.
+
+A client, web or iPhone:
+1. Loads `GET /api/notifications` on launch and when it returns to the foreground.
+2. Gets a 60-second ticket from `POST /api/notifications/ticket` with its bearer token.
+3. Opens `/api/notifications/socket?ticket=…`. Browsers cannot set an
+   `Authorization` header on a WebSocket, and a bearer token must not go in a URL.
+4. Receives `{"type":"ready"}`, then `{"type":"notification","notification":…}`
+   for each new one. Sending `ping` returns `{"type":"pong"}`.
+5. Reconnects with backoff when the socket closes and reloads the inbox.
+
+Notification kinds are `encounter` (shared interests and expiry), `connected`,
+and `public`. None identifies the other person.
+
+### Simulator
+
+`DEV_TOOLS` is `"true"` locally and `"false"` in production. When it is not
+`"true"`, every `/api/dev/*` route returns 404. These routes need no session:
+- `POST /api/dev/seed` creates or resets six people with finished profiles and
+  overlapping interests. Each uses the password `face2face-seed-password`.
+- `POST /api/dev/encounters` with `{ "firstUserId", "secondUserId" }` records a
+  simulated encounter. The response says `"simulated": true`.
+- `GET /api/dev/users`, `GET /api/dev/connections`, `GET /api/dev/interests`,
+  and `GET /api/dev/users/:id/notifications` show raw state.
+- `POST /api/dev/connections/:id/expire` ends a pending chance now.
+- `POST /api/dev/reset` deletes every connection and block.
+
+A simulated encounter is not evidence that two people were near each other.
+
 ## Proximity is a separate milestone
 
 No Bluetooth scan, geolocation permission, encounter upload, or matching runs yet.
@@ -124,7 +207,8 @@ Before building the protocol:
 
 ## Suggested next slice
 
-Add interest selection and a clearly labeled encounter simulator.
-Use the simulator to test matching and blocking rules without collecting location.
-Then test discovery on two physical iPhones. A simulated encounter must never
-count as proof of actual proximity.
+The encounter simulator, connections, and notifications exist. Next:
+- Add the Face2FaceCore client for the inbox, ticket, and socket, then the iPhone screens.
+- Let people choose interests during onboarding.
+- Test discovery on two physical iPhones. A simulated encounter must never
+  count as proof of actual proximity.

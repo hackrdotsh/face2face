@@ -78,6 +78,12 @@ It covers every sign-in method, password reset, onboarding, and passkeys. Chrome
 Safari, and Firefox can create passkeys on `localhost`. The right column shows each
 request and response, the current session, and a console for sending any request.
 
+The **Simulator** tab seeds test people, signs in as any of them, and simulates
+two people passing each other. Seeded people use the password
+`face2face-seed-password`. The signed-in person's connections and live
+notifications appear on the left. To act as both people at once, open a second
+browser profile or a private window, because tabs share the saved session.
+
 The default server is `http://localhost:8080`. Set `VITE_API_URL` to change it,
 or enter another URL in the header. The API only accepts browser requests from the
 origins in `WEB_ORIGINS` and passkeys from `PASSKEY_ORIGINS`. Production allows
