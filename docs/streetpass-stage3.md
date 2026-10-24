@@ -99,10 +99,11 @@ distinguishes system termination from force-quit and Bluetooth power changes. Th
 experiment does not set up accessories through AccessorySetupKit and does not claim recovery
 from user force-quit. State restoration is event-dependent and is not guaranteed execution.
 
-Stage 2 named encounters deliberately remain foreground-only. Authenticated background
-discovery needs separately validated lease renewal, locked-Keychain handling, upload timing,
-revocation, and data retention. This experiment does not weaken Keychain accessibility or
-reuse expired server tokens to claim passive named encounters.
+Stage 2 Connected test remains foreground-only. The separate
+[Stage 4 Walk experiment](streetpass-stage4.md) adds bounded authenticated background
+upload attempts, without background renewal or signed-walk restoration. Its locked-screen
+radio/upload behavior still needs physical validation. Pocket itself does not weaken
+Keychain accessibility or reuse server tokens.
 
 Release builds omit the Pocket UI/transport, Bluetooth permission, and background modes.
 No location permission, background audio workaround, push setup, or cloud resources are added.

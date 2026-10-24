@@ -8,8 +8,10 @@ an account-free [device test](docs/streetpass-stage1.md), and an authenticated
 encounter reports. The connected test reveals account names after both sessions
 report an exchange; it creates no friendships. Physical-device discovery remains
 unvalidated. A separate [five-minute Pocket experiment](docs/streetpass-stage3.md)
-adds anonymous background/restoration diagnostics. Authenticated passive discovery
-and locked-screen reliability are not validated or released.
+adds anonymous background/restoration diagnostics. The separate
+[five-minute Walk experiment](docs/streetpass-stage4.md) adds authenticated background
+upload attempts with credentials held in memory. Passive discovery and locked-screen
+reliability are not validated or released.
 
 ## Open on your Mac
 

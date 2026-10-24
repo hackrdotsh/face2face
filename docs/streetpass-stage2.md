@@ -127,3 +127,7 @@ locked-screen or passive pocket discovery.
 [Stage 3 Pocket test](streetpass-stage3.md) measures anonymous background radio and
 state restoration separately. This authenticated Connected test still stops on backgrounding;
 its token lifetimes and credential protections are unchanged.
+
+The separate [Stage 4 Walk test](streetpass-stage4.md) reuses this API with a five-minute
+authenticated permit and bounded background upload attempts. It does not change the
+Connected test's foreground lifecycle or the reciprocal identity-disclosure rule.

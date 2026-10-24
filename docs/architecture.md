@@ -44,9 +44,16 @@ background radio requests and OS-driven state restoration. Only non-secret conse
 is persisted; token exchange checks expiry on every resumed operation. It does not resolve
 accounts or upload observations. A process-wide owner prevents overlapping radio tests.
 
+A separate [Stage 4 Walk experiment](streetpass-stage4.md) opts into a five-minute
+authenticated walk. It holds a captured bearer credential only in memory and can attempt
+bounded, event-driven background uploads. It never renews locators or polls history in the
+background, never extends the original consent window, and does not restore signed walks
+after process death. Names are hidden until foreground account checks and history fetches
+succeed. Locked-screen operation remains a hardware question.
+
 Release builds omit the diagnostic screens, native Bluetooth transport, permission, and
 background modes. Geolocation, interest matching, friend requests, and notifications are not
-implemented in this discovery slice. Named encounters remain foreground-only.
+implemented in this discovery slice.
 Physical-device validation remains pending. Follow the [Stage 1 guide](streetpass-stage1.md)
 and Stage 2 hardware checklist before claiming the two-phone gate passed.
 
@@ -65,5 +72,5 @@ Constraints for the first real-user release:
 Run both foreground hardware checklists, record actual success rates and timings, and
 integrate the encounter contract with the team's profiles and interest matching. Resolve
 blocking, reporting, retention scheduling, and disclosure policies before a real-user release.
-Run the Pocket hardware matrix before integrating authenticated background discovery. Neither simulated nor client-reported
-encounters prove physical proximity.
+Run the Pocket and Walk hardware matrices before claiming background discovery works.
+Neither simulated nor client-reported encounters prove physical proximity.
