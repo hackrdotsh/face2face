@@ -15,6 +15,7 @@
     "ios:build": "bash scripts/ios.sh build",
     "dev:tailscale": "node scripts/dev-tailscale.mjs",
     "build": "pnpm --filter @face2face/api build",
+    "test:streetpass": "node scripts/streetpass-smoke.mjs",
     "test:api": "node --test scripts/*.test.mjs && pnpm --filter @face2face/api test",
     "test:swift": "swift test --package-path apps/ios/Face2FaceCore",
     "test": "pnpm test:api && pnpm test:swift",
