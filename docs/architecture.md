@@ -26,7 +26,6 @@ requires Xcode and an iPhone. Generated projects and local build output are igno
 ## Accounts and onboarding
 
 Better Auth owns sign-in. A person can use any of these methods:
-
 1. An emailed 6-digit code. The first code sign-in creates the account.
 2. An email and password. A new password account gets no session until the person
    enters the code from the verification email. A password sign-in with an
@@ -45,7 +44,6 @@ the Worker log for development. `resend` sends it through the Resend API with th
 Better Auth owns `user`, `session`, `account`, `verification`, `rate_limit`,
 and `passkey`. These tables hold identity and credentials only. Product data is
 in separate tables that reference `user.id` and cascade on account deletion.
-
 - `user.name` is the only copy of the person's name. Onboarding writes it.
 - `profile` has one row per person. It stores `birth_date` as `YYYY-MM-DD`,
   not an age, because an age changes over time.
@@ -60,7 +58,6 @@ in separate tables that reference `user.id` and cascade on account deletion.
 `apps/api/src/onboarding/fields.ts` is the list of onboarding fields. Each entry
 declares a key, a type (`text`, `date`, or `singleChoice`), a label, whether it
 is required, its validation, and how it reads and writes the database.
-
 - `GET /api/onboarding` returns every field with its current value.
 - `PATCH /api/onboarding` validates the submitted values with Zod and saves them
   in one D1 batch. It saves nothing if any value is invalid.
@@ -71,7 +68,6 @@ is required, its validation, and how it reads and writes the database.
 
 The iPhone app renders fields from the server description, so a new field of a
 known type needs no app release. To add a field:
-
 1. Add a column to `profile`, or a new table for a list or lookup.
 2. Run `pnpm db:generate`. Use `drizzle-kit generate --custom` for seed data.
 3. Add an entry to `onboardingFields`.
@@ -87,7 +83,6 @@ cookies, so `Face2FaceCore` returns that one cookie with the matching verify
 request. `PASSKEY_RP_ID` and `PASSKEY_ORIGINS` configure the relying party.
 The local default is `localhost`, which an iPhone does not accept. Before
 passkeys work on a device:
-
 1. Choose an HTTPS domain for the relying party.
 2. Serve `/.well-known/apple-app-site-association` from it with a
    `webcredentials` entry for the app.
