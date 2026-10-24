@@ -19,9 +19,6 @@ enum MeadowPalette {
     static let trunk = color(0x9D897C)
     static let flower = color(0xF2B9CA)
     static let flowerCenter = color(0xFFF5C4)
-    static let walkerShirt = color(0xA899CE)
-    static let walkerSkin = color(0xE0A685)
-    static let walkerHair = color(0x67524E)
 
     private static func color(_ hex: UInt32) -> Color {
         Color(

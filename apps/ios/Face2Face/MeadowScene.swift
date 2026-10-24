@@ -8,6 +8,7 @@ struct MeadowScene: View {
     @State private var elapsed: TimeInterval = 0
     var isMoving: Bool
 
+    private let tileHeight: CGFloat = 640
     private var running: Bool { isMoving && !reduceMotion && scenePhase == .active }
 
     var body: some View {
@@ -34,22 +35,16 @@ struct MeadowScene: View {
 
     private func drawMeadow(context: GraphicsContext, size: CGSize, distance: Double) {
         context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(MeadowPalette.grass))
-        let tileHeight: CGFloat = 640
         let offset = CGFloat(distance.truncatingRemainder(dividingBy: Double(tileHeight)))
         let tileCount = Int(ceil(size.height / tileHeight)) + 1
         for tile in -1..<tileCount {
             let origin = CGFloat(tile) * tileHeight + offset
             drawPath(context: context, width: size.width, origin: origin, height: tileHeight)
+        }
+        for tile in -1..<tileCount {
+            let origin = CGFloat(tile) * tileHeight + offset
             drawPlants(context: context, size: size, origin: origin)
         }
-        let walkerY = min(335, size.height * 0.37)
-        let pathPosition = (walkerY - offset + tileHeight)
-            .truncatingRemainder(dividingBy: tileHeight)
-        let half = tileHeight / 2
-        let progress = pathPosition.truncatingRemainder(dividingBy: half) / half
-        let bend: CGFloat = pathPosition < half ? 360 : -360
-        let walkerX = size.width / 2 + bend * progress * (1 - progress)
-        drawWalkers(context: context, center: CGPoint(x: walkerX, y: walkerY))
     }
 
     private func drawPath(context: GraphicsContext, width: CGFloat, origin: CGFloat, height: CGFloat) {
@@ -69,15 +64,25 @@ struct MeadowScene: View {
     }
 
     private func drawPlants(context: GraphicsContext, size: CGSize, origin: CGFloat) {
-        let trees: [(CGFloat, CGFloat, CGFloat)] = [
-            (0.09, 30, 0.9), (0.83, 70, 1.2), (0.02, 240, 1.15),
-            (0.95, 280, 1), (0.16, 440, 1.25), (0.87, 500, 0.85),
-            (0.02, 610, 0.75),
-        ]
-        for (index, tree) in trees.enumerated() {
-            drawTree(
-                context: context, at: CGPoint(x: tree.0 * size.width, y: origin + tree.1),
-                scale: tree.2, light: index.isMultiple(of: 2))
+        // Two staggered rows of trees on each bank keep the winding path open.
+        for row in 0..<8 {
+            for column in 0..<4 {
+                let index = row * 4 + column
+                let localY = CGFloat(row) * tileHeight / 8 + CGFloat((index * 29) % 37) + 12
+                let bank: CGFloat = column.isMultiple(of: 2) ? -1 : 1
+                let depth = CGFloat(column / 2)
+                let distance = 96 + depth * 64 + CGFloat((row * 13 + column * 7) % 18)
+                let point = CGPoint(
+                    x: pathCenter(at: localY, width: size.width) + bank * distance,
+                    y: origin + localY)
+                guard point.x > -60, point.x < size.width + 60,
+                    point.y > -80, point.y < size.height + 80
+                else { continue }
+                drawTree(
+                    context: context, at: point,
+                    scale: 0.64 + CGFloat((index * 7) % 6) * 0.07,
+                    light: index.isMultiple(of: 3))
+            }
         }
         for index in 0..<14 {
             let left = index.isMultiple(of: 2)
@@ -95,6 +100,13 @@ struct MeadowScene: View {
                 drawFlower(context: context, at: CGPoint(x: x + 12, y: y + 22))
             }
         }
+    }
+
+    private func pathCenter(at y: CGFloat, width: CGFloat) -> CGFloat {
+        let half = tileHeight / 2
+        let progress = y.truncatingRemainder(dividingBy: half) / half
+        let bend: CGFloat = y < half ? 360 : -360
+        return width / 2 + bend * progress * (1 - progress)
     }
 
     private func drawTree(context: GraphicsContext, at point: CGPoint, scale: CGFloat, light: Bool) {
@@ -143,27 +155,4 @@ struct MeadowScene: View {
             with: .color(MeadowPalette.flowerCenter))
     }
 
-    private func drawWalkers(context: GraphicsContext, center: CGPoint) {
-        for index in 0..<2 {
-            var context = context
-            context.translateBy(x: center.x + (index == 0 ? -20 : 20), y: center.y + (index == 0 ? 5 : -8))
-            context.fill(
-                Path(ellipseIn: CGRect(x: -17, y: 17, width: 37, height: 14)),
-                with: .color(MeadowPalette.trunk.opacity(0.18)))
-            for x in [CGFloat(-7), CGFloat(5)] {
-                context.fill(
-                    Path(roundedRect: CGRect(x: x, y: 7, width: 7, height: 15), cornerRadius: 3),
-                    with: .color(MeadowPalette.ink))
-            }
-            context.fill(
-                Path(roundedRect: CGRect(x: -13, y: -13, width: 28, height: 30), cornerRadius: 11),
-                with: .color(index == 0 ? MeadowPalette.walkerShirt : MeadowPalette.flower))
-            context.fill(
-                Path(ellipseIn: CGRect(x: -12, y: -33, width: 26, height: 27)),
-                with: .color(MeadowPalette.walkerSkin))
-            context.fill(
-                Path(roundedRect: CGRect(x: -13, y: -35, width: 28, height: 15), cornerRadius: 8),
-                with: .color(MeadowPalette.walkerHair))
-        }
-    }
 }
