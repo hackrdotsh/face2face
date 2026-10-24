@@ -67,7 +67,7 @@
               src = source;
               inherit pnpm;
               fetcherVersion = 4;
-              hash = "sha256-BkRdp+K6t45I8KBDwjC9laGVagZouKBCr8OCrJWHnc8=";
+              hash = "sha256-7ySXwXWeQ+vqJbZAVHkPWbCgAh9/xoegRAstj6lpqoQ=";
             };
             SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
             CI = "1";
