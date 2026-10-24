@@ -2,8 +2,11 @@ import SwiftUI
 
 @MainActor
 struct ContentView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var accountTransition
     @State private var model = AppModel()
     @State private var showingConnection = false
+    @State private var showingLogin = false
     @FocusState private var focusedField: AccountField?
 
     private enum AccountField: Hashable {
@@ -21,13 +24,18 @@ struct ContentView: View {
                         toolbar
                         welcome
                             .padding(.top, 32)
-                        Color.clear
-                            .frame(height: max(110, geometry.size.height - 650))
-                            .accessibilityHidden(true)
-                        accountCard
+                        Spacer(minLength: 110)
+                        if showingLogin || model.user != nil {
+                            accountCard
+                                .transition(.opacity)
+                        } else {
+                            loginButton
+                                .transition(.opacity)
+                        }
                     }
                     .frame(maxWidth: 440)
                     .frame(maxWidth: .infinity)
+                    .frame(minHeight: max(0, geometry.size.height - 44))
                     .padding(.horizontal, 24)
                     .padding(.top, 12)
                     .padding(.bottom, 32)
@@ -42,6 +50,9 @@ struct ContentView: View {
         .task { await model.restoreSession() }
         .onChange(of: model.errorMessage) { _, error in
             if let error { AccessibilityNotification.Announcement(error).post() }
+        }
+        .onChange(of: model.user != nil) { _, signedIn in
+            if !signedIn { showingLogin = false }
         }
         .sheet(isPresented: $showingConnection) {
             ConnectionView(model: model)
@@ -80,23 +91,48 @@ struct ContentView: View {
     }
 
     private var welcome: some View {
-        VStack(spacing: 12) {
-            Text("A little hello.\nA new adventure.")
-                .font(.system(.largeTitle, design: .rounded, weight: .heavy))
-                .tracking(-1.2)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-            HStack(spacing: 6) {
-                Image(systemName: "sparkle")
-                Text("Take the scenic route")
-                Image(systemName: "sparkle")
-            }
-            .font(.system(.caption, design: .rounded, weight: .bold))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(MeadowPalette.paper, in: Capsule())
+        Text("A little hello.\nA new adventure.")
+            .font(.system(.largeTitle, design: .rounded, weight: .heavy))
+            .tracking(-1.2)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var loginButton: some View {
+        Button {
+            withAnimation(accountAnimation) { showingLogin = true }
+        } label: {
+            Text("Login")
+                .font(.system(.headline, design: .rounded, weight: .heavy))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
         }
+        .background { accountBackground(expanded: false) }
+        .buttonStyle(MeadowPressStyle())
+        .accessibilityIdentifier("loginStart")
+        .disabled(model.isBusy)
+    }
+
+    private var accountAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.5, dampingFraction: 0.86)
+    }
+
+    private func accountBackground(expanded: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: expanded ? 32 : 16)
+            .fill(expanded ? MeadowPalette.paper : MeadowPalette.accent)
+        return Group {
+            if reduceMotion {
+                shape
+            } else {
+                shape.matchedGeometryEffect(id: "accountSurface", in: accountTransition, anchor: .bottom)
+            }
+        }
+        .shadow(
+            color: expanded ? MeadowPalette.ink.opacity(0.08) : MeadowPalette.accentShadow,
+            radius: 0, y: expanded ? 6 : 4
+        )
+        .shadow(color: MeadowPalette.ink.opacity(expanded ? 0.08 : 0), radius: 24, y: 12)
     }
 
     private var accountCard: some View {
@@ -117,9 +153,29 @@ struct ContentView: View {
                     Task { await model.signOut() }
                 }
             } else {
-                Text(model.createAccount ? "Join the adventure" : "Hey, you.")
-                    .font(.system(.title, design: .rounded, weight: .heavy))
-                    .accessibilityAddTraits(.isHeader)
+                HStack(alignment: .top, spacing: 12) {
+                    Text(model.createAccount ? "Join the adventure" : "Hey, you.")
+                        .font(.system(.title, design: .rounded, weight: .heavy))
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer(minLength: 0)
+                    Button {
+                        focusedField = nil
+                        withAnimation(accountAnimation) {
+                            showingLogin = false
+                            model.createAccount = false
+                            model.errorMessage = nil
+                        }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(.subheadline, weight: .semibold))
+                            .frame(width: 44, height: 44)
+                            .background(MeadowPalette.field, in: Circle())
+                    }
+                    .buttonStyle(MeadowPressStyle())
+                    .accessibilityLabel("Back to welcome")
+                    .accessibilityIdentifier("loginBack")
+                    .disabled(model.isBusy)
+                }
 
                 VStack(alignment: .leading, spacing: 16) {
                     if model.createAccount {
@@ -186,12 +242,7 @@ struct ContentView: View {
             }
         }
         .padding(24)
-        .background {
-            RoundedRectangle(cornerRadius: 32)
-                .fill(MeadowPalette.paper)
-                .shadow(color: MeadowPalette.ink.opacity(0.08), radius: 0, y: 6)
-                .shadow(color: MeadowPalette.ink.opacity(0.08), radius: 24, y: 12)
-        }
+        .background { accountBackground(expanded: true) }
         .overlay {
             RoundedRectangle(cornerRadius: 32)
                 .strokeBorder(.white.opacity(0.8), lineWidth: 2)

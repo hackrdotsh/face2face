@@ -2,6 +2,24 @@ import XCTest
 
 @MainActor
 final class LoginTests: XCTestCase {
+    func testLoginExpandsIntoFormAndReturnsToWelcome() {
+        let app = launchApp(openLogin: false)
+        XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["loginStart"].label, "Login")
+        XCTAssertFalse(app.textFields["emailField"].exists)
+        XCTAssertFalse(app.staticTexts["Take the scenic route"].exists)
+        capture("Welcome")
+
+        app.buttons["loginStart"].tap()
+        XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["loginStart"].exists)
+        capture("Expanded login")
+
+        app.buttons["loginBack"].tap()
+        XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["emailField"].exists)
+    }
+
     func testAccountModesKeyboardAndConnectionSettings() {
         let app = launchApp()
         XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
@@ -65,7 +83,7 @@ final class LoginTests: XCTestCase {
         ).firstMatch
     }
 
-    private func launchApp(largeText: Bool = false) -> XCUIApplication {
+    private func launchApp(largeText: Bool = false, openLogin: Bool = true) -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
         // An empty server avoids networking and existing Keychain sessions in layout tests.
@@ -76,6 +94,13 @@ final class LoginTests: XCTestCase {
             ]
         }
         app.launch()
+        if openLogin {
+            let login = app.buttons["loginStart"]
+            XCTAssertTrue(login.waitForExistence(timeout: 5))
+            reveal(login, in: app)
+            login.tap()
+            XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
+        }
         return app
     }
 
