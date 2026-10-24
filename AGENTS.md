@@ -8,6 +8,8 @@ This is a personal-account repository. No organization-specific skill library ap
 - Keep commits small, with `subsystem(action): Description` subjects.
 - Run `pnpm check` and `pnpm build` before handing off changes.
 - Run `pnpm fmt` and `nix fmt` before verification.
+- After every requested app change, redeploy to the connected target iPhone and
+  launch it. Report connection, signing, or lock-screen blockers explicitly.
 - Biome, nixfmt, and swift-format are approved formatters for this repository.
 - Do not commit secrets, local D1 state, or generated native projects.
 

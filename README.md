@@ -5,9 +5,9 @@ The current build has sign-in with an emailed code, a verified password, or a
 passkey, password reset, and profile onboarding. The screens are placeholders.
 Proximity discovery is not implemented yet.
 
-The account screen is a scrolling pastel meadow. Pause the scenery with the
-top-right control; it also pauses while entering text, in the background, and
-when Reduce Motion is enabled. API settings are under the sliders button.
+The account screen is a scrolling pastel meadow. The scenery pauses while
+entering text, in the background, and when Reduce Motion is enabled. API settings
+are under the sliders button.
 
 ## Open on your Mac
 

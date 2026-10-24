@@ -7,9 +7,7 @@ final class LoginTests: XCTestCase {
         XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
         capture("Sign in")
 
-        let scenery = app.buttons["sceneryToggle"]
-        scenery.tap()
-        XCTAssertEqual(scenery.label, "Play scenery")
+        XCTAssertFalse(app.buttons["sceneryToggle"].exists)
 
         reveal(app.buttons["accountModeToggle"], in: app)
         app.buttons["accountModeToggle"].tap()

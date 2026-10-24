@@ -2,9 +2,7 @@ import SwiftUI
 
 @MainActor
 struct ContentView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var model = AppModel()
-    @State private var scenePaused = false
     @State private var showingConnection = false
     @FocusState private var focusedField: AccountField?
 
@@ -15,7 +13,7 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                MeadowScene(isMoving: !scenePaused && focusedField == nil && !showingConnection)
+                MeadowScene(isMoving: focusedField == nil && !showingConnection)
                     .ignoresSafeArea()
 
                 ScrollView {
@@ -66,17 +64,6 @@ struct ContentView: View {
             }
             .accessibilityElement(children: .combine)
             Spacer(minLength: 4)
-            if !reduceMotion {
-                Button {
-                    scenePaused.toggle()
-                } label: {
-                    Image(systemName: scenePaused ? "play.fill" : "pause.fill")
-                        .frame(width: 44, height: 44)
-                        .background(MeadowPalette.paper, in: Circle())
-                }
-                .accessibilityLabel(scenePaused ? "Play scenery" : "Pause scenery")
-                .accessibilityIdentifier("sceneryToggle")
-            }
             Button {
                 focusedField = nil
                 showingConnection = true
