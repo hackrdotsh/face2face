@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   bearerHeaders,
   callAPI,
@@ -25,15 +25,20 @@ async function signUpWithPassword(email: string) {
 }
 
 describe("email and password", () => {
-  it("does not issue a session until the email is verified", async () => {
+  it("does not issue a session until the email is verified, and resends a code on sign-in", async () => {
     const email = "unverified@example.test";
     const signUp = await signUpWithPassword(email);
     expect(signUp.headers.get("set-auth-token")).toBeNull();
+    const signUpCode = await lastCodeSentTo(email);
     const signIn = await postJSON("/api/auth/sign-in/email", {
       email,
       password: testPassword,
     });
     expect(signIn.status).toBe(403);
+    expect(await signIn.json()).toMatchObject({ code: "EMAIL_NOT_VERIFIED" });
+    await vi.waitFor(async () =>
+      expect(await lastCodeSentTo(email)).not.toBe(signUpCode),
+    );
   });
 
   it("signs in with the password after the emailed code verifies the address", async () => {

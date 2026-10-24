@@ -31,7 +31,10 @@ export function createAuth(
       requireEmailVerification: true,
       revokeSessionsOnPasswordReset: true,
     },
-    emailVerification: { autoSignInAfterVerification: true },
+    emailVerification: {
+      autoSignInAfterVerification: true,
+      sendOnSignIn: true,
+    },
     plugins: [
       bearer({ requireSignature: true }),
       emailOTP({
