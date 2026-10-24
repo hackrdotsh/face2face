@@ -1,17 +1,6 @@
-import { applyD1Migrations } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import migration from "../migrations/0000_past_cyclops.sql?raw";
+import { beforeEach, describe, expect, it } from "vitest";
 import { webOrigins } from "../src/origins";
-
-beforeAll(async () => {
-  await applyD1Migrations(env.DB, [
-    {
-      name: "0000_past_cyclops",
-      queries: migration.split("--> statement-breakpoint"),
-    },
-  ]);
-});
 
 const origin = "http://localhost:8787";
 
