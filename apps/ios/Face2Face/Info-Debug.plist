@@ -14,6 +14,7 @@
     <key>LSRequiresIPhoneOS</key><true/>
     <key>UILaunchScreen</key><dict/>
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
+    <key>NSBluetoothAlwaysUsageDescription</key><string>Discover nearby Face2Face test devices and exchange anonymous session tokens while you run the device test.</string>
     <key>NSLocalNetworkUsageDescription</key><string>Connect to your development API on your local network.</string>
     <key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><true/></dict>
 </dict>
