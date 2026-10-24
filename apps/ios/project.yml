@@ -1,0 +1,38 @@
+name: Face2Face
+options:
+  minimumXcodeGenVersion: 2.44.0
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  Face2FaceCore:
+    path: Face2FaceCore
+targets:
+  Face2Face:
+    type: application
+    platform: iOS
+    sources:
+      - path: Face2Face
+        excludes: ["Info-*.plist"]
+    dependencies:
+      - package: Face2FaceCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: sh.hackr.face2face
+        PRODUCT_NAME: Face2Face
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+      configs:
+        Debug:
+          INFOPLIST_FILE: Face2Face/Info-Debug.plist
+        Release:
+          INFOPLIST_FILE: Face2Face/Info-Release.plist
+schemes:
+  Face2Face:
+    build:
+      targets:
+        Face2Face: all

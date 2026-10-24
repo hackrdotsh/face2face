@@ -17,3 +17,14 @@ jobs:
       - run: nix develop --command pnpm install --frozen-lockfile
       - run: nix develop --command pnpm check
       - run: nix flake check --print-build-logs
+  iphone:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: cachix/install-nix-action@d9186cbdca7adedf113a159fa91f725a27866771 # v31
+      - run: xcrun swift test --package-path apps/ios/Face2FaceCore
+      - run: nix run .#ios-build
+      - run: >-
+          xcodebuild -project apps/ios/Face2Face.xcodeproj -scheme Face2Face
+          -configuration Release -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build

@@ -2,12 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tailscaleURLs } from "./dev-tailscale.mjs";
 
-test("uses one Tailscale address for Expo, web, and API", () => {
+test("uses the Tailscale address for the iPhone API", () => {
   assert.deepEqual(tailscaleURLs("100.100.20.30\n"), {
     address: "100.100.20.30",
     api: "http://100.100.20.30:8787",
-    web: "http://100.100.20.30:8081",
-    expo: "exp://100.100.20.30:8081",
   });
 });
 

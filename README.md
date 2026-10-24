@@ -1,131 +1,113 @@
 # face2face
 
-A social app for meeting people with shared interests as you pass them in real life.
-This repository is the runnable foundation, not a working proximity detector.
+An iPhone app for meeting people with shared interests as you pass them in real life.
+The current build has API connection checks, account creation, sign-in, session
+restoration, and sign-out. Proximity discovery is not implemented yet.
 
-## Start developing
+## Open on your Mac
 
-Install Nix with flakes and direnv. From the repository root:
+Install Xcode, launch it once, and install the iOS platform when prompted. Then:
 
 ```sh
+gh repo clone hackrdotsh/face2face
+cd face2face
 direnv allow
 pnpm install --frozen-lockfile
 pnpm setup
 pnpm db:migrate
-pnpm dev
+nix run .#ios
 ```
 
-Without a direnv shell hook, run `nix develop` first. `pnpm setup` generates a
-local auth secret without overwriting an existing one. The API listens on port
-8787; Expo uses port 8081. Press `w` in Expo for its web preview, or run
-`pnpm --filter @face2face/mobile web` in a separate terminal.
+`nix run .#ios` uses XcodeGen to generate `apps/ios/Face2Face.xcodeproj` and opens it.
+Select the **Face2Face** scheme and your iPhone. In **Signing & Capabilities**, select
+your Apple development team and change the bundle identifier if needed. Run with
+Xcode. This is an iPhone-only SwiftUI app targeting iOS 17 or later.
 
-The starter screen checks the API connection. Backend tests exercise account
-creation, persisted sessions, authenticated routes, a Durable Object RPC call,
-and sign-out. The mobile auth client is prepared in
-`apps/mobile/src/auth-client.ts`; sign-in screens are not implemented.
+Without Nix, install XcodeGen with `brew install xcodegen`, then run:
 
-For a physical phone, copy `apps/mobile/.env.example` to `apps/mobile/.env` and
-set `EXPO_PUBLIC_API_URL` to your development machine's reachable LAN address,
-such as `http://192.168.1.20:8787`. Restart Metro after changing it. For Android
-emulators, the host address is usually `http://10.0.2.2:8787`. Keep the API on a
-trusted development network; local HTTP is not suitable for production credentials.
+```sh
+cd apps/ios
+xcodegen generate
+open Face2Face.xcodeproj
+```
+
+Do not commit the generated Xcode project. `apps/ios/project.yml` is its source.
+No third-party Swift packages, CocoaPods, or JavaScript runtime are used by the app.
+
+## Run the backend
+
+From the repository root, after the setup commands above:
+
+```sh
+nix run .#dev
+```
+
+The Hono Worker listens on port 8787. In the iOS simulator, use
+`http://localhost:8787` in the app's **API URL** field. For a physical iPhone,
+use the Mac's reachable LAN address or run the API over Tailscale:
+
+```sh
+nix run .#dev-tailscale
+```
+
+The command prints the API URL. Enter it in the app and connect both devices to
+the same tailnet. TCP 8787 must be allowed by your tailnet policy and host firewall.
+The command binds the API to the Tailscale address. It creates no public tunnel
+or firewall rules. `nix run .#tailscale` and `pnpm dev:tailscale` are equivalent.
+
+Debug builds allow HTTP for local development. Release builds reject HTTP and
+retain Apple's default transport security. Use an HTTPS API before distribution.
+Sessions are stored in Keychain, scoped to the selected API server. Changing the
+server does not send its saved token to another server.
 
 ## Commands
 
-### Phone over Tailscale
+| Task                                | Command                   |
+| ----------------------------------- | ------------------------- |
+| Start local API                     | `nix run .#dev`           |
+| Start API over Tailscale            | `nix run .#dev-tailscale` |
+| Generate and open Xcode project     | `nix run .#ios`           |
+| Generate Xcode project only         | `nix run .#ios-project`   |
+| Build for the iOS simulator on Mac  | `nix run .#ios-build`     |
+| Test Swift API/auth client          | `nix run .#swift-test`    |
+| Run all portable tests              | `nix run .#test`          |
+| Format Swift, TypeScript, and Nix   | `nix run .#fmt`           |
+| Check formatting and portable tests | `nix run .#check`         |
+| Build Worker bundle                 | `nix run .#build`         |
+| Generate a Drizzle migration        | `pnpm db:generate`        |
+| Apply local D1 migrations           | `nix run .#db-migrate`    |
+| Regenerate Worker bindings          | `pnpm types`              |
 
-Connect the development machine and phone to the same tailnet. Stop any running
-`pnpm dev` first, then run from the repository root:
+Run these commands from the repository root. `pnpm check` and `pnpm build` are the
+underlying checks and Worker build. Nix provides Node 24, pnpm, Swift, SwiftPM,
+swift-format, and backend tools. On Mac it also provides XcodeGen. Xcode and Apple
+SDKs must be installed separately. direnv's `use flake` loads the environment;
+each clone needs `direnv allow` and a shell with direnv integration enabled.
 
-```sh
-pnpm dev:tailscale
-# Or: nix run .#dev-tailscale
-```
+`nix build` produces the Worker bundle and migrations under
+`result/share/face2face/`. It does not produce an iPhone binary. There is no default
+`nix run .` app: launch the iPhone target through Xcode or `nix run .#ios`.
+`nix flake check` tests the backend and portable Swift client. Linux cannot compile
+SwiftUI or Security.framework. The macOS CI job builds the iPhone simulator target.
 
-This discovers the machine's Tailscale IPv4 address, advertises it in Expo's QR
-code, and sets the mobile API URL and backend auth origin to that same address.
-It does not change `.env` files or cloud configuration. Metro's cache is cleared
-so an old `localhost` API URL is not reused. Scan with Expo Go, or open the printed
-`exp://` link. If Expo Go requests sign-in, use the same Expo account on the phone
-and in the CLI. The installed Expo Go version must support this project's SDK.
+## Backend deployment
 
-Your tailnet policy and host firewall must allow TCP 8081 and 8787 from the phone.
-The API binds only to the Tailscale address in this mode; Metro still listens on
-all interfaces. Do not expose either dev server through a public tunnel or port
-forward. No public tunnel or firewall rule is created by the command.
-
-`nix run .#tailscale` remains an alias for the same command.
-
-Run commands from the repository root after installing dependencies.
-
-| Task                                       | pnpm                     | Nix app                |
-| ------------------------------------------ | ------------------------ | ---------------------- |
-| Start API and Expo                         | `pnpm dev`               | `nix run .#dev`        |
-| Start API                                  | `pnpm dev:api`           | `nix run .#api`        |
-| Start Expo                                 | `pnpm dev:mobile`        | `nix run .#mobile`     |
-| Build web export and Worker                | `pnpm build`             | `nix run .#build`      |
-| Test API with local D1 and Durable Objects | `pnpm test`              | `nix run .#test`       |
-| Check TypeScript                           | `pnpm typecheck`         | `nix run .#typecheck`  |
-| Lint                                       | `pnpm lint`              | `nix run .#lint`       |
-| Format                                     | `pnpm fmt` and `nix fmt` | `nix run .#fmt`        |
-| Check formatting                           | `pnpm fmt:check`         | `nix run .#fmt-check`  |
-| Check formatting, types, tests             | `pnpm check`             | `nix run .#check`      |
-| Apply local migrations                     | `pnpm db:migrate`        | `nix run .#db-migrate` |
-
-Nix apps forward arguments. For example, `nix run .#test -- -t 'requires a session'`.
-`pnpm db:generate` creates a Drizzle migration after schema changes.
-`pnpm types` regenerates bindings after Wrangler configuration changes.
-
-`nix build` builds the web export, Worker bundle, and migrations in an isolated
-Nix build. Outputs are under `result/share/face2face/`. `nix run .` serves the
-built web preview at <http://127.0.0.1:8081>, independent of Metro. Start the API
-separately to use the connection check. Pass a different port with
-`nix run . -- 8082`. This default is a web preview, not an APK or iOS build.
-
-`nix flake check` verifies the build, formatting, types, and API tests. The CI workflow
-also runs `pnpm check` outside the build sandbox. If the dependency lockfile changes, update the dependency
-hash in `flake.nix` from the mismatch reported by `nix build`.
-
-## Layout and stack
-
-- `apps/mobile`: React Native, Expo SDK 58, Better Auth Expo client and SecureStore.
-- `apps/api`: Hono on Workers, Drizzle on D1, Better Auth, SQLite-backed Durable Objects.
-- `docs/architecture.md`: boundaries, planned proximity work, and privacy requirements.
-
-Node 24 and pnpm are pinned through `flake.lock` and `packageManager`. Nix outputs
-cover Linux and macOS on x86_64 and aarch64. Only the host system is tested during
-setup. The shell supports Metro and backend development; it does not install
-Xcode, Android SDKs, or accept platform licenses. Native iOS builds need macOS
-and Xcode; native Android builds need the Android SDK/JDK, or a configured EAS build.
-
-direnv's built-in `use flake` loads this shell. Nushell needs a pre-prompt hook
-that imports `direnv export json` with `load-env`; the maintainer's Nushell
-configuration already provides it. Other collaborators should enable direnv's
-integration for their own shell. Cached nix-direnv integration is optional.
-Each new clone needs `direnv allow`.
-
-## Deployment is manual
-
-No cloud resources are created by setup, tests, or builds. Before deployment:
+No cloud resources are created by development, tests, or builds. To deploy:
 1. Authenticate with Cloudflare and choose the account.
-2. Create a D1 database with `pnpm --filter @face2face/api exec wrangler d1 create face2face`.
-3. Set its real `database_id` in `apps/api/wrangler.jsonc`.
-4. Replace `BETTER_AUTH_URL` and `WEB_ORIGINS` with the intended HTTPS origins.
-5. Set `BETTER_AUTH_SECRET` with `pnpm --filter @face2face/api exec wrangler secret put BETTER_AUTH_SECRET`.
-6. Apply remote migrations with `pnpm --filter @face2face/api exec wrangler d1 migrations apply DB --remote`.
-7. Deploy with `pnpm --filter @face2face/api exec wrangler deploy`.
+2. Run `pnpm --filter @face2face/api exec wrangler d1 create face2face`.
+3. Set the returned `database_id` in `apps/api/wrangler.jsonc`.
+4. Set `BETTER_AUTH_URL` to the HTTPS API URL and configure `WEB_ORIGINS` if needed.
+5. Set the secret with `pnpm --filter @face2face/api exec wrangler secret put BETTER_AUTH_SECRET`.
+6. Run `pnpm --filter @face2face/api exec wrangler d1 migrations apply DB --remote`.
+7. Run `pnpm --filter @face2face/api exec wrangler deploy`.
 
-The current auth configuration allows email/password registration for development.
 Before inviting users, add email verification and account recovery, decide the
-registration policy, review abuse controls, and configure separate deployment
-environments. Do not expose this development configuration as a public service.
+registration policy, and review abuse controls. Do not treat the hackathon
+development configuration as a production-ready public service.
 
-## Collaboration
+The Swift migration preserves the D1 schema and backend data. The previous
+JavaScript client was removed; sign in in the native app to create its session.
+See [architecture and privacy constraints](docs/architecture.md).
 
 Private repository: <https://github.com/hackrdotsh/face2face>.
-Invite friends through GitHub **Settings → Collaborators**. No collaborators are
-added automatically. Work on branches/bookmarks and open pull requests; CI checks
-the build and tests. jj and Git both work with the colocated repository.
-
-No license has been selected. The repository does not grant reuse permission.
+Invite collaborators through GitHub Settings. No license has been selected.

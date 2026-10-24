@@ -1,6 +1,6 @@
 import { applyD1Migrations } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import migration from "../migrations/0000_past_cyclops.sql?raw";
 import { webOrigins } from "../src/origins";
 
@@ -15,7 +15,50 @@ beforeAll(async () => {
 
 const origin = "http://localhost:8787";
 
+beforeEach(async () => {
+  await env.DB.prepare("DELETE FROM rate_limit").run();
+});
+
 describe("API foundation", () => {
+  it("authenticates native clients with signed bearer tokens and revokes them on sign-out", async () => {
+    const signup = await exports.default.fetch(
+      `${origin}/api/auth/sign-up/email`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "face2face://" },
+        body: JSON.stringify({
+          name: "iPhone tester",
+          email: "iphone@example.test",
+          password: "test-password-123456",
+        }),
+      },
+    );
+    expect(signup.status).toBe(200);
+    const token = signup.headers.get("set-auth-token");
+    expect(token).toBeTruthy();
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Origin: "face2face://",
+    };
+    expect(
+      (await exports.default.fetch(`${origin}/api/me`, { headers })).status,
+    ).toBe(200);
+    const signedOut = await exports.default.fetch(
+      `${origin}/api/auth/sign-out`,
+      { method: "POST", headers },
+    );
+    expect(signedOut.status).toBe(200);
+    expect(
+      (await exports.default.fetch(`${origin}/api/me`, { headers })).status,
+    ).toBe(401);
+  });
+
+  it("rejects unsigned bearer tokens", async () => {
+    const response = await exports.default.fetch(`${origin}/api/me`, {
+      headers: { Authorization: "Bearer unsigned-session-token" },
+    });
+    expect(response.status).toBe(401);
+  });
   it("does not enable a Tailscale origin when development override is empty", () => {
     expect(webOrigins({ ...env, DEV_WEB_ORIGIN: "" })).toEqual(env.WEB_ORIGINS);
   });

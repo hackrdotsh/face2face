@@ -11,8 +11,6 @@ export function tailscaleURLs(output) {
   return {
     address,
     api: `http://${address}:8787`,
-    web: `http://${address}:8081`,
-    expo: `exp://${address}:8081`,
   };
 }
 
@@ -33,7 +31,7 @@ async function checkPort(host, port) {
 async function main() {
   if (process.argv.includes("--help")) {
     process.stdout.write(
-      "Start Expo and the API on this machine's Tailscale address.\nUsage: pnpm dev:tailscale\n",
+      "Start the API on this machine's Tailscale address.\nUsage: pnpm dev:tailscale\n",
     );
     return;
   }
@@ -47,18 +45,11 @@ async function main() {
     );
   }
   const urls = tailscaleURLs(result.stdout);
-  await checkPort("0.0.0.0", 8081);
   await checkPort(urls.address, 8787);
 
   const cwd = fileURLToPath(new URL("../", import.meta.url));
-  const env = {
-    ...process.env,
-    EXPO_PUBLIC_API_URL: urls.api,
-    EXPO_PACKAGER_PROXY_URL: urls.web,
-    REACT_NATIVE_PACKAGER_HOSTNAME: urls.address,
-  };
   process.stdout.write(
-    `Expo Go: ${urls.expo}\nBrowser: ${urls.web}\nAPI: ${urls.api}\nConnect your phone to the same tailnet.\n`,
+    `API: ${urls.api}\nEnter this URL in the iPhone app and connect to the same tailnet.\n`,
   );
 
   const children = new Set();
@@ -89,7 +80,7 @@ async function main() {
   const start = (args, interactive) => {
     const child = spawn("pnpm", args, {
       cwd,
-      env,
+      env: process.env,
       detached: true,
       stdio: [interactive ? "inherit" : "ignore", "inherit", "inherit"],
     });
@@ -117,22 +108,8 @@ async function main() {
       urls.address,
       "--var",
       `BETTER_AUTH_URL:${urls.api}`,
-      "--var",
-      `DEV_WEB_ORIGIN:${urls.web}`,
     ],
     false,
-  );
-  start(
-    [
-      "--filter",
-      "@face2face/mobile",
-      "exec",
-      "expo",
-      "start",
-      "--go",
-      "--clear",
-    ],
-    true,
   );
 }
 

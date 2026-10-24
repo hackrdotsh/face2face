@@ -19,7 +19,8 @@ app.use("*", (context, next) =>
   cors({
     origin: webOrigins(context.env),
     credentials: true,
-    allowHeaders: ["Content-Type", "expo-origin"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    exposeHeaders: ["set-auth-token"],
     allowMethods: ["GET", "POST", "OPTIONS"],
   })(context, next),
 );
