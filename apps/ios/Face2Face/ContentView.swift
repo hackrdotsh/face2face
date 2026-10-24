@@ -112,10 +112,12 @@ struct ContentView: View {
         } label: {
             Text("Login")
                 .font(.system(.headline, design: .rounded, weight: .heavy))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
+                .frame(minWidth: 140)
+                .padding(.horizontal, 30)
+                .padding(.vertical, 18)
+                .background { accountBackground(expanded: false) }
+                .contentShape(Capsule())
         }
-        .background { accountBackground(expanded: false) }
         .buttonStyle(MeadowPressStyle())
         .accessibilityIdentifier("loginStart")
         .disabled(model.isBusy)
@@ -126,28 +128,47 @@ struct ContentView: View {
     }
 
     private func accountBackground(expanded: Bool) -> some View {
-        let fill =
-            expanded || reduceTransparency
-            ? AnyShapeStyle(MeadowPalette.paper)
-            : AnyShapeStyle(.ultraThinMaterial)
-        let shape = RoundedRectangle(cornerRadius: expanded ? 32 : 16)
-            .fill(fill)
-            .overlay {
-                RoundedRectangle(cornerRadius: expanded ? 32 : 16)
-                    .strokeBorder(.white.opacity(expanded ? 0 : 0.65), lineWidth: 1)
-            }
         return Group {
             if reduceMotion {
-                shape
+                accountSurface(expanded: expanded)
             } else {
-                shape.matchedGeometryEffect(id: "accountSurface", in: accountTransition, anchor: .bottom)
+                accountSurface(expanded: expanded)
+                    .matchedGeometryEffect(id: "accountSurface", in: accountTransition, anchor: .bottom)
             }
         }
-        .shadow(
-            color: MeadowPalette.ink.opacity(expanded ? 0.08 : 0.12),
-            radius: expanded ? 0 : 16, y: 6
-        )
-        .shadow(color: MeadowPalette.ink.opacity(expanded ? 0.08 : 0), radius: 24, y: 12)
+        .shadow(color: MeadowPalette.ink.opacity(0.12), radius: 16, y: 6)
+    }
+
+    @ViewBuilder
+    private func accountSurface(expanded: Bool) -> some View {
+        if expanded {
+            glassSurface(RoundedRectangle(cornerRadius: 32), interactive: false)
+        } else {
+            glassSurface(Capsule(), interactive: true)
+        }
+    }
+
+    @ViewBuilder
+    private func glassSurface<Surface: InsettableShape>(
+        _ shape: Surface, interactive: Bool
+    ) -> some View {
+        if reduceTransparency {
+            shape.fill(MeadowPalette.paper)
+        } else if #available(iOS 26.0, *) {
+            shape
+                .fill(.clear)
+                .glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+        } else {
+            shape
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    shape.strokeBorder(
+                        LinearGradient(
+                            colors: [.white.opacity(0.9), .white.opacity(0.15), .white.opacity(0.6)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing),
+                        lineWidth: 1)
+                }
+        }
     }
 
     private var accountCard: some View {
@@ -258,11 +279,6 @@ struct ContentView: View {
         }
         .padding(24)
         .background { accountBackground(expanded: true) }
-        .overlay {
-            RoundedRectangle(cornerRadius: 32)
-                .strokeBorder(.white.opacity(0.8), lineWidth: 2)
-                .allowsHitTesting(false)
-        }
     }
 
     @ViewBuilder

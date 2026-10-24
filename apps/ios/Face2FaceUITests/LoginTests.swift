@@ -2,6 +2,21 @@ import XCTest
 
 @MainActor
 final class LoginTests: XCTestCase {
+    func testLoginPillEdgesAreTappable() {
+        let app = launchApp(openLogin: false)
+        let edges = [
+            CGVector(dx: 0.08, dy: 0.5),
+            CGVector(dx: 0.92, dy: 0.5),
+            CGVector(dx: 0.5, dy: 0.12),
+        ]
+        for edge in edges {
+            app.buttons["loginStart"].coordinate(withNormalizedOffset: edge).tap()
+            XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
+            app.buttons["loginBack"].tap()
+            XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))
+        }
+    }
+
     func testGreetingAnimationKeepsWelcomeInteractive() {
         let app = launchApp(openLogin: false)
         capture("Approaching walker")
@@ -18,6 +33,8 @@ final class LoginTests: XCTestCase {
         let app = launchApp(openLogin: false)
         XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["loginStart"].label, "Login")
+        XCTAssertLessThan(app.buttons["loginStart"].frame.width, app.frame.width * 0.7)
+        XCTAssertGreaterThanOrEqual(app.buttons["loginStart"].frame.height, 44)
         XCTAssertLessThan(app.buttons["loginStart"].frame.midY, app.frame.height * 0.72)
         XCTAssertGreaterThan(app.buttons["loginStart"].frame.midY, app.frame.height * 0.58)
         XCTAssertFalse(app.textFields["emailField"].exists)
