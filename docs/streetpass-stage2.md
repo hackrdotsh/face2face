@@ -34,8 +34,11 @@ token is not registered with the API and cannot produce a Stage 2 named encounte
 
 Start the local migrated API, then run **pnpm test:streetpass** in a second terminal.
 For a different local port, use **pnpm test:streetpass http://127.0.0.1:8791**.
-The script checks real HTTP authentication, reciprocal reporting, retries, rotation, and
-revocation. It creates two local throwaway accounts, stops their discovery sessions, and
+The script checks real HTTP authentication, reciprocal reporting, retries, rotation,
+Stop/sign-out revocation, and a second walk with the same accounts. The second-walk
+check requires new reciprocal reports before an old encounter timestamp advances;
+idempotent retries must not advance it again.
+It creates two local throwaway accounts, stops their discovery sessions, and
 signs them out afterward. It accepts only loopback base URLs and never prints credentials.
 The reports are synthetic; a passing result says nothing about Bluetooth or proximity.
 

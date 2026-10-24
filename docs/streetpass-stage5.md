@@ -69,3 +69,6 @@ the outcomes, and fix failures observed there. Software verification cannot subs
 
 Record device/iOS versions, revision, network, timings, and report counters. Do not label
 successful compilation, previews, simulated observations, or API tests as a passed radio gate.
+
+See the [Stage 6 readiness report and run sheet](streetpass-stage6.md) for the current
+device/signing blockers and the two-phone execution steps. The hardware gate is still pending.
