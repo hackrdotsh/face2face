@@ -2,10 +2,12 @@
 
 An iPhone app for meeting people with shared interests as you pass them in real life.
 The current build has API connection checks, account creation, sign-in, session
-restoration, and sign-out. Debug builds also include an opt-in, foreground Bluetooth
-device test that exchanges anonymous session tokens between two iPhones. It does
-not identify people or create friendships; product proximity discovery and background
-operation are not implemented. See the [Stage 1 hardware test guide](docs/streetpass-stage1.md).
+restoration, and sign-out. Debug builds include two foreground Bluetooth experiments:
+an account-free [device test](docs/streetpass-stage1.md), and an authenticated
+[connected test](docs/streetpass-stage2.md) using expiring tokens and reciprocal
+encounter reports. The connected test reveals account names after both sessions
+report an exchange; it creates no friendships. Physical-device discovery remains
+unvalidated, and passive/background discovery is not implemented.
 
 ## Open on your Mac
 
@@ -16,7 +18,7 @@ gh repo clone hackrdotsh/face2face
 cd face2face
 direnv allow
 pnpm install --frozen-lockfile
-pnpm setup
+pnpm run setup
 pnpm db:migrate
 nix run .#ios
 ```

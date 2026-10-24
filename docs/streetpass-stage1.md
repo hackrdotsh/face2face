@@ -113,8 +113,10 @@ DiscoveryToken, DiscoverySession, and DiscoveryEncounter are portable Swift core
 The native BluetoothDiscoveryService owns radio behavior; its observable session supplies
 diagnostic results. Neither layer modifies authentication, accounts, or the database.
 
-Stage 2 replaces random test tokens with expiring server-issued tokens and adds authenticated
-encounter submission. Profiles, interest matching, requests, and friendships are separate.
+The separate [Stage 2 connected test](streetpass-stage2.md) uses expiring server-issued
+tokens and authenticated encounter submission. This Stage 1 screen intentionally keeps its
+account-free test tokens as the independent radio baseline. Profiles, interest matching,
+requests, and friendships are separate.
 Background discovery, state restoration, notifications, and real-device battery/range
 measurements require a later implementation and hardware gate.
 
