@@ -5,8 +5,7 @@ This is a personal-account repository. No organization-specific skill library ap
 
 ## Workflow
 
-- Use jj. Keep commits small, with `subsystem(action): Description` subjects.
-- Use an owned jj workspace. Integrate completed changes into `main`.
+- Keep commits small, with `subsystem(action): Description` subjects.
 - Run `pnpm check` and `pnpm build` before handing off changes.
 - Run `pnpm fmt` and `nix fmt` before verification.
 - Biome, nixfmt, and swift-format are approved formatters for this repository.
