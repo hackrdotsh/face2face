@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { createAuth } from "./auth";
+import { discoveryRoutes } from "./discovery";
 import { webOrigins } from "./origins";
 
 export { UserCoordinator } from "./user-coordinator";
@@ -49,6 +50,7 @@ app.get("/api/coordinator", async (context) => {
   const coordinator = context.env.USER_COORDINATORS.getByName(session.user.id);
   return context.json(await coordinator.status());
 });
+app.route("/api", discoveryRoutes);
 app.notFound((context) => context.json({ error: "not_found" }, 404));
 app.onError((error, context) => {
   if (error instanceof HTTPException) return error.getResponse();
