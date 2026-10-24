@@ -18,6 +18,8 @@ final class LoginTests: XCTestCase {
         let app = launchApp(openLogin: false)
         XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["loginStart"].label, "Login")
+        XCTAssertLessThan(app.buttons["loginStart"].frame.midY, app.frame.height * 0.6)
+        XCTAssertGreaterThan(app.buttons["loginStart"].frame.midY, app.frame.height * 0.35)
         XCTAssertFalse(app.textFields["emailField"].exists)
         XCTAssertFalse(app.staticTexts["Take the scenic route"].exists)
         capture("Welcome")

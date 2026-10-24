@@ -13,11 +13,17 @@ struct ContentView: View {
         case name, email, password
     }
 
+    private var showingAccount: Bool { showingLogin || model.user != nil }
+
     var body: some View {
         GeometryReader { geometry in
+            let contentHeight = showingAccount ? geometry.size.height - 44 : geometry.size.height / 2
             ZStack {
-                MeadowScene(isMoving: focusedField == nil && !showingConnection)
-                    .ignoresSafeArea()
+                MeadowScene(
+                    isMoving: focusedField == nil && !showingConnection,
+                    encounterBottomInset: geometry.safeAreaInsets.bottom + 64
+                )
+                .ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 0) {
@@ -25,7 +31,7 @@ struct ContentView: View {
                         welcome
                             .padding(.top, 32)
                         Spacer(minLength: 110)
-                        if showingLogin || model.user != nil {
+                        if showingAccount {
                             accountCard
                                 .transition(.opacity)
                         } else {
@@ -35,7 +41,7 @@ struct ContentView: View {
                     }
                     .frame(maxWidth: 440)
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: max(0, geometry.size.height - 44))
+                    .frame(minHeight: max(0, contentHeight))
                     .padding(.horizontal, 24)
                     .padding(.top, 12)
                     .padding(.bottom, 32)

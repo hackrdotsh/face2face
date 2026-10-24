@@ -7,6 +7,7 @@ struct MeadowScene: View {
     @State private var startedAt = Date()
     @State private var elapsed: TimeInterval = 0
     var isMoving: Bool
+    var encounterBottomInset: CGFloat
 
     private let tileHeight: CGFloat = 640
     private let walkingSpeed: CGFloat = 24
@@ -38,7 +39,7 @@ struct MeadowScene: View {
         context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(MeadowPalette.grass))
         let distance = time * Double(walkingSpeed)
         let offset = CGFloat(distance.truncatingRemainder(dividingBy: Double(tileHeight)))
-        let playerY = min(460, size.height * 0.5)
+        let playerY = max(100, size.height - encounterBottomInset)
         let cameraOffset = size.width / 2 - pathCenter(at: playerY - offset, width: size.width)
         var world = context
         world.translateBy(x: cameraOffset, y: 0)
