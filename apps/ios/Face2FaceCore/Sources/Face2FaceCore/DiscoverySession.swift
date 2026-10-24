@@ -28,6 +28,15 @@ public struct DiscoveryToken: Hashable, Sendable {
             ))
     }
 
+    public init(identifier: String) throws {
+        guard let value = UUID(uuidString: identifier),
+            value.uuidString.lowercased() == identifier.lowercased()
+        else { throw DiscoveryPacketError.invalidIdentifier }
+        self.value = value
+    }
+
+    public var identifier: String { value.uuidString.lowercased() }
+
     /// For comparing two diagnostic screens; never use this truncated code as an identity.
     public var shortCode: String {
         String(value.uuidString.prefix(8)).lowercased()
@@ -35,6 +44,7 @@ public struct DiscoveryToken: Hashable, Sendable {
 }
 
 public enum DiscoveryPacketError: Error, Equatable {
+    case invalidIdentifier
     case invalidLength
     case unsupportedVersion
 }
@@ -48,7 +58,7 @@ public struct DiscoveryEncounter: Identifiable, Sendable, Equatable {
 /// In-memory, session-scoped deduplication shared by incoming and outgoing exchanges.
 public struct DiscoverySession: Sendable {
     public static let encounterLimit = 100
-    public let token: DiscoveryToken
+    public private(set) var token: DiscoveryToken
     public let startedAt: Date
     public private(set) var encounters: [DiscoveryEncounter] = []
     private var seen: Set<DiscoveryToken> = []
@@ -56,6 +66,11 @@ public struct DiscoverySession: Sendable {
     public init(token: DiscoveryToken = DiscoveryToken(), startedAt: Date = Date()) {
         self.token = token
         self.startedAt = startedAt
+    }
+
+    public mutating func rotate(to token: DiscoveryToken) {
+        seen.insert(self.token)
+        self.token = token
     }
 
     /// Public radio input is untrusted. Ignore reflection, duplicates, and excess tokens.

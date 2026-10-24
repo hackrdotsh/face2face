@@ -125,6 +125,75 @@ public actor APIClient {
         try await tokens.save(nil)
     }
 
+    /// A run-scoped client cannot accidentally upload old observations as a newly signed-in account.
+    /// The credential snapshot lives only in memory; persistent credentials remain in Keychain.
+    public func capturingCurrentCredential() async throws -> APIClient {
+        guard let credential = try await tokens.load() else { throw APIError.unauthenticated }
+        return APIClient(
+            configuration: configuration, tokens: CredentialSnapshot(credential), transport: transport)
+    }
+
+    private actor CredentialSnapshot: TokenStore {
+        private var credential: String?
+        init(_ credential: String) { self.credential = credential }
+        func load() -> String? { credential }
+        func save(_ token: String?) { credential = token }
+    }
+
+    public func startDiscovery() async throws -> DiscoveryLease {
+        let response = try await send(
+            path: "api/discovery/start", method: "POST", body: Data("{}".utf8), authenticated: true)
+        let lease = try decode(DiscoveryLease.self, from: response)
+        _ = try lease.validatedToken()
+        return lease
+    }
+
+    public func rotateDiscovery(sessionId: String) async throws -> DiscoveryLease {
+        struct Request: Encodable { let sessionId: String }
+        let response = try await send(
+            path: "api/discovery/rotate", method: "POST",
+            body: JSONEncoder().encode(Request(sessionId: sessionId)), authenticated: true)
+        let lease = try decode(DiscoveryLease.self, from: response)
+        guard lease.sessionId == sessionId else { throw APIError.invalidResponse }
+        _ = try lease.validatedToken()
+        return lease
+    }
+
+    public func stopDiscovery(sessionId: String) async throws {
+        struct Request: Encodable { let sessionId: String }
+        _ = try await send(
+            path: "api/discovery/stop", method: "POST",
+            body: JSONEncoder().encode(Request(sessionId: sessionId)), authenticated: true)
+    }
+
+    public func observeEncounter(sessionId: String, peerToken: DiscoveryToken, observationId: UUID)
+        async throws -> ObservationReceipt
+    {
+        struct Request: Encodable {
+            let sessionId: String
+            let peerToken: String
+            let observationId: String
+        }
+        let response = try await send(
+            path: "api/encounters/observe", method: "POST",
+            body: JSONEncoder().encode(
+                Request(
+                    sessionId: sessionId, peerToken: peerToken.identifier,
+                    observationId: observationId.uuidString.lowercased())),
+            authenticated: true)
+        let receipt = try decode(ObservationReceipt.self, from: response)
+        guard (receipt.status == .recorded) == (receipt.encounter != nil) else {
+            throw APIError.invalidResponse
+        }
+        return receipt
+    }
+
+    public func encounters() async throws -> [ServerEncounter] {
+        struct Envelope: Decodable { let encounters: [ServerEncounter] }
+        let response = try await send(path: "api/encounters", authenticated: true)
+        return try decode(Envelope.self, from: response).encounters
+    }
+
     private struct UserEnvelope: Decodable { let user: User }
 
     private func authenticate(path: String, body: Data) async throws -> User {
