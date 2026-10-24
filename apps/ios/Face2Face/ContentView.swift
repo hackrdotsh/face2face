@@ -5,8 +5,9 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Namespace private var accountTransition
+    @AppStorage("appearance") private var appearance = AppAppearance.system
     @State private var model = AppModel()
-    @State private var showingConnection = false
+    @State private var showingSettings = false
     @State private var showingLogin = false
     @State private var formVisible = false
     @State private var isClosingForm = false
@@ -23,7 +24,7 @@ struct ContentView: View {
             let contentHeight = showingAccount ? geometry.size.height - 44 : geometry.size.height * 2 / 3
             ZStack {
                 MeadowScene(
-                    isMoving: focusedField == nil && !showingConnection,
+                    isMoving: focusedField == nil && !showingSettings,
                     encounterBottomInset: geometry.safeAreaInsets.bottom + 104
                 )
                 .ignoresSafeArea()
@@ -55,7 +56,7 @@ struct ContentView: View {
         }
         .foregroundStyle(MeadowPalette.ink)
         .fontDesign(.rounded)
-        .preferredColorScheme(.light)
+        .preferredColorScheme(appearance.colorScheme)
         .task { await model.restoreSession() }
         .onChange(of: model.errorMessage) { _, error in
             if let error { AccessibilityNotification.Announcement(error).post() }
@@ -67,8 +68,8 @@ struct ContentView: View {
                 isClosingForm = false
             }
         }
-        .sheet(isPresented: $showingConnection) {
-            ConnectionView(model: model)
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(model: model)
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -90,14 +91,14 @@ struct ContentView: View {
             Spacer(minLength: 4)
             Button {
                 focusedField = nil
-                showingConnection = true
+                showingSettings = true
             } label: {
                 Image(systemName: "slider.horizontal.3")
                     .frame(width: 44, height: 44)
                     .background(MeadowPalette.paper, in: Circle())
             }
-            .accessibilityLabel("Connection settings")
-            .accessibilityIdentifier("connectionSettings")
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier("appSettings")
         }
         .font(.system(.subheadline, weight: .semibold))
         .buttonStyle(MeadowPressStyle())
@@ -140,7 +141,7 @@ struct ContentView: View {
                     .matchedGeometryEffect(id: "accountSurface", in: accountTransition, anchor: .bottom)
             }
         }
-        .shadow(color: MeadowPalette.ink.opacity(0.12), radius: 16, y: 6)
+        .shadow(color: MeadowPalette.shadow.opacity(0.12), radius: 16, y: 6)
     }
 
     @ViewBuilder
@@ -168,7 +169,10 @@ struct ContentView: View {
                 .overlay {
                     shape.strokeBorder(
                         LinearGradient(
-                            colors: [.white.opacity(0.9), .white.opacity(0.15), .white.opacity(0.6)],
+                            colors: [
+                                MeadowPalette.glassEdge.opacity(0.9), MeadowPalette.glassEdge.opacity(0.15),
+                                MeadowPalette.glassEdge.opacity(0.6),
+                            ],
                             startPoint: .topLeading, endPoint: .bottomTrailing),
                         lineWidth: 1)
                 }
@@ -329,7 +333,7 @@ struct ContentView: View {
                 Spacer(minLength: 0)
                 Text(title)
                 if model.isBusy {
-                    ProgressView().tint(MeadowPalette.ink)
+                    ProgressView().tint(MeadowPalette.accentInk)
                 } else {
                     Image(systemName: symbol)
                         .accessibilityHidden(true)
@@ -337,6 +341,7 @@ struct ContentView: View {
                 Spacer(minLength: 0)
             }
             .font(.system(.headline, design: .rounded, weight: .heavy))
+            .foregroundStyle(MeadowPalette.accentInk)
             .padding(.horizontal, 18)
             .padding(.vertical, 18)
             .background {

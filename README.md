@@ -10,7 +10,9 @@ account form, then the controls pop in sequentially after the glass finishes
 expanding; closing reverses the sequence before the glass shrinks back to the
 Login pill. Reduce Motion uses
 a crossfade instead. The scenery pauses while entering text, in the background,
-and when Reduce Motion is enabled. API settings are under the sliders button.
+and when Reduce Motion is enabled. The sliders button opens Settings, including
+the API server and a saved System / Light / Dark appearance choice. System is the default.
+Dark mode adds a night forest with gently glowing fireflies; Reduce Motion freezes their movement.
 The camera follows one walker, with occasional oncoming walkers and a brief wave
 as they pass. These are decorative animations: no encounters are detected or recorded.
 

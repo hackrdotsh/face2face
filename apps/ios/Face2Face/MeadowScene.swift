@@ -3,6 +3,7 @@ import SwiftUI
 /// A decorative walking scene. Greetings are animation, not recorded encounters.
 struct MeadowScene: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     @State private var startedAt = Date()
     @State private var elapsed: TimeInterval = 0
@@ -51,6 +52,12 @@ struct MeadowScene: View {
         for tile in -1..<tileCount {
             let origin = CGFloat(tile) * tileHeight + offset
             drawPlants(context: world, size: size, origin: origin, cameraOffset: cameraOffset)
+        }
+        if colorScheme == .dark {
+            for tile in -1..<tileCount {
+                let origin = CGFloat(tile) * tileHeight + offset
+                drawFireflies(context: world, width: size.width, origin: origin, time: time)
+            }
         }
         drawTravelers(
             context: context, size: size, time: time, playerY: playerY,
@@ -123,6 +130,29 @@ struct MeadowScene: View {
         return width / 2 + bend * progress * (1 - progress)
     }
 
+    private func drawFireflies(
+        context: GraphicsContext, width: CGFloat, origin: CGFloat, time: TimeInterval
+    ) {
+        // Keep the glow positions attached to the same scrolling tiles as the trees.
+        for index in 0..<12 {
+            let phase = Double(index) * 2.4
+            let x = CGFloat((Double(index) * 0.618 + 0.13).truncatingRemainder(dividingBy: 1))
+            let y = CGFloat((Double(index) * 0.414 + 0.21).truncatingRemainder(dividingBy: 1))
+            let point = CGPoint(
+                x: x * width + sin(time * 0.35 + phase) * 8,
+                y: origin + y * tileHeight + cos(time * 0.27 + phase) * 6)
+            let brightness = 0.35 + (sin(time * 1.1 + phase) + 1) * 0.325
+            context.fill(
+                Path(ellipseIn: CGRect(x: point.x - 11, y: point.y - 11, width: 22, height: 22)),
+                with: .radialGradient(
+                    Gradient(colors: [MeadowPalette.firefly.opacity(brightness * 0.4), .clear]),
+                    center: point, startRadius: 0, endRadius: 11))
+            context.fill(
+                Path(ellipseIn: CGRect(x: point.x - 1.5, y: point.y - 1.5, width: 3, height: 3)),
+                with: .color(MeadowPalette.firefly.opacity(brightness)))
+        }
+    }
+
     private func drawTravelers(
         context: GraphicsContext, size: CGSize, time: TimeInterval, playerY: CGFloat,
         offset: CGFloat, cameraOffset: CGFloat
@@ -169,7 +199,7 @@ struct MeadowScene: View {
                 Path(
                     roundedRect: CGRect(x: leg == 0 ? -8 : 4, y: 7 + step, width: 8, height: 14),
                     cornerRadius: 3),
-                with: .color(MeadowPalette.ink))
+                with: .color(MeadowPalette.characterInk))
         }
         context.translateBy(x: 0, y: -abs(stride) * 0.4)
         context.fill(
@@ -192,13 +222,14 @@ struct MeadowScene: View {
             for eye in [-5.0, 5.0] {
                 context.fill(
                     Path(ellipseIn: CGRect(x: eye, y: -24, width: 2.5, height: 3)),
-                    with: .color(MeadowPalette.ink))
+                    with: .color(MeadowPalette.characterInk))
             }
             var smile = Path()
             smile.move(to: CGPoint(x: -3, y: -17))
             smile.addQuadCurve(to: CGPoint(x: 4, y: -17), control: CGPoint(x: 0.5, y: -13))
             context.stroke(
-                smile, with: .color(MeadowPalette.ink), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+                smile, with: .color(MeadowPalette.characterInk),
+                style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
         } else {
             context.fill(
                 Path(roundedRect: CGRect(x: -8, y: -8, width: 17, height: 21), cornerRadius: 6),
@@ -256,7 +287,7 @@ struct MeadowScene: View {
         context.fill(crown, with: .color(light ? MeadowPalette.treeLight : MeadowPalette.tree))
         context.fill(
             Path(ellipseIn: CGRect(x: -23, y: -33, width: 17, height: 10)),
-            with: .color(MeadowPalette.paper.opacity(0.22)))
+            with: .color(MeadowPalette.treeHighlight.opacity(0.22)))
     }
 
     private func drawFlower(context: GraphicsContext, at point: CGPoint) {

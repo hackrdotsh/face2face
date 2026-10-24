@@ -2,6 +2,38 @@ import XCTest
 
 @MainActor
 final class LoginTests: XCTestCase {
+    func testAppearanceSwitchingAndPersistence() {
+        let app = launchApp(openLogin: false, appearance: nil)
+        app.buttons["appSettings"].tap()
+        let themes = app.segmentedControls["appearancePicker"]
+        XCTAssertTrue(themes.waitForExistence(timeout: 3))
+        themes.buttons["Dark"].tap()
+        XCTAssertTrue(themes.buttons["Dark"].isSelected)
+        capture("Dark settings")
+        app.navigationBars.buttons["Done"].tap()
+        capture("Dark welcome")
+
+        app.terminate()
+        app.launch()
+        app.buttons["appSettings"].tap()
+        XCTAssertTrue(themes.buttons["Dark"].isSelected)
+        app.navigationBars.buttons["Done"].tap()
+        app.buttons["loginStart"].tap()
+        XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
+        capture("Dark login form")
+        app.buttons["loginBack"].tap()
+        app.buttons["appSettings"].tap()
+        themes.buttons["Light"].tap()
+        XCTAssertTrue(themes.buttons["Light"].isSelected)
+        app.navigationBars.buttons["Done"].tap()
+        capture("Light welcome")
+
+        app.buttons["appSettings"].tap()
+        themes.buttons["System"].tap()
+        XCTAssertTrue(themes.buttons["System"].isSelected)
+        app.navigationBars.buttons["Done"].tap()
+    }
+
     func testRegistrationClosesAndReopensAsSignIn() {
         let app = launchApp()
         reveal(app.buttons["accountModeToggle"], in: app)
@@ -71,7 +103,7 @@ final class LoginTests: XCTestCase {
         XCTAssertTrue(app.buttons["accountSubmit"].isHittable)
     }
 
-    func testAccountModesKeyboardAndConnectionSettings() {
+    func testAccountModesKeyboardAndSettings() {
         let app = launchApp()
         XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
         capture("Sign in")
@@ -98,12 +130,12 @@ final class LoginTests: XCTestCase {
         XCTAssertFalse(app.textFields["nameField"].exists)
         app.swipeDown()
         app.swipeDown()
-        app.buttons["connectionSettings"].tap()
-        XCTAssertTrue(app.navigationBars["Connection"].waitForExistence(timeout: 3))
+        app.buttons["appSettings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.textFields["API URL"].exists)
-        capture("Connection")
+        capture("Settings")
         app.navigationBars.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["connectionSettings"].exists)
+        XCTAssertTrue(app.buttons["appSettings"].exists)
     }
 
     func testLargeTextCanReachAccountControls() {
@@ -134,11 +166,14 @@ final class LoginTests: XCTestCase {
         ).firstMatch
     }
 
-    private func launchApp(largeText: Bool = false, openLogin: Bool = true) -> XCUIApplication {
+    private func launchApp(
+        largeText: Bool = false, openLogin: Bool = true, appearance: String? = "light"
+    ) -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
         // An empty server avoids networking and existing Keychain sessions in layout tests.
         app.launchArguments = ["-apiAddress", ""]
+        if let appearance { app.launchArguments += ["-appearance", appearance] }
         if largeText {
             app.launchArguments += [
                 "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
