@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { createAuth } from "./auth";
+import { webOrigins } from "./origins";
 
 export { UserCoordinator } from "./user-coordinator";
 
@@ -16,7 +17,7 @@ app.use("/api/*", async (context, next) => {
 });
 app.use("*", (context, next) =>
   cors({
-    origin: context.env.WEB_ORIGINS,
+    origin: webOrigins(context.env),
     credentials: true,
     allowHeaders: ["Content-Type", "expo-origin"],
     allowMethods: ["GET", "POST", "OPTIONS"],

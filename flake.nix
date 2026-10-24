@@ -106,7 +106,8 @@
                   node
                   pnpm
                   pkgs.nixfmt
-                ];
+                ]
+                ++ pkgs.lib.optionals (name == "tailscale") [ pkgs.tailscale ];
                 text = ''
                   if [ ! -f pnpm-workspace.yaml ] || [ ! -f apps/api/wrangler.jsonc ]; then
                     echo 'Run this command from the face2face repository root.' >&2
@@ -128,6 +129,7 @@
               pkgs.gh
               pkgs.sqlite
               pkgs.openssl
+              pkgs.tailscale
             ];
             EXPO_NO_TELEMETRY = "1";
             WRANGLER_SEND_METRICS = "false";
@@ -157,6 +159,7 @@
             dev = task "dev" "exec pnpm dev";
             api = task "api" "exec pnpm dev:api";
             mobile = task "mobile" "exec pnpm dev:mobile";
+            tailscale = task "tailscale" "exec pnpm dev:tailscale";
             build = task "build" "exec pnpm build";
             test = task "test" "exec pnpm test";
             lint = task "lint" "exec pnpm lint";

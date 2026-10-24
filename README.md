@@ -33,6 +33,28 @@ trusted development network; local HTTP is not suitable for production credentia
 
 ## Commands
 
+### Phone over Tailscale
+
+Connect the development machine and phone to the same tailnet. Stop any running
+`pnpm dev` first, then run from the repository root:
+
+```sh
+pnpm dev:tailscale
+# Or: nix run .#tailscale
+```
+
+This discovers the machine's Tailscale IPv4 address, advertises it in Expo's QR
+code, and sets the mobile API URL and backend auth origin to that same address.
+It does not change `.env` files or cloud configuration. Metro's cache is cleared
+so an old `localhost` API URL is not reused. Scan with Expo Go, or open the printed
+`exp://` link. If Expo Go requests sign-in, use the same Expo account on the phone
+and in the CLI. The installed Expo Go version must support this project's SDK.
+
+Your tailnet policy and host firewall must allow TCP 8081 and 8787 from the phone.
+The API binds only to the Tailscale address in this mode; Metro still listens on
+all interfaces. Do not expose either dev server through a public tunnel or port
+forward. No public tunnel or firewall rule is created by the command.
+
 Run commands from the repository root after installing dependencies.
 
 | Task                                       | pnpm                     | Nix app                |

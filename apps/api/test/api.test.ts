@@ -2,6 +2,7 @@ import { applyD1Migrations } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 import migration from "../migrations/0000_past_cyclops.sql?raw";
+import { webOrigins } from "../src/origins";
 
 beforeAll(async () => {
   await applyD1Migrations(env.DB, [
@@ -15,6 +16,9 @@ beforeAll(async () => {
 const origin = "http://localhost:8787";
 
 describe("API foundation", () => {
+  it("does not enable a Tailscale origin when development override is empty", () => {
+    expect(webOrigins({ ...env, DEV_WEB_ORIGIN: "" })).toEqual(env.WEB_ORIGINS);
+  });
   it("rejects an untrusted auth origin", async () => {
     const response = await exports.default.fetch(
       `${origin}/api/auth/sign-up/email`,
@@ -83,6 +87,7 @@ describe("API foundation", () => {
     for (const webOrigin of [
       "http://localhost:8081",
       "http://127.0.0.1:8081",
+      "http://100.100.20.30:8081",
     ]) {
       const response = await exports.default.fetch(`${origin}/health`, {
         headers: { Origin: webOrigin },
@@ -112,7 +117,7 @@ describe("API foundation", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Origin: "http://localhost:8081",
+          Origin: "http://100.100.20.30:8081",
         },
         body: JSON.stringify({
           name: "Test person",
@@ -127,7 +132,7 @@ describe("API foundation", () => {
       .map((cookie) => cookie.split(";")[0])
       .join("; ");
     expect(cookies).toContain("better-auth.session_token");
-    const headers = { Cookie: cookies, Origin: "http://localhost:8081" };
+    const headers = { Cookie: cookies, Origin: "http://100.100.20.30:8081" };
     const me = await exports.default.fetch(`${origin}/api/me`, { headers });
     expect(me.status).toBe(200);
     expect(me.headers.get("Cache-Control")).toBe("no-store");

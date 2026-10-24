@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./db/schema";
+import { webOrigins } from "./origins";
 
 export function createAuth(env: Env) {
   return betterAuth({
@@ -14,7 +15,7 @@ export function createAuth(env: Env) {
       schema,
       transaction: false,
     }),
-    trustedOrigins: ["face2face://", ...env.WEB_ORIGINS],
+    trustedOrigins: ["face2face://", ...webOrigins(env)],
     emailAndPassword: { enabled: true, minPasswordLength: 12 },
     plugins: [expo()],
     rateLimit: { enabled: true, storage: "database" },
