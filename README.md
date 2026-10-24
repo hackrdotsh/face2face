@@ -94,17 +94,19 @@ SwiftUI or Security.framework. The macOS CI job builds the iPhone simulator targ
 
 ## Backend deployment
 
-No cloud resources are created by development, tests, or builds. To deploy:
-1. Authenticate with Cloudflare and choose the account.
-2. Run `pnpm --filter @face2face/api exec wrangler d1 create face2face`.
-3. Set the returned `database_id` in `apps/api/wrangler.jsonc`.
-4. Set `BETTER_AUTH_URL` to the HTTPS API URL and configure `WEB_ORIGINS` if needed.
-5. Set the secret with `pnpm --filter @face2face/api exec wrangler secret put BETTER_AUTH_SECRET`.
-   Set `RESEND_API_KEY` the same way. Set `EMAIL_TRANSPORT` to `resend` and
-   `EMAIL_FROM` to an address on a domain that Resend verified.
-   Configure passkeys as described in [architecture](docs/architecture.md#passkeys).
-6. Run `pnpm --filter @face2face/api exec wrangler d1 migrations apply DB --remote`.
-7. Run `pnpm --filter @face2face/api exec wrangler deploy`.
+No cloud resources are created by development, tests, or builds. Production is the
+`production` environment in `apps/api/wrangler.jsonc`. It serves `https://f2f.rocky.systems`
+from the `face2face` D1 database. To update it:
+1. Authenticate with `pnpm --filter @face2face/api exec wrangler login`.
+2. Run `pnpm --filter @face2face/api exec wrangler d1 migrations apply face2face --remote --env production`.
+3. Run `pnpm --filter @face2face/api exec wrangler deploy --env production`.
+
+`BETTER_AUTH_SECRET` is already set. Production uses `EMAIL_TRANSPORT` `console` for now, so
+sign-in codes appear in the Worker log (`wrangler tail --env production`). To send real email,
+verify `f2f.rocky.systems` in Resend, run
+`pnpm --filter @face2face/api exec wrangler secret put RESEND_API_KEY --env production`,
+and set `EMAIL_TRANSPORT` to `resend` in the production environment.
+Configure passkeys as described in [architecture](docs/architecture.md#passkeys).
 
 Before inviting users, decide the registration policy and review abuse controls. Do not treat the hackathon
 development configuration as a production-ready public service.

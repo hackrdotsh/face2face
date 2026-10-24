@@ -184,7 +184,8 @@ describe("API foundation", () => {
 describe("email delivery", () => {
   it("serves auth requests before a Resend API key is configured", async () => {
     const { createAuth } = await import("../src/auth");
-    const auth = createAuth({ ...env, EMAIL_TRANSPORT: "resend" });
+    const resendEnv = { ...env, EMAIL_TRANSPORT: "resend" } as unknown as Env;
+    const auth = createAuth(resendEnv);
     const session = await auth.api.getSession({ headers: new Headers() });
     expect(session).toBeNull();
   });
