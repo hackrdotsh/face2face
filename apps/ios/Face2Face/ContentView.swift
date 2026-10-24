@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Namespace private var accountTransition
     @State private var model = AppModel()
     @State private var showingConnection = false
@@ -125,8 +126,16 @@ struct ContentView: View {
     }
 
     private func accountBackground(expanded: Bool) -> some View {
+        let fill =
+            expanded || reduceTransparency
+            ? AnyShapeStyle(MeadowPalette.paper)
+            : AnyShapeStyle(.ultraThinMaterial)
         let shape = RoundedRectangle(cornerRadius: expanded ? 32 : 16)
-            .fill(expanded ? MeadowPalette.paper : MeadowPalette.accent)
+            .fill(fill)
+            .overlay {
+                RoundedRectangle(cornerRadius: expanded ? 32 : 16)
+                    .strokeBorder(.white.opacity(expanded ? 0 : 0.65), lineWidth: 1)
+            }
         return Group {
             if reduceMotion {
                 shape
@@ -135,8 +144,8 @@ struct ContentView: View {
             }
         }
         .shadow(
-            color: expanded ? MeadowPalette.ink.opacity(0.08) : MeadowPalette.accentShadow,
-            radius: 0, y: expanded ? 6 : 4
+            color: MeadowPalette.ink.opacity(expanded ? 0.08 : 0.12),
+            radius: expanded ? 0 : 16, y: 6
         )
         .shadow(color: MeadowPalette.ink.opacity(expanded ? 0.08 : 0), radius: 24, y: 12)
     }
