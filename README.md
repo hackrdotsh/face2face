@@ -40,7 +40,7 @@ Connect the development machine and phone to the same tailnet. Stop any running
 
 ```sh
 pnpm dev:tailscale
-# Or: nix run .#tailscale
+# Or: nix run .#dev-tailscale
 ```
 
 This discovers the machine's Tailscale IPv4 address, advertises it in Expo's QR
@@ -54,6 +54,8 @@ Your tailnet policy and host firewall must allow TCP 8081 and 8787 from the phon
 The API binds only to the Tailscale address in this mode; Metro still listens on
 all interfaces. Do not expose either dev server through a public tunnel or port
 forward. No public tunnel or firewall rule is created by the command.
+
+`nix run .#tailscale` remains an alias for the same command.
 
 Run commands from the repository root after installing dependencies.
 

@@ -160,6 +160,7 @@
             api = task "api" "exec pnpm dev:api";
             mobile = task "mobile" "exec pnpm dev:mobile";
             tailscale = task "tailscale" "exec pnpm dev:tailscale";
+            dev-tailscale = task "tailscale" "exec pnpm dev:tailscale";
             build = task "build" "exec pnpm build";
             test = task "test" "exec pnpm test";
             lint = task "lint" "exec pnpm lint";
