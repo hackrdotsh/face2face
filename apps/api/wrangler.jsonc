@@ -8,6 +8,7 @@
   "dev": { "port": 8080 },
   "observability": { "enabled": true, "head_sampling_rate": 1 },
   "vars": {
+    "DEV_TOOLS": "true",
     "DEV_WEB_ORIGIN": "",
     "BETTER_AUTH_URL": "http://localhost:8080",
     "WEB_ORIGINS": ["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -36,6 +37,7 @@
     "production": {
       "routes": [{ "pattern": "f2f.rocky.systems", "custom_domain": true }],
       "vars": {
+        "DEV_TOOLS": "false",
         "DEV_WEB_ORIGIN": "",
         "BETTER_AUTH_URL": "https://f2f.rocky.systems",
         "WEB_ORIGINS": [],

@@ -10,6 +10,10 @@ import { requireOnboarded, requireSession } from "./middleware/session";
 import { onboardingFields } from "./onboarding/fields";
 import { getOnboardingState } from "./onboarding/onboarding";
 import { webOrigins } from "./origins";
+import { connectionRoutes } from "./routes/connections";
+import { devRoutes } from "./routes/dev";
+import { interestRoutes } from "./routes/interests";
+import { notificationRoutes } from "./routes/notifications";
 import { onboardingRoutes } from "./routes/onboarding";
 
 export { UserCoordinator } from "./user-coordinator";
@@ -27,7 +31,7 @@ app.use("*", (context, next) =>
     credentials: true,
     allowHeaders: ["Content-Type", "Authorization"],
     exposeHeaders: ["set-auth-token"],
-    allowMethods: ["GET", "POST", "PATCH", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PATCH", "PUT", "OPTIONS"],
   })(context, next),
 );
 app.use("/api/*", bodyLimit({ maxSize: 16 * 1024 }));
@@ -52,6 +56,10 @@ app.get("/api/me", requireSession, async (context) => {
   });
 });
 app.route("/api/onboarding", onboardingRoutes);
+app.route("/api/interests", interestRoutes);
+app.route("/api/connections", connectionRoutes);
+app.route("/api/notifications", notificationRoutes);
+app.route("/api/dev", devRoutes);
 app.get(
   "/api/coordinator",
   requireSession,
