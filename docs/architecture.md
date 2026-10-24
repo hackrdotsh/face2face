@@ -25,8 +25,15 @@ requires Xcode and an iPhone. Generated projects and local build output are igno
 
 ## Proximity is a separate milestone
 
-No Bluetooth scan, geolocation permission, encounter upload, or matching runs yet.
-Choose a discovery approach after testing physical iPhones. Measure background
+Debug builds have a foreground-only Core Bluetooth experiment in a separate
+Device test tab. It exchanges anonymous, per-session test tokens and deduplicates
+them in memory. It needs no account or backend and stops when the app backgrounds
+or the test screen closes. Release builds omit this experiment.
+
+No geolocation, account resolution, encounter upload, interest matching, background
+restoration, or notifications run yet. Physical-device discovery remains unvalidated.
+Follow the [Stage 1 hardware test guide](streetpass-stage1.md) before claiming the
+two-phone gate passed. Production discovery still requires measurements of background
 execution, battery use, permissions, false positives, and force-quit behavior.
 
 Before building the protocol:
@@ -41,7 +48,8 @@ Before building the protocol:
 
 ## Suggested next slice
 
-Add profiles, interest selection, and a clearly labeled encounter simulator.
-Use the simulator to test matching and blocking rules without collecting location.
-Then test discovery on two physical iPhones. A simulated encounter must never
-count as proof of actual proximity.
+Run Stage 1 on two physical iPhones and record the actual success rate and
+timings. Then add expiring server-issued discovery tokens and authenticated encounter
+submission, keeping profiles and interest matching independent of radio observations.
+A separately labeled encounter simulator can test matching and blocking without
+collecting location; neither simulated nor client-reported encounters prove proximity.

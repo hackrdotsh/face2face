@@ -2,7 +2,10 @@
 
 An iPhone app for meeting people with shared interests as you pass them in real life.
 The current build has API connection checks, account creation, sign-in, session
-restoration, and sign-out. Proximity discovery is not implemented yet.
+restoration, and sign-out. Debug builds also include an opt-in, foreground Bluetooth
+device test that exchanges anonymous session tokens between two iPhones. It does
+not identify people or create friendships; product proximity discovery and background
+operation are not implemented. See the [Stage 1 hardware test guide](docs/streetpass-stage1.md).
 
 ## Open on your Mac
 
