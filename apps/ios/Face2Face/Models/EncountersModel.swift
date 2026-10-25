@@ -7,6 +7,7 @@ import Observation
 final class EncountersModel {
     let isPreview: Bool
     private let session: SessionModel?
+    private let feedbackContext: UUID?
     private var fixedSource: (any EncounterRepository)?
     private var client: APIClient?
     private(set) var chances: [TownConnection] = []
@@ -21,6 +22,7 @@ final class EncountersModel {
 
     init(session: SessionModel) {
         self.session = session
+        feedbackContext = session.celebrations.context
         isPreview = session.isTownPreview
         #if DEBUG
             if isPreview { fixedSource = PreviewEncounterRepository() }
@@ -28,6 +30,7 @@ final class EncountersModel {
     }
     init(repository: any EncounterRepository) {
         session = nil
+        feedbackContext = nil
         isPreview = false
         fixedSource = repository
     }
@@ -49,6 +52,7 @@ final class EncountersModel {
 
     func refresh() async {
         guard busyID == nil else { return }
+        let feedbackRevision = session?.celebrations.revision ?? 0
         version += 1
         let request = version
         loading = true
@@ -58,6 +62,7 @@ final class EncountersModel {
             let source = try await repository()
             let all = try await source.townConnections()
             guard request == version, !Task.isCancelled else { return }
+            session?.celebrations.observeSnapshot(all, context: feedbackContext, revision: feedbackRevision)
             acceptedIDs.formUnion(all.filter { $0.isPending && $0.you?.decision == .accepted }.map(\.id))
             if let current = newlyConnectedID, !all.contains(where: { $0.id == current && $0.isFriend }) {
                 newlyConnectedID = nil
@@ -107,6 +112,7 @@ final class EncountersModel {
             chances.removeAll { $0.id == id }
             if result.isPending { chances.append(result) }
             if result.isFriend {
+                session?.celebrations.observe(result, context: feedbackContext, allowNew: true)
                 newlyConnectedID = result.id
                 registerPreviewChat(result)
             } else if decision == .declined {

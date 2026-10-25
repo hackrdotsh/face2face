@@ -6,10 +6,29 @@ import Observation
 @Observable
 final class SessionModel {
     /// `nil` until the saved session has been checked.
-    private(set) var phase: SessionPhase?
+    private(set) var phase: SessionPhase? {
+        didSet {
+            if case .ready(let account) = phase {
+                if isTownPreview {
+                    celebrations.bind(accountID: account.user.id, server: "preview://offline", preview: true)
+                } else if let server = try? configuration().baseURL.absoluteString {
+                    celebrations.bind(accountID: account.user.id, server: server)
+                } else {
+                    celebrations.clear()
+                }
+            } else {
+                celebrations.clear()
+            }
+        }
+    }
     var serverAddress = UserDefaults.standard.string(forKey: "apiAddress") ?? SessionModel.defaultAddress
     private(set) var connection = "Not checked"
     let activity = Activity()
+    let celebrations: ConnectionCelebrations
+
+    init(celebrations: ConnectionCelebrations = ConnectionCelebrations()) {
+        self.celebrations = celebrations
+    }
 
     private static let defaultAddress = "https://f2f.rocky.systems"
 
