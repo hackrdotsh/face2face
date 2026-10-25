@@ -11,9 +11,10 @@ struct ChatsView: View {
     @State private var loading = true
     @State private var error: String?
     @State private var generation = 0
+    @State private var path: [ChatRoute] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Label("Pull up a chair.", systemImage: "cup.and.saucer.fill")
@@ -92,9 +93,11 @@ struct ChatsView: View {
             }
         }
         .foregroundStyle(MeadowPalette.ink).fontDesign(.rounded)
+        .connectionCelebrations(session.celebrations, available: path.isEmpty)
     }
 
     @MainActor private func reload() async {
+        let feedbackContext = session.celebrations.context
         generation += 1
         let request = generation
         loading = true
@@ -113,6 +116,7 @@ struct ChatsView: View {
             #endif
             guard request == generation, !Task.isCancelled else { return }
             chats = result
+            for chat in result { session.celebrations.observe(chat.connection, context: feedbackContext) }
         } catch {
             guard request == generation, !Task.isCancelled else { return }
             chats = []
