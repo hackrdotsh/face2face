@@ -36,6 +36,12 @@ enum MeadowPalette {
     static let characterInk = color(0x34394D)
     static let greeting = color(0xA899CE, dark: 0xCAB7EF)
     static let firefly = color(0xFFE7A3)
+    static let waterShore = color(0xA9D9E6, dark: 0x2E4B5E)
+    static let waterDeep = color(0x7FBFD6, dark: 0x1E3646)
+    static let interiorGlow = color(0xFBE7C0, dark: 0xC5A06B)
+    static let waterFoam = color(0xFFFDF8, dark: 0xB2D8DF)
+    static let cafeRoof = color(0x85ADA2, dark: 0x527D77)
+    static let boardCork = color(0xD9B991, dark: 0x806A56)
 
     private static func color(_ light: UInt32, dark: UInt32? = nil) -> Color {
         Color(

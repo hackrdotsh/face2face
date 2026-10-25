@@ -14,7 +14,15 @@ struct RootView: View {
                 .toolbar(.hidden, for: .navigationBar)
                 .activityAlert(session.activity)
         }
-        .task { await session.restore() }
+        .task {
+            #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-town-preview") {
+                    session.enterTownPreview()
+                    return
+                }
+            #endif
+            await session.restore()
+        }
         .preferredColorScheme(appearance.colorScheme)
     }
 
@@ -27,7 +35,7 @@ struct RootView: View {
         case .needsOnboarding(let account):
             OnboardingView(account: account, session: session)
         case .ready(let account):
-            HomeView(account: account, session: session, passkeys: passkeys)
+            TownView(account: account, session: session, passkeys: passkeys)
         }
     }
 }

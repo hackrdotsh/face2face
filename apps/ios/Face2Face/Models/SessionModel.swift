@@ -78,4 +78,24 @@ final class SessionModel {
             self.phase = .signedOut
         }
     }
+
+    #if DEBUG
+        /// Prototype bypass: enter the town without a session. Scratch only — never ship.
+        func enterTownPreview() {
+            let json = """
+                {"user":{"id":"preview","name":"Preview Walker","email":"preview@seed.face2face.test",
+                "avatar":{"seed":"AAAAAAAAAAAAAAAAAAAAAA","photo":null}},"onboardingComplete":true}
+                """
+            if let account = try? JSONDecoder().decode(Account.self, from: Data(json.utf8)) {
+                phase = .ready(account)
+            }
+        }
+    #endif
+
+    var isTownPreview: Bool {
+        #if DEBUG
+            if case .ready(let account) = phase { return account.user.id == "preview" }
+        #endif
+        return false
+    }
 }
