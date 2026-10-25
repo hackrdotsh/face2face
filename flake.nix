@@ -47,52 +47,6 @@
               ])
               && !(pkgs.lib.hasPrefix "result-" name);
           };
-          package = pkgs.stdenvNoCC.mkDerivation {
-            pname = "face2face-api";
-            version = "0.1.0";
-            src = source;
-            nativeBuildInputs = [
-              node
-              pnpm
-              pkgs.pnpmConfigHook
-            ]
-            ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.autoPatchelfHook ];
-            buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc.cc.lib ];
-            preBuild = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
-              autoPatchelf node_modules
-            '';
-            pnpmDeps = pkgs.fetchPnpmDeps {
-              pname = "face2face";
-              version = "0.1.0";
-              src = source;
-              inherit pnpm;
-              fetcherVersion = 4;
-              hash = "sha256-e7ch2GQBu1li9yiaNUKarz08a/u8ZZq0MjfsuiaGPWk=";
-            };
-            SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-            CI = "1";
-            WRANGLER_SEND_METRICS = "false";
-            buildPhase = ''
-              runHook preBuild
-              export HOME="$TMPDIR/home"
-              mkdir -p "$HOME"
-              pnpm build
-              runHook postBuild
-            '';
-            doCheck = true;
-            checkPhase = ''
-              runHook preCheck
-              pnpm check:api
-              runHook postCheck
-            '';
-            installPhase = ''
-              runHook preInstall
-              mkdir -p "$out/share/face2face"
-              cp -r apps/api/dist "$out/share/face2face/worker"
-              cp -r apps/api/migrations "$out/share/face2face/migrations"
-              runHook postInstall
-            '';
-          };
           swiftCheck = pkgs.stdenv.mkDerivation {
             pname = "face2face-swift-check";
             version = "0.1.0";
@@ -169,9 +123,7 @@
               exec nixfmt "$@"
             '';
           };
-          inherit package;
           checks = {
-            build = package;
             swift = swiftCheck;
             nix-format = pkgs.runCommand "face2face-nix-format" { nativeBuildInputs = [ pkgs.nixfmt ]; } ''
               nixfmt --check ${./flake.nix}
@@ -205,9 +157,6 @@
       });
       formatter = eachSystem (system: (forSystem system).formatter);
       apps = eachSystem (system: (forSystem system).apps);
-      packages = eachSystem (system: {
-        default = (forSystem system).package;
-      });
       checks = eachSystem (system: (forSystem system).checks);
     };
 }

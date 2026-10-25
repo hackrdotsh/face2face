@@ -134,10 +134,8 @@ swift-format, and backend tools. On Mac it also provides XcodeGen. Xcode and App
 SDKs must be installed separately. direnv's `use flake` loads the environment;
 each clone needs `direnv allow` and a shell with direnv integration enabled.
 
-`nix build` produces the Worker bundle and migrations under
-`result/share/face2face/`. It does not produce an iPhone binary. There is no default
-`nix run .` app: launch the iPhone target through Xcode or `nix run .#ios`.
-`nix flake check` tests the backend and portable Swift client. Linux cannot compile
+There is no default `nix run .` app: launch the iPhone target through Xcode or `nix run .#ios`.
+`nix flake check` tests the portable Swift client and flake formatting. Linux cannot compile
 SwiftUI or Security.framework. The macOS CI job builds the iPhone simulator target.
 
 ## Backend deployment
