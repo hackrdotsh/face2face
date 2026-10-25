@@ -175,7 +175,8 @@ A client, web or iPhone:
 5. Reconnects with backoff when the socket closes and reloads the inbox.
 
 Notification kinds are `encounter` (shared interests and expiry), `connected`,
-and `public`. None identifies the other person.
+`public`, `post_updated`, `post_cancelled`, and `post_rsvp`. None identifies the
+other person. The post kinds hold only `postId` and `forumId`.
 
 ### Simulator
 
@@ -183,12 +184,15 @@ and `public`. None identifies the other person.
 `"true"`, every `/api/dev/*` route returns 404. These routes need no session:
 - `POST /api/dev/seed` creates or resets six people with finished profiles and
   overlapping interests. Each uses the password `face2face-seed-password`.
+- `POST /api/dev/forums/seed` seeds the people, then replaces the seeded forum
+  posts and their RSVPs. Event times are relative to now. One event is in
+  progress, one is over, and one is cancelled.
 - `POST /api/dev/encounters` with `{ "firstUserId", "secondUserId" }` records a
   simulated encounter. The response says `"simulated": true`.
 - `GET /api/dev/users`, `GET /api/dev/connections`, `GET /api/dev/interests`,
   and `GET /api/dev/users/:id/notifications` show raw state.
 - `POST /api/dev/connections/:id/expire` ends a pending chance now.
-- `POST /api/dev/reset` deletes every connection and block.
+- `POST /api/dev/reset` deletes every connection, block, and forum post.
 
 A simulated encounter is not evidence that two people were near each other.
 
@@ -299,6 +303,64 @@ Message editing and deletion, read receipts for the other person, push
 notifications, and cleanup of images that were uploaded but not sent. There is
 no account deletion yet. When it exists, it must delete each chat's
 `ChatRoom` storage and its R2 prefix.
+
+## Forums
+
+Each interest has one forum. Migration `0008_seed_forums` makes one for every
+interest, with the interest ID as the forum ID. A post in a forum is an event.
+
+### Data
+
+- `forum` links to one `interest`.
+- `post` has a required `title` and `starts_at`, and an optional `description`,
+  `location` (free text), and `ends_at`. `ends_at`, when set, must be on or
+  after `starts_at`. Deleting a post sets `deleted_at` and keeps
+  the row.
+- `post_attendee` has one row for each person who RSVPs. Database triggers keep
+  `post.attendee_count` in step with these rows.
+
+### Rules
+
+- A person can read and post in a forum only while that interest is on their
+  profile. Other forums and their posts return 404. RSVPs stay when a person
+  removes the interest.
+- Forum members see the names and photos of authors and attendees.
+- Only the author can edit or cancel a post. A cancelled post cannot change.
+- An event is over when `ends_at` passes. With no `ends_at`, it is over when
+  `starts_at` passes.
+- An RSVP to a cancelled or finished event is refused. Leaving is always
+  allowed.
+- An edit sends `post_updated` and a cancellation sends `post_cancelled` to
+  each attendee except the author. A new RSVP sends `post_rsvp` to the author,
+  unless the author is the attendee. New posts send no notification.
+
+### HTTP routes
+
+All need a session and finished onboarding.
+- `GET /api/forums` lists the person's forums with `upcomingPostCount`.
+- `GET /api/posts?after=<postId>&limit=<1-50>` returns `{ posts, hasMore }`
+  from all of the person's forums. It includes only events that are not over
+  and not cancelled, soonest `startsAt` first. Send the last post ID of a page
+  as `after` to get the next page.
+- `GET /api/forums/:id/posts?before=<postId>&limit=<1-50>` returns
+  `{ posts, hasMore }`, newest first. Cancelled posts are left out. Send the
+  last post ID of a page as `before` to get the next page.
+- `POST /api/forums/:id/posts` takes `{ title, startsAt, description?,
+  location?, endsAt? }` and returns `201 { post }`.
+- `GET /api/posts/:id` returns `{ post }`. A cancelled post still loads, with
+  `cancelled: true`.
+- `PATCH /api/posts/:id` takes any of the create fields. `null` or a blank
+  string clears an optional field.
+- `DELETE /api/posts/:id` cancels the post.
+- `PUT /api/posts/:id/rsvp` and `DELETE /api/posts/:id/rsvp` attend and leave.
+  Both return `{ post }`, and both can be sent again safely.
+- `GET /api/posts/:id/attendees` returns `{ attendees }` by RSVP time.
+
+A post includes `author`, `attendeeCount`, `attendeePreview` (the first 5
+attendees), and the viewer's `attending` and `isAuthor`. It also includes
+`edited`, `past`, and `cancelled`. Errors are `400 invalid_request`,
+`400 invalid_times`, `403 not_author`, `409 post_cancelled`, and
+`409 event_over`.
 
 ## Proximity is a separate milestone
 
