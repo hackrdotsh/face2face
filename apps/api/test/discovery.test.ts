@@ -1,31 +1,19 @@
-import { applyD1Migrations } from "cloudflare:test";
-import { env, exports } from "cloudflare:workers";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import foundation from "../migrations/0000_past_cyclops.sql?raw";
-import discovery from "../migrations/0001_streetpass-discovery.sql?raw";
-import { discoveryPolicy } from "../src/discovery";
+import { env } from "cloudflare:workers";
+import { beforeEach, describe, expect, it } from "vitest";
+import { discoveryPolicy } from "../src/discovery/discovery";
+import {
+  bearerHeaders,
+  callAPI,
+  postJSON,
+  requireAuthToken,
+  signInWithEmailCode,
+} from "./helpers";
 
-beforeAll(async () => {
-  await applyD1Migrations(env.DB, [
-    {
-      name: "0000_past_cyclops",
-      queries: foundation.split("--> statement-breakpoint"),
-    },
-    {
-      name: "0001_streetpass-discovery",
-      queries: discovery.split("--> statement-breakpoint"),
-    },
-  ]);
-});
-beforeEach(async () => {
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM user"),
-    env.DB.prepare("DELETE FROM rate_limit"),
-  ]);
-});
+const ava = "seed-ava";
+const ben = "seed-ben";
+const noor = "seed-noor";
 
-const origin = "http://localhost:8787";
-type Client = { id: string; email: string; headers: Record<string, string> };
+type Client = { id: string; headers: Record<string, string> };
 type Lease = {
   sessionId: string;
   token: string;
@@ -33,104 +21,115 @@ type Lease = {
   sessionExpiresAt: number;
   serverTime: number;
 };
-type Encounter = {
+type Receipt = { status: "pending" | "recorded" };
+type ConnectionView = {
   id: string;
-  peer: { id: string; name: string };
-  source: string;
-  firstSeenAt: number;
-  lastSeenAt: number;
+  status: string;
+  sharedInterests: string[];
+  them: unknown;
 };
-type Receipt = { status: "pending" | "recorded"; encounter: Encounter | null };
 
-async function account(name: string): Promise<Client> {
-  const email = crypto.randomUUID() + "@example.test";
-  const response = await exports.default.fetch(
-    origin + "/api/auth/sign-up/email",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Origin: "face2face://" },
-      body: JSON.stringify({
-        name,
-        email,
-        password: "test-password-123456",
-      }),
-    },
-  );
-  expect(response.status).toBe(200);
-  const token = response.headers.get("set-auth-token");
-  expect(token).toBeTruthy();
-  const json = (await response.json()) as { user: { id: string } };
-  return {
-    id: json.user.id,
-    email,
-    headers: {
-      Authorization: "Bearer " + token,
-      Origin: "face2face://",
-      "Content-Type": "application/json",
-    },
-  };
-}
-function post(client: Client, path: string, value: unknown) {
-  return exports.default.fetch(origin + "/api/" + path, {
-    method: "POST",
-    headers: client.headers,
-    body: JSON.stringify(value),
+beforeEach(async () => {
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM rate_limit"),
+    env.DB.prepare("DELETE FROM discovery_session"),
+    env.DB.prepare("DELETE FROM discovery_quota"),
+  ]);
+  await postJSON("/api/dev/reset", {});
+  await postJSON("/api/dev/seed", {});
+});
+
+async function signInAs(userId: string): Promise<Client> {
+  const response = await postJSON("/api/auth/sign-in/email", {
+    email: `${userId.replace("seed-", "")}@seed.face2face.test`,
+    password: "face2face-seed-password",
   });
-}
-async function start(client: Client): Promise<Lease> {
-  const response = await post(client, "discovery/start", {});
   expect(response.status).toBe(200);
-  return response.json() as Promise<Lease>;
+  return { id: userId, headers: bearerHeaders(requireAuthToken(response)) };
 }
+
+function post(client: Client, path: string, value: unknown) {
+  return postJSON(`/api/discovery/${path}`, value, client.headers);
+}
+
+async function start(client: Client): Promise<Lease> {
+  const response = await post(client, "start", {});
+  expect(response.status).toBe(200);
+  return response.json<Lease>();
+}
+
 function observe(
   client: Client,
   own: Lease,
   peer: Lease,
-  observationId = crypto.randomUUID(),
+  observationId: string = crypto.randomUUID(),
 ) {
-  return post(client, "encounters/observe", {
+  return post(client, "observe", {
     sessionId: own.sessionId,
     peerToken: peer.token,
     observationId,
   });
 }
-async function history(client: Client): Promise<Encounter[]> {
-  const response = await exports.default.fetch(origin + "/api/encounters", {
+
+async function receipt(response: Response) {
+  expect(response.status).toBe(200);
+  return response.json<Receipt>();
+}
+
+async function connections(client: Client) {
+  const response = await callAPI("/api/connections", {
     headers: client.headers,
   });
   expect(response.status).toBe(200);
-  return ((await response.json()) as { encounters: Encounter[] }).encounters;
+  return (await response.json<{ connections: ConnectionView[] }>()).connections;
 }
+
+async function encounterNotifications(userId: string) {
+  const response = await callAPI(`/api/dev/users/${userId}/notifications`);
+  const { notifications } = await response.json<{
+    notifications: { kind: string; connectionId?: string }[];
+  }>();
+  return notifications.filter(
+    (notification) => notification.kind === "encounter",
+  );
+}
+
+async function count(table: string) {
+  const row = await env.DB.prepare(
+    `SELECT count(*) AS total FROM ${table}`,
+  ).first<{ total: number }>();
+  return row?.total;
+}
+
 async function pair() {
-  const alice = await account("Alice");
-  const bob = await account("Bob");
+  const alice = await signInAs(ava);
+  const bob = await signInAs(ben);
   return { alice, bob, a: await start(alice), b: await start(bob) };
 }
 
-describe("StreetPass discovery contract", () => {
-  it("requires authentication for all discovery and encounter endpoints", async () => {
-    for (const path of [
-      "discovery/start",
-      "discovery/rotate",
-      "discovery/stop",
-      "encounters/observe",
-    ]) {
-      expect(
-        (
-          await exports.default.fetch(origin + "/api/" + path, {
-            method: "POST",
-            body: "{}",
-          })
-        ).status,
-      ).toBe(401);
+describe("StreetPass discovery", () => {
+  it("requires a session for every discovery endpoint", async () => {
+    for (const path of ["start", "rotate", "stop", "observe"]) {
+      const response = await postJSON(`/api/discovery/${path}`, {});
+      expect(response.status).toBe(401);
     }
-    expect(
-      (await exports.default.fetch(origin + "/api/encounters")).status,
-    ).toBe(401);
   });
 
-  it("issues expiring UUID tokens, bound to auth sessions, and stores only token hashes", async () => {
-    const alice = await account("Alice");
+  it("requires a finished profile", async () => {
+    const token = await signInWithEmailCode(
+      `${crypto.randomUUID()}@example.test`,
+    );
+    const response = await postJSON(
+      "/api/discovery/start",
+      {},
+      bearerHeaders(token),
+    );
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "onboarding_required" });
+  });
+
+  it("issues expiring tokens bound to the auth session and stores only hashes", async () => {
+    const alice = await signInAs(ava);
     const lease = await start(alice);
     expect(lease.token).toMatch(/^[0-9a-f-]{36}$/);
     expect(lease.expiresAt - lease.serverTime).toBe(discoveryPolicy.tokenTTL);
@@ -146,109 +145,133 @@ describe("StreetPass discovery contract", () => {
     expect(row?.hash).not.toContain(lease.token);
   });
 
-  it("keeps identity hidden until both sessions report the exchange", async () => {
+  it("opens one pending chance after reciprocal reports and never names the peer", async () => {
     const { alice, bob, a, b } = await pair();
     const first = await observe(alice, a, b);
-    expect(first.status).toBe(200);
-    expect(await first.json()).toEqual({ status: "pending", encounter: null });
-    expect(await history(alice)).toEqual([]);
-    expect(await history(bob)).toEqual([]);
+    const firstBody = await first.text();
+    expect(JSON.parse(firstBody)).toEqual({ status: "pending" });
+    expect(await connections(alice)).toEqual([]);
+
     const reciprocal = await observe(bob, b, a);
-    expect(reciprocal.status).toBe(200);
-    const receipt = (await reciprocal.json()) as Receipt;
-    expect(receipt.status).toBe("recorded");
-    expect(receipt.encounter?.peer).toEqual({ id: alice.id, name: "Alice" });
-    expect(receipt.encounter?.source).toBe("client_reported_bluetooth");
-    const aliceHistory = await history(alice);
-    const bobHistory = await history(bob);
-    expect(aliceHistory).toHaveLength(1);
-    expect(bobHistory).toHaveLength(1);
-    expect(aliceHistory[0]?.id).toBe(bobHistory[0]?.id);
-    expect(aliceHistory[0]?.peer).toEqual({ id: bob.id, name: "Bob" });
-    expect(JSON.stringify(aliceHistory)).not.toContain(b.token);
+    const reciprocalBody = await reciprocal.text();
+    expect(JSON.parse(reciprocalBody)).toEqual({ status: "recorded" });
+    for (const body of [firstBody, reciprocalBody]) {
+      expect(body).not.toContain(ava);
+      expect(body).not.toContain(ben);
+      expect(body).not.toMatch(/Ava|Ben/);
+    }
+
+    const [aliceChance] = await connections(alice);
+    const [bobChance] = await connections(bob);
+    expect(aliceChance?.status).toBe("pending");
+    expect(aliceChance?.id).toBe(bobChance?.id);
+    expect(aliceChance?.them).toBeNull();
+    expect(aliceChance?.sharedInterests.length).toBeGreaterThan(0);
+
+    const [aliceNote] = await encounterNotifications(ava);
+    const [bobNote] = await encounterNotifications(ben);
+    expect(aliceNote?.connectionId).toBe(aliceChance?.id);
+    expect(bobNote?.connectionId).toBe(aliceChance?.id);
   });
 
-  it("deduplicates simultaneous reports into one shared encounter", async () => {
+  it("reports an earlier observation as recorded once the peer reciprocates", async () => {
+    const { alice, bob, a, b } = await pair();
+    const id = crypto.randomUUID();
+    expect(await receipt(await observe(alice, a, b, id))).toEqual({
+      status: "pending",
+    });
+    await observe(bob, b, a);
+    expect(await receipt(await observe(alice, a, b, id))).toEqual({
+      status: "recorded",
+    });
+  });
+
+  it("creates one chance for simultaneous reports", async () => {
     const { alice, bob, a, b } = await pair();
     const responses = await Promise.all([
       observe(alice, a, b),
       observe(bob, b, a),
     ]);
     expect(responses.map((response) => response.status)).toEqual([200, 200]);
-    expect(await history(alice)).toHaveLength(1);
-    expect(await history(bob)).toHaveLength(1);
-    const row = await env.DB.prepare(
-      "SELECT count(*) AS total FROM encounter",
-    ).first<{ total: number }>();
-    expect(row?.total).toBe(1);
+    const [chance] = await connections(alice);
+    expect(await count("connection")).toBe(1);
+    const notes = await encounterNotifications(ava);
+    expect(
+      notes.filter((note) => note.connectionId === chance?.id),
+    ).toHaveLength(1);
   });
 
-  it("accepts an idempotent retry after token expiry without changing encounter timestamps", async () => {
+  it("records one encounter per pair of leases, even after a decline", async () => {
+    const { alice, bob, a, b } = await pair();
+    await observe(alice, a, b);
+    await observe(bob, b, a);
+    const [chance] = await connections(alice);
+    const decline = await postJSON(
+      `/api/connections/${chance?.id}/decision`,
+      { decision: "declined" },
+      alice.headers,
+    );
+    expect(decline.status).toBe(200);
+    expect(await receipt(await observe(alice, a, b))).toEqual({
+      status: "recorded",
+    });
+    expect(await receipt(await observe(bob, b, a))).toEqual({
+      status: "recorded",
+    });
+    expect(await count("connection")).toBe(1);
+    expect(await connections(alice)).toEqual([]);
+  });
+
+  it("accepts an idempotent retry after the peer token expires", async () => {
     const { alice, bob, a, b } = await pair();
     const id = crypto.randomUUID();
-    expect((await observe(alice, a, b, id)).status).toBe(200);
-    expect((await observe(bob, b, a)).status).toBe(200);
-    const initial = (await history(alice))[0];
+    await observe(alice, a, b, id);
+    await observe(bob, b, a);
     await env.DB.prepare(
       "UPDATE discovery_token SET expires_at = 0 WHERE session_id = ?",
     )
       .bind(b.sessionId)
       .run();
-    // History cleanup also removes expired tokens; the accepted observation keeps its receipt.
-    expect(await history(alice)).toHaveLength(1);
-    const retry = await observe(alice, a, b, id);
-    expect(retry.status).toBe(200);
-    expect(((await retry.json()) as Receipt).encounter).toEqual(initial);
-    const count = await env.DB.prepare(
-      "SELECT count(*) AS total FROM discovery_observation",
-    ).first<{ total: number }>();
-    expect(count?.total).toBe(2);
+    expect(await receipt(await observe(alice, a, b, id))).toEqual({
+      status: "recorded",
+    });
+    expect(await count("discovery_observation")).toBe(2);
   });
 
   it("rejects reusing an observation ID for a different peer token", async () => {
     const { alice, a, b } = await pair();
-    const carol = await account("Carol");
+    const carol = await signInAs(noor);
     const c = await start(carol);
     const id = crypto.randomUUID();
     expect((await observe(alice, a, b, id)).status).toBe(200);
     expect((await observe(alice, a, c, id)).status).toBe(409);
-    expect(await history(carol)).toEqual([]);
   });
 
-  it("rotates with overlap and keeps the encounter ID stable across tokens", async () => {
+  it("rotates with overlap and keeps one chance across tokens", async () => {
     const { alice, bob, a, b } = await pair();
     await observe(alice, a, b);
     await observe(bob, b, a);
-    const initial = (await history(alice))[0];
-    const rotation = await post(alice, "discovery/rotate", {
-      sessionId: a.sessionId,
-    });
+    const rotation = await post(alice, "rotate", { sessionId: a.sessionId });
     expect(rotation.status).toBe(200);
-    const rotated = (await rotation.json()) as Lease;
+    const rotated = await rotation.json<Lease>();
     expect(rotated.token).not.toBe(a.token);
     expect(rotated.sessionId).toBe(a.sessionId);
     expect(rotated.sessionExpiresAt).toBe(a.sessionExpiresAt);
     expect((await observe(bob, b, a)).status).toBe(200);
     expect((await observe(bob, b, rotated)).status).toBe(200);
     expect((await observe(alice, rotated, b)).status).toBe(200);
-    const result = await history(alice);
-    expect(result).toHaveLength(1);
-    expect(result[0]?.id).toBe(initial?.id);
-    expect(result[0]?.firstSeenAt).toBe(initial?.firstSeenAt);
+    expect(await count("connection")).toBe(1);
   });
 
   it("revokes tokens on Stop and makes repeated Stop safe", async () => {
     const { alice, bob, a, b } = await pair();
-    expect(
-      (await post(alice, "discovery/stop", { sessionId: a.sessionId })).status,
-    ).toBe(200);
-    expect(
-      (await post(alice, "discovery/stop", { sessionId: a.sessionId })).status,
-    ).toBe(200);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const stop = await post(alice, "stop", { sessionId: a.sessionId });
+      expect(stop.status).toBe(200);
+    }
     expect((await observe(bob, b, a)).status).toBe(410);
     expect(
-      (await post(alice, "discovery/rotate", { sessionId: a.sessionId }))
-        .status,
+      (await post(alice, "rotate", { sessionId: a.sessionId })).status,
     ).toBe(410);
     const tokens = await env.DB.prepare(
       "SELECT count(*) AS total FROM discovery_token WHERE session_id = ?",
@@ -258,24 +281,25 @@ describe("StreetPass discovery contract", () => {
     expect(tokens?.total).toBe(0);
   });
 
-  it("revokes the previous account session on Start and requires fresh reciprocity", async () => {
+  it("ends the previous lease on Start and requires fresh reports", async () => {
     const { alice, bob, a, b } = await pair();
     await observe(alice, a, b);
     const fresh = await start(alice);
     expect(fresh.sessionId).not.toBe(a.sessionId);
     expect((await observe(bob, b, a)).status).toBe(410);
-    const oneSided = await observe(bob, b, fresh);
-    expect(await oneSided.json()).toEqual({
+    expect(await receipt(await observe(bob, b, fresh))).toEqual({
       status: "pending",
-      encounter: null,
     });
-    const reciprocal = await observe(alice, fresh, b);
-    expect(((await reciprocal.json()) as Receipt).status).toBe("recorded");
+    expect(await receipt(await observe(alice, fresh, b))).toEqual({
+      status: "recorded",
+    });
   });
 
-  it("binds discovery to the auth session and revokes it on sign-out", async () => {
+  it("revokes the lease when its auth session signs out", async () => {
     const { alice, bob, a, b } = await pair();
-    expect((await post(alice, "auth/sign-out", {})).status).toBe(200);
+    expect(
+      (await postJSON("/api/auth/sign-out", {}, alice.headers)).status,
+    ).toBe(200);
     expect((await observe(bob, b, a)).status).toBe(410);
     const row = await env.DB.prepare(
       "SELECT count(*) AS total FROM discovery_session WHERE id = ?",
@@ -285,55 +309,35 @@ describe("StreetPass discovery contract", () => {
     expect(row?.total).toBe(0);
   });
 
-  it("does not let a second auth session use the first session's discovery lease", async () => {
+  it("does not let a second auth session use the first session's lease", async () => {
     const { alice, bob, a, b } = await pair();
-    const response = await exports.default.fetch(
-      origin + "/api/auth/sign-in/email",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Origin: "face2face://" },
-        body: JSON.stringify({
-          email: alice.email,
-          password: "test-password-123456",
-        }),
-      },
-    );
-    expect(response.status).toBe(200);
-    const token = response.headers.get("set-auth-token");
-    expect(token).toBeTruthy();
-    const second: Client = {
-      ...alice,
-      headers: { ...alice.headers, Authorization: "Bearer " + token },
-    };
+    const second = await signInAs(ava);
     expect(
-      (await post(second, "discovery/rotate", { sessionId: a.sessionId }))
-        .status,
+      (await post(second, "rotate", { sessionId: a.sessionId })).status,
     ).toBe(410);
     expect((await observe(second, a, b)).status).toBe(410);
     expect((await observe(alice, a, b)).status).toBe(200);
     const fresh = await start(second);
     expect(
-      (await post(alice, "discovery/rotate", { sessionId: a.sessionId }))
-        .status,
+      (await post(alice, "rotate", { sessionId: a.sessionId })).status,
     ).toBe(410);
     expect((await observe(bob, b, fresh)).status).toBe(200);
   });
 
-  it("does not let one account rotate, use, or stop another account's discovery session", async () => {
+  it("does not let one account rotate, use, or stop another account's lease", async () => {
     const { alice, bob, a, b } = await pair();
     expect(
-      (await post(alice, "discovery/rotate", { sessionId: b.sessionId }))
-        .status,
+      (await post(alice, "rotate", { sessionId: b.sessionId })).status,
     ).toBe(410);
     expect((await observe(alice, b, a)).status).toBe(410);
-    expect(
-      (await post(alice, "discovery/stop", { sessionId: b.sessionId })).status,
-    ).toBe(200);
+    expect((await post(alice, "stop", { sessionId: b.sessionId })).status).toBe(
+      200,
+    );
     expect((await observe(bob, b, a)).status).toBe(200);
-    expect(await history(alice)).toEqual([]);
+    expect(await connections(alice)).toEqual([]);
   });
 
-  it("rejects self, unknown, and expired tokens and expired local sessions", async () => {
+  it("rejects self, unknown, and expired tokens and expired leases", async () => {
     const { alice, bob, a, b } = await pair();
     expect((await observe(alice, a, a)).status).toBe(400);
     expect(
@@ -351,45 +355,58 @@ describe("StreetPass discovery contract", () => {
       .bind(a.sessionId)
       .run();
     expect(
-      (await post(alice, "discovery/rotate", { sessionId: a.sessionId }))
-        .status,
+      (await post(alice, "rotate", { sessionId: a.sessionId })).status,
     ).toBe(410);
-    expect(await history(bob)).toEqual([]);
+    expect(await connections(bob)).toEqual([]);
   });
 
-  it("requires reciprocal reports within the configured window", async () => {
+  it("requires reciprocal reports within the window", async () => {
     const { alice, bob, a, b } = await pair();
     await observe(alice, a, b);
     await env.DB.prepare("UPDATE discovery_observation SET received_at = ?")
       .bind(Date.now() - discoveryPolicy.reciprocalWindow - 1000)
       .run();
-    const expired = await observe(bob, b, a);
-    expect(await expired.json()).toEqual({
+    expect(await receipt(await observe(bob, b, a))).toEqual({
       status: "pending",
-      encounter: null,
     });
-    expect(await history(alice)).toEqual([]);
-    expect(
-      ((await (await observe(alice, a, b)).json()) as Receipt).status,
-    ).toBe("recorded");
+    expect(await connections(alice)).toEqual([]);
+    expect(await receipt(await observe(alice, a, b))).toEqual({
+      status: "recorded",
+    });
   });
 
-  it("never returns another account's encounters", async () => {
+  it("hides a block from the reporter and opens no chance", async () => {
+    await env.DB.prepare(
+      "INSERT INTO block (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)",
+    )
+      .bind(ben, ava, Date.now())
+      .run();
+    const inboxBefore = (await encounterNotifications(ava)).length;
+    const { alice, bob, a, b } = await pair();
+    await observe(alice, a, b);
+    expect(await receipt(await observe(bob, b, a))).toEqual({
+      status: "recorded",
+    });
+    expect(await count("connection")).toBe(0);
+    expect(await encounterNotifications(ava)).toHaveLength(inboxBefore);
+    expect(await connections(alice)).toEqual([]);
+  });
+
+  it("does not show a chance to a third account", async () => {
     const { alice, bob, a, b } = await pair();
     await observe(alice, a, b);
     await observe(bob, b, a);
-    const carol = await account("Carol");
-    expect(await history(carol)).toEqual([]);
+    expect(await connections(await signInAs(noor))).toEqual([]);
   });
 
-  it("rejects caller-supplied identities, sources, malformed identifiers, and invalid JSON", async () => {
+  it("rejects extra fields, malformed identifiers, and invalid JSON", async () => {
     const { alice, a, b } = await pair();
     expect(
-      (await post(alice, "discovery/start", { userId: "someone-else" })).status,
+      (await post(alice, "start", { userId: "someone-else" })).status,
     ).toBe(400);
     expect(
       (
-        await post(alice, "encounters/observe", {
+        await post(alice, "observe", {
           sessionId: a.sessionId,
           peerToken: b.token,
           observationId: crypto.randomUUID(),
@@ -397,22 +414,19 @@ describe("StreetPass discovery contract", () => {
         })
       ).status,
     ).toBe(400);
-    expect(
-      (await post(alice, "discovery/rotate", { sessionId: "bad" })).status,
-    ).toBe(400);
-    expect((await post(alice, "discovery/stop", [])).status).toBe(400);
-    const invalid = await exports.default.fetch(
-      origin + "/api/discovery/start",
-      {
-        method: "POST",
-        headers: alice.headers,
-        body: "{",
-      },
+    expect((await post(alice, "rotate", { sessionId: "bad" })).status).toBe(
+      400,
     );
+    expect((await post(alice, "stop", [])).status).toBe(400);
+    const invalid = await callAPI("/api/discovery/start", {
+      method: "POST",
+      headers: { ...alice.headers, "Content-Type": "application/json" },
+      body: "{",
+    });
     expect(invalid.status).toBe(400);
   });
 
-  it("rate-limits new observations before resolving guessed peer tokens", async () => {
+  it("rate-limits new observations before resolving guessed tokens", async () => {
     const { alice, a, b } = await pair();
     const minute = Math.floor(Date.now() / 60_000);
     for (const bucket of [minute, minute + 1]) {

@@ -6,5 +6,5 @@ type Session = NonNullable<
 
 export interface AppEnv {
   Bindings: Env;
-  Variables: { user: Session["user"] };
+  Variables: { user: Session["user"]; authSession: Session["session"] };
 }

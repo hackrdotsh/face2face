@@ -14,6 +14,7 @@ export const requireSession = createMiddleware<AppEnv>(
     ).api.getSession({ headers: context.req.raw.headers });
     if (!session) return context.json({ error: "unauthorized" }, 401);
     context.set("user", session.user);
+    context.set("authSession", session.session);
     await next();
   },
 );
