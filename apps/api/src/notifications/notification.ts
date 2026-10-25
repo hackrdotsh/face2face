@@ -7,7 +7,12 @@ export type NotificationEvent =
       expiresAt: string;
     }
   | { kind: "connected"; connectionId: string }
-  | { kind: "public"; connectionId: string };
+  | { kind: "public"; connectionId: string }
+  | {
+      kind: "post_updated" | "post_cancelled" | "post_rsvp";
+      postId: string;
+      forumId: string;
+    };
 
 export type Notification = NotificationEvent & {
   id: string;

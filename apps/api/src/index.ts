@@ -13,6 +13,7 @@ import { webOrigins } from "./origins";
 import { chatRoutes } from "./routes/chats";
 import { connectionRoutes } from "./routes/connections";
 import { devRoutes } from "./routes/dev";
+import { forumRoutes, postRoutes } from "./routes/forums";
 import { interestRoutes } from "./routes/interests";
 import { mediaRoutes } from "./routes/media";
 import { notificationRoutes } from "./routes/notifications";
@@ -45,7 +46,7 @@ app.use("*", (context, next) =>
     credentials: true,
     allowHeaders: ["Content-Type", "Authorization"],
     exposeHeaders: ["set-auth-token"],
-    allowMethods: ["GET", "POST", "PATCH", "PUT", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
   })(context, next),
 );
 app.use("/api/*", (context, next) =>
@@ -78,6 +79,8 @@ app.route("/api/interests", interestRoutes);
 app.route("/api/connections", connectionRoutes);
 app.route("/api/notifications", notificationRoutes);
 app.route("/api/chats", chatRoutes);
+app.route("/api/forums", forumRoutes);
+app.route("/api/posts", postRoutes);
 app.route("/media", mediaRoutes);
 app.route("/api/dev", devRoutes);
 app.get(
