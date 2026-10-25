@@ -197,7 +197,7 @@ struct MeadowScene: View {
     ) {
         var context = context
         context.opacity = sin(progress * .pi)
-        for (point, side) in [(player, -1.0), (passer, 1.0)] {
+        for (point, side) in [(player, -1), (passer, 1)] as [(CGPoint, CGFloat)] {
             let ring = CGRect(x: point.x - 25, y: point.y - 19, width: 50, height: 50)
                 .insetBy(dx: -progress * 8, dy: -progress * 8)
             context.stroke(Path(ellipseIn: ring), with: .color(MeadowPalette.greeting), lineWidth: 2)
