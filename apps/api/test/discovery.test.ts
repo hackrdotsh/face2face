@@ -21,7 +21,7 @@ type Lease = {
   sessionExpiresAt: number;
   serverTime: number;
 };
-type Receipt = { status: "pending" | "recorded" };
+type Receipt = { status: "pending" | "recorded" | "noSharedInterests" };
 type ConnectionView = {
   id: string;
   status: string;
@@ -393,6 +393,34 @@ describe("StreetPass discovery", () => {
     expect(await count("connection")).toBe(0);
     expect(await encounterNotifications(ava)).toHaveLength(inboxBefore);
     expect(await connections(alice)).toEqual([]);
+  });
+
+  it("opens no chance for a pair that shares no interests", async () => {
+    const alice = await signInAs(ava);
+    const carol = await signInAs(noor);
+    const a = await start(alice);
+    const c = await start(carol);
+    const id = crypto.randomUUID();
+    const inboxBefore = (await encounterNotifications(ava)).length;
+    expect(await receipt(await observe(alice, a, c, id))).toEqual({
+      status: "pending",
+    });
+    const theirs = await receipt(await observe(carol, c, a));
+    expect(theirs).toMatchObject({ status: "noSharedInterests" });
+    expect(await receipt(await observe(alice, a, c, id))).toEqual(theirs);
+    expect(await count("connection")).toBe(0);
+    expect(await encounterNotifications(ava)).toHaveLength(inboxBefore);
+    expect(await connections(alice)).toEqual([]);
+    expect(await connections(carol)).toEqual([]);
+  });
+
+  it("still opens a chance through the dev route without shared interests", async () => {
+    const response = await postJSON("/api/dev/encounters", {
+      firstUserId: ava,
+      secondUserId: noor,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ outcome: "created" });
   });
 
   it("does not show a chance to a third account", async () => {

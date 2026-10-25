@@ -1,4 +1,5 @@
 import { recordEncounter } from "../connections/encounter";
+import { listSharedInterestNames } from "../connections/store";
 import type { Database } from "../db/client";
 import type { Notifier } from "../notifications/notification";
 import {
@@ -42,10 +43,11 @@ export interface DiscoveryLease {
 /**
  * A receipt never says who the peer is or whether a block stopped the chance.
  * `matchId` is the same for both phones and stays stable for one pair of leases.
+ * A reciprocal pair that shares no interests gets `noSharedInterests` and no chance.
  */
 export type ObservationReceipt =
   | { status: "pending" }
-  | { status: "recorded"; matchId: string };
+  | { status: "recorded" | "noSharedInterests"; matchId: string };
 
 export type DiscoveryError =
   | "rate_limited"
@@ -173,7 +175,8 @@ export interface Observation {
 
 /**
  * Records that this lease heard a peer's token. When the peer's lease heard this
- * one within the reciprocal window, both people get an encounter.
+ * one within the reciprocal window and the two people share an interest, both
+ * of them get an encounter.
  */
 export async function observePeer(
   db: Database,
@@ -188,7 +191,7 @@ export async function observePeer(
   const id = await sha256(`${own.id}:${observation.observationId}`);
 
   const previous = await findObservation(db, id, own.id);
-  if (previous) return receiptFor(previous, tokenHash);
+  if (previous) return receiptFor(db, owner.userId, previous, tokenHash);
 
   if (!(await withinQuota(db, owner.userId, "observe", now))) {
     return { ok: false, error: "rate_limited" };
@@ -213,17 +216,26 @@ export async function observePeer(
     // One encounter per pair of leases, so a decline is not undone on the same walk.
     const matchedBefore = await leasesAlreadyMatched(db, own.id, peer.id);
     await markMatched(db, own.id, peer.id, now);
-    if (!matchedBefore) {
+    if (
+      !matchedBefore &&
+      (await sharesInterest(db, owner.userId, peer.userId))
+    ) {
       await recordEncounter(db, notifier, owner.userId, peer.userId, now);
     }
   }
 
   const accepted = await findObservation(db, id, own.id);
   if (!accepted) return { ok: false, error: "discovery_inactive" };
-  return receiptFor(accepted, tokenHash);
+  return receiptFor(db, owner.userId, accepted, tokenHash);
+}
+
+async function sharesInterest(db: Database, userId: string, peerId: string) {
+  return (await listSharedInterestNames(db, userId, peerId)).length > 0;
 }
 
 async function receiptFor(
+  db: Database,
+  userId: string,
   row: DiscoveryObservationRow,
   tokenHash: string,
 ): Promise<DiscoveryResult<ObservationReceipt>> {
@@ -232,8 +244,9 @@ async function receiptFor(
   }
   if (!row.matchedAt) return { ok: true, value: { status: "pending" } };
   const leases = [row.observerSessionId, row.peerSessionId].sort();
-  return {
-    ok: true,
-    value: { status: "recorded", matchId: await sha256(leases.join(":")) },
-  };
+  const matchId = await sha256(leases.join(":"));
+  const status = (await sharesInterest(db, userId, row.peerUserId))
+    ? "recorded"
+    : "noSharedInterests";
+  return { ok: true, value: { status, matchId } };
 }
