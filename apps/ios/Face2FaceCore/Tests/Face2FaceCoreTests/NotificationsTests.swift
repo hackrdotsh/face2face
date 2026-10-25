@@ -15,6 +15,7 @@ import Testing
                   {"id":"4","kind":"post_updated","createdAt":"2026-10-24T12:00:00Z","postId":"post","forumId":"forum"},
                   {"id":"5","kind":"post_cancelled","createdAt":"2026-10-24T11:00:00Z","postId":"post","forumId":"forum"},
                   {"id":"6","kind":"post_rsvp","createdAt":"2026-10-24T10:00:00Z","postId":"post","forumId":"forum"},
+                  {"id":"8","kind":"message","createdAt":"2026-10-24T09:30:00Z","chatId":"chat"},
                   {"id":"7","kind":"future_event","createdAt":"2026-10-24T09:00:00Z","futureField":"ignored"}
                 ]}
                 """#)
@@ -24,12 +25,15 @@ import Testing
     let inbox = try await client.notifications()
     #expect(
         inbox.map(\.kind) == [
-            .encounter, .connected, .publicConnection, .postUpdated, .postCancelled, .postRSVP, .unknown,
+            .encounter, .connected, .publicConnection, .postUpdated, .postCancelled, .postRSVP, .message,
+            .unknown,
         ])
     #expect(inbox[0].sharedInterests == ["music"])
     #expect(inbox[1].sharedInterests.isEmpty)
     #expect(inbox[4].forumId == "forum")
     #expect(inbox[4].connectionId == nil)
+    #expect(inbox[6].chatId == "chat")
+    #expect(inbox[0].chatId == nil)
     #expect(inbox[0].createdAt > inbox[1].createdAt)
     let requests = await transport.requests
     #expect(requests.count == 1)

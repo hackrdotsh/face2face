@@ -3,7 +3,7 @@ import Foundation
 /// Participant-safe inbox events. The API never includes the other person's identity.
 public struct InboxNotification: Decodable, Sendable, Identifiable {
     public enum Kind: String, Decodable, Sendable {
-        case encounter, connected
+        case encounter, connected, message
         case publicConnection = "public"
         case postUpdated = "post_updated"
         case postCancelled = "post_cancelled"
@@ -22,10 +22,12 @@ public struct InboxNotification: Decodable, Sendable, Identifiable {
     public let connectionId: String?
     public let postId: String?
     public let forumId: String?
+    /// Set for `message`. The chat ID is the connection ID.
+    public let chatId: String?
     public let sharedInterests: [String]
 
     private enum CodingKeys: String, CodingKey {
-        case id, kind, createdAt, connectionId, postId, forumId, sharedInterests
+        case id, kind, createdAt, connectionId, postId, forumId, chatId, sharedInterests
     }
 
     public init(from decoder: any Decoder) throws {
@@ -46,6 +48,7 @@ public struct InboxNotification: Decodable, Sendable, Identifiable {
         connectionId = try values.decodeIfPresent(String.self, forKey: .connectionId)
         postId = try values.decodeIfPresent(String.self, forKey: .postId)
         forumId = try values.decodeIfPresent(String.self, forKey: .forumId)
+        chatId = try values.decodeIfPresent(String.self, forKey: .chatId)
         sharedInterests = try values.decodeIfPresent([String].self, forKey: .sharedInterests) ?? []
     }
 }
