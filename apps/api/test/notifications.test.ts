@@ -28,6 +28,7 @@ interface SentPush {
 
 beforeEach(async () => {
   await env.DB.prepare("DELETE FROM rate_limit").run();
+  await env.DB.prepare("DELETE FROM push_device").run();
   await postJSON("/api/dev/reset", {});
   await postJSON("/api/dev/seed", {});
   for (const userId of [ava, ben]) {
@@ -234,6 +235,38 @@ describe("push devices", () => {
     const sent = await capturePushes(ava);
     await simulateEncounter();
     expect(sent).toEqual([]);
+  });
+
+  it("moves a phone to whoever signed in on it last", async () => {
+    await registerDevice(await signInAs(ava), avaToken, "sandbox");
+    const bensHeaders = await signInAs(ben);
+    expect(
+      (await registerDevice(bensHeaders, avaToken, "sandbox")).status,
+    ).toBe(204);
+    const toAva = await capturePushes(ava);
+    const toBen = await capturePushes(ben);
+    await simulateEncounter();
+
+    expect(toAva).toEqual([]);
+    expect(toBen.map((push) => push.token)).toEqual([avaToken]);
+    const owners = await env.DB.prepare(
+      "SELECT user_id, token_hash FROM push_device",
+    ).all<{ user_id: string; token_hash: string }>();
+    expect(owners.results.map((row) => row.user_id)).toEqual([ben]);
+    expect(owners.results[0]?.token_hash).not.toBe(avaToken);
+  });
+
+  it("does not let a former owner unregister the new owner's phone", async () => {
+    const avasHeaders = await signInAs(ava);
+    await registerDevice(avasHeaders, avaToken, "sandbox");
+    await registerDevice(await signInAs(ben), avaToken, "sandbox");
+    await callAPI(`/api/notifications/devices/${avaToken}`, {
+      method: "DELETE",
+      headers: avasHeaders,
+    });
+    const toBen = await capturePushes(ben);
+    await simulateEncounter();
+    expect(toBen).toHaveLength(1);
   });
 
   it("rejects malformed tokens and environments", async () => {

@@ -1,7 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../app-env";
+import { createDatabase } from "../db/client";
 import { requireOnboarded, requireSession } from "../middleware/session";
+import {
+  claimPushDevice,
+  releasePushDevice,
+} from "../notifications/push-devices";
 import {
   createSocketTicket,
   readSocketTicket,
@@ -45,17 +50,25 @@ export const notificationRoutes = new Hono<AppEnv>()
     if (!token.success || !body.success) {
       return context.json({ error: "invalid_device" }, 400);
     }
-    await context.env.USER_COORDINATORS.getByName(
+    await claimPushDevice(
+      context.env,
+      createDatabase(context.env),
       context.var.user.id,
-    ).registerDevice(token.data, body.data.environment);
+      token.data,
+      body.data.environment,
+      new Date(),
+    );
     return context.body(null, 204);
   })
   .delete("/devices/:token", requireSession, async (context) => {
     const token = deviceToken.safeParse(context.req.param("token"));
     if (!token.success) return context.json({ error: "invalid_device" }, 400);
-    await context.env.USER_COORDINATORS.getByName(
+    await releasePushDevice(
+      context.env,
+      createDatabase(context.env),
       context.var.user.id,
-    ).unregisterDevice(token.data);
+      token.data,
+    );
     return context.body(null, 204);
   })
   .post("/ticket", requireSession, requireOnboarded, async (context) =>
