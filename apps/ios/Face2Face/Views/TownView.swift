@@ -187,8 +187,11 @@ struct TownView: View {
         }
         .task(id: account.user.id) {
             guard !session.isTownPreview else { return }
-            await PushNotifications.shared.start(for: account, session: session)
             await ConnectedDiscoveryModel.backgroundWalk.restore(for: account)
+        }
+        .task(id: scenePhase == .active ? account.user.id : nil) {
+            guard scenePhase == .active, !session.isTownPreview else { return }
+            await PushNotifications.shared.start(for: account, session: session)
         }
         #if DEBUG
             .onAppear {

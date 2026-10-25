@@ -3,6 +3,21 @@ import Testing
 
 @testable import Face2FaceCore
 
+@Test func pushSetupDiagnosticsAreAuthenticatedAndContainNoDeviceToken() async throws {
+    let transport = StubTransport([
+        response(
+            json: #"{"providerConfigured":true,"registeredDeviceCount":2,"topic":"systems.rocky.face2face"}"#)
+    ])
+    let client = APIClient(
+        configuration: try configuration(), tokens: MemoryTokens("signed"), transport: transport)
+    let status = try await client.pushSetupStatus()
+    #expect(status.providerConfigured && status.registeredDeviceCount == 2)
+    #expect(status.topic == "systems.rocky.face2face")
+    let request = try #require(await transport.requests.first)
+    #expect(request.url?.path == "/api/notifications/push-status")
+    #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer signed")
+}
+
 @Test func inboxDecodesEveryServerEventAndUsesBearerAuth() async throws {
     let transport = StubTransport([
         response(

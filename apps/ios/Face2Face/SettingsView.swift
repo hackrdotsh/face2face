@@ -43,6 +43,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 .disabled(session.isTownPreview)
+                PushNotificationsSection(session: session)
                 #if DEBUG
                     if session.isTownPreview {
                         Section("Town Preview") {

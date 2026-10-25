@@ -4,6 +4,8 @@ import SwiftUI
 
 struct ChatConversationView: View {
     let session: SessionModel
+    private let accountID: String?
+    @State private var pushVisibilityOwner = UUID()
     @State private var model: ChatConversationModel
     @State private var profile: TownFriendsModel
     @Environment(\.dismiss) private var dismiss
@@ -22,6 +24,7 @@ struct ChatConversationView: View {
 
     init(chatID: String, session: SessionModel) {
         self.session = session
+        if case .ready(let account) = session.phase { accountID = account.user.id } else { accountID = nil }
         _model = State(initialValue: ChatConversationModel(chatID: chatID, session: session))
         _profile = State(initialValue: TownFriendsModel(session: session))
     }
@@ -54,6 +57,8 @@ struct ChatConversationView: View {
         .foregroundStyle(MeadowPalette.ink).fontDesign(.rounded)
         .toolbar(.hidden, for: .navigationBar, .tabBar)
         .task(id: scenePhase) {
+            guard !Task.isCancelled else { return }
+            updatePushVisibility()
             if scenePhase == .active {
                 if profile.selectedID != nil { await profile.refresh() }
                 await model.run()
@@ -63,11 +68,13 @@ struct ChatConversationView: View {
             }
         }
         .onDisappear {
+            PushNotifications.shared.hideChat(owner: pushVisibilityOwner)
             profile.clearVisibleData()
             profile.closeProfile()
             Task { await model.stop() }
         }
         .task(id: pickedPhoto) { await preparePickedPhoto() }
+        .onChange(of: session.phase) { updatePushVisibility() }
         .onChange(of: model.draft) { model.changeDraft() }
         .onChange(of: session.celebrations.presented?.id) {
             if session.celebrations.presented != nil { focused = false }
@@ -130,6 +137,16 @@ struct ChatConversationView: View {
             available: model.state == .live && profile.selectedID == nil && selectedImage == nil
                 && !showingPhotoPicker && !preparing && !showLeaveWarning && !showBlockWarning
                 && !showShareConfirmation)
+    }
+
+    private func updatePushVisibility() {
+        if scenePhase == .active, let accountID, case .ready(let current) = session.phase,
+            current.user.id == accountID
+        {
+            PushNotifications.shared.showChat(model.chatID, accountID: accountID, owner: pushVisibilityOwner)
+        } else {
+            PushNotifications.shared.hideChat(owner: pushVisibilityOwner)
+        }
     }
 
     @ViewBuilder private var profileSharingCard: some View {

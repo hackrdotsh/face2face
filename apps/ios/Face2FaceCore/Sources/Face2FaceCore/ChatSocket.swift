@@ -37,7 +37,12 @@ public actor URLSessionChatSocket: ChatSocketTransport {
     public func receive() async throws -> ChatServerFrame {
         guard let task else { throw ChatSocketError.disconnected }
         do {
-            let frame = try await task.receive()
+            let frame = try await withTaskCancellationHandler {
+                try Task.checkCancellation()
+                return try await task.receive()
+            } onCancel: {
+                task.cancel(with: .goingAway, reason: nil)
+            }
             let data: Data
             switch frame {
             case .string(let text): data = Data(text.utf8)

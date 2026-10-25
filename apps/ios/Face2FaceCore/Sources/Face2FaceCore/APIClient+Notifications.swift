@@ -1,5 +1,19 @@
 import Foundation
 
+public struct PushSetupStatus: Decodable, Sendable {
+    public let providerConfigured: Bool
+    public let registeredDeviceCount: Int
+    public let topic: String?
+}
+
+extension APIClient {
+    public func pushSetupStatus() async throws -> PushSetupStatus {
+        try decode(
+            PushSetupStatus.self,
+            from: try await send(APIRequest(path: "api/notifications/push-status", authenticated: true)))
+    }
+}
+
 /// Participant-safe inbox events. The API never includes the other person's identity.
 public struct InboxNotification: Decodable, Sendable, Identifiable {
     public enum Kind: String, Decodable, Sendable {

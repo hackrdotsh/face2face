@@ -93,6 +93,14 @@ func liveChatRoundTrip() async throws {
     #expect(try await first.townPublicFriends().contains { $0.id == id && $0.userId == "seed-ben" })
     #expect(try await second.townPublicFriends().contains { $0.id == id && $0.userId == "seed-ava" })
     #expect(try await first.agreeToPublicConnection(id).status == "public")
+    let cancellable = URLSessionChatSocket()
+    try await cancellable.connect(to: second.chatSocketURL(id))
+    _ = try await liveFrame(cancellable, type: "ready")
+    let receiving = Task { try await cancellable.receive() }
+    try await Task.sleep(for: .milliseconds(100))
+    receiving.cancel()
+    await #expect(throws: ChatSocketError.self) { try await receiving.value }
+    await cancellable.close()
     try await first.blockConnection(id)
     _ = try await liveFrame(b, type: "closed")
     await #expect(throws: APIError.server(404)) { try await second.chat(id) }
