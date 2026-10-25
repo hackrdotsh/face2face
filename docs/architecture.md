@@ -84,7 +84,10 @@ in separate tables that reference `user.id` and cascade on account deletion.
 - `interest` is a lookup table with a unique lowercase `name`. A seed migration
   adds the list. `member_count` is the number of people who chose it. Triggers
   on `profile_interest` keep it current, including when an account is deleted.
-  Interests are not an onboarding field yet. Only seeded people have them.
+  Interests are saved through `/api/interests`, including the optional onboarding
+  step. Onboarding, the native account page and Forums share the same picker.
+  New interests open a forum when they reach three members; existing seeded forums
+  remain available. Creating an interest selects it and is limited to five per day.
 
 ### Onboarding fields
 
@@ -413,8 +416,11 @@ files in R2.
 
 ## Forums
 
-Each interest has one forum. Migration `0008_seed_forums` makes one for every
-interest, with the interest ID as the forum ID. A post in a forum is an event.
+An interest has at most one forum, using its interest ID. Migration
+`0008_seed_forums` opened the seeded forums. Migration `0011_interest_creation`
+opens newly created interests at three members; an opened forum stays open if its
+member count later drops. The matching Worker and migration must be deployed
+together. A post in a forum is an event.
 
 ### Data
 
@@ -550,7 +556,9 @@ Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required
   Without callbacks or an execution grant, discovery pauses when the token expires.
   A phone that reports
   first sees the match when it returns to the foreground.
-- The iPhone app has no Passed screen yet. Check a match's chance in the web client.
+- The iPhone's Recently Encountered page shows pending chances and accept/decline
+  controls. Mutual acceptance opens private chat; public-profile consent remains
+  a separate action and still needs native controls.
 
 `pnpm test:streetpass` runs the contract over real HTTP against a local API with
 `DEV_TOOLS` set to `"true"`. It signs in as two seed people who are not connected
@@ -589,13 +597,13 @@ or blocked and expires their earlier pending chance first. It tests no Bluetooth
 
 ## Suggested next slice
 
-The encounter simulator, StreetPass discovery, connections, notifications, and
-chat exist. Next:
-- Add the Face2FaceCore client for the inbox, chats, tickets, and sockets, then
-  the iPhone screens.
-- Before deploying chat, create the `face2face-media` R2 bucket and enable
-  Images transformations on the account.
-- Let people choose interests during onboarding.
+The native client has the inbox, chat with photos, public-friend visitors, forums,
+event editing/RSVP, and interest selection. Remaining demo gates:
+- Add mutual go-public controls to the native connection flow. Accept/decline and
+  the handoff into private messaging are implemented.
+- Rehearse real sign-in and image delivery against production. Local chat tests do
+  not verify email delivery or production R2/Images configuration.
+- Onboarding interest selection depends on the matching Worker deployment; optional
+  interest changes finish saving before the client advances.
 - Run the two-phone check above. A simulated or client-reported encounter must
   never count as proof of actual proximity.
-- Add a Passed screen to the iPhone app.
