@@ -6,9 +6,11 @@ enum TownIllustration {
     private static let cream = MeadowPalette.paper
     private static let wood = MeadowPalette.trunk
 
-    static func draw(context: GraphicsContext, time: TimeInterval, friendCount: Int = 0) {
+    static func draw(
+        context: GraphicsContext, time: TimeInterval, friendCount: Int = 0, waterBottom: CGFloat = 640
+    ) {
         terrain(context: context)
-        water(context: context, time: time)
+        water(context: context, time: time, bottom: waterBottom)
         paths(context: context)
         trees(context: context)
         venue(context: context, time: time)
@@ -269,14 +271,15 @@ enum TownIllustration {
         }
     }
 
-    private static func water(context: GraphicsContext, time: TimeInterval) {
-        let rect = CGRect(x: 0, y: 590, width: 400, height: 50)
+    private static func water(context: GraphicsContext, time: TimeInterval, bottom: CGFloat) {
+        let rect = CGRect(x: 0, y: 590, width: 400, height: max(50, bottom - 590))
         context.fill(
             Path(rect),
             with: .linearGradient(
                 Gradient(colors: [MeadowPalette.waterShore, MeadowPalette.waterDeep]),
                 startPoint: CGPoint(x: 0, y: 590), endPoint: CGPoint(x: 0, y: 640)))
-        for row in 0..<4 {
+        let waveRows = min(64, max(4, Int(ceil((bottom - 590) / 14))))
+        for row in 0..<waveRows {
             let y = 596 + CGFloat(row) * 14
             let flow = time * (row.isMultiple(of: 2) ? 9 : 6)
             var wave = Path()

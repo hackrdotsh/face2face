@@ -80,7 +80,9 @@ struct TownView: View {
                         && !showingNotifications
                         && friends.selectedID == nil,
                     visitors: friends.visitors, session: session,
-                    onSelect: { destination = $0 }, onSelectFriend: { friends.select($0) })
+                    onSelect: { destination = $0 }, onSelectFriend: { friends.select($0) }
+                )
+                .ignoresSafeArea(.container, edges: .bottom)
             }
         }
         .background(MeadowPalette.grass.ignoresSafeArea())
@@ -366,10 +368,20 @@ struct TownScene: View {
                     ? 0 : elapsed + (running ? timeline.date.timeIntervalSince(startedAt) : 0)
                 ZStack(alignment: .topLeading) {
                     Canvas { context, _ in
+                        let shore = origin.y + 590 * scale
+                        context.fill(
+                            Path(
+                                CGRect(
+                                    x: 0, y: shore, width: geometry.size.width,
+                                    height: max(0, geometry.size.height - shore))),
+                            with: .color(MeadowPalette.waterDeep))
                         var world = context
                         world.translateBy(x: origin.x, y: origin.y)
                         world.scaleBy(x: scale, y: scale)
-                        TownIllustration.draw(context: world, time: time, friendCount: min(3, visitors.count))
+                        let bottom = scale > 0 ? max(640, (geometry.size.height - origin.y) / scale) : 640
+                        TownIllustration.draw(
+                            context: world, time: time, friendCount: min(3, visitors.count),
+                            waterBottom: bottom)
                     }
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
