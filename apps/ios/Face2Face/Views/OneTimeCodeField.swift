@@ -73,7 +73,6 @@ struct OneTimeCodeField<Focus: Hashable>: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .meadowWell(selected: isActive)
-        .animation(.easeOut(duration: 0.12), value: isActive)
+        .animation(.easeOut(duration: 0.12)) { slot in slot.meadowWell(selected: isActive) }
     }
 }

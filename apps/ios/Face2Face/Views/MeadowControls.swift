@@ -11,10 +11,13 @@ struct MeadowPressStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
+        // Scoped so layout changes in the same transaction, like the keyboard closing, keep their own animation.
         configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
-            .opacity(configuration.isPressed ? 0.8 : 1)
-            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.15)) { label in
+                label
+                    .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+                    .opacity(configuration.isPressed ? 0.8 : 1)
+            }
     }
 }
 
