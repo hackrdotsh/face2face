@@ -42,6 +42,16 @@ final class BluetoothDiscoveryService: NSObject {
     private(set) var session: DiscoverySession?
     private(set) var stopCause = StopCause.requested
     private(set) var events: [DiscoveryLogEntry] = []
+    private(set) var signalSample = AnonymousSignalMeter.Sample()
+    @ObservationIgnored private var signalMeter = AnonymousSignalMeter()
+    @ObservationIgnored private var signalEnabled = false
+
+    /// Separate opt-in: observing the graph never starts Bluetooth discovery.
+    func setSignalEnabled(_ enabled: Bool) {
+        signalEnabled = enabled
+        signalMeter = AnonymousSignalMeter()
+        signalSample = .init()
+    }
 
     @ObservationIgnored var onEncounter: ((DiscoveryEncounter) -> Void)?
     @ObservationIgnored var onExchangeCompleted: (() -> Void)?
@@ -304,6 +314,8 @@ final class BluetoothDiscoveryService: NSObject {
     }
 
     func stop(reason: String = "Stopped", cause: StopCause = .requested) {
+        signalMeter = AnonymousSignalMeter()
+        signalSample = .init()
         guard isRequested || central != nil || advertiser != nil else { return }
         stopCause = cause
         isRequested = false
@@ -455,6 +467,9 @@ final class BluetoothDiscoveryService: NSObject {
 
     private func tick() {
         guard allowRadioOperations() else { return }
+        if let expired = signalMeter.expire(uptime: ProcessInfo.processInfo.systemUptime) {
+            signalSample = expired
+        }
         let now = Date()
         pruneInboundReads()
         candidates = candidates.filter {
@@ -622,7 +637,15 @@ extension BluetoothDiscoveryService: @preconcurrency CBCentralManagerDelegate {
         guard allowRadioOperations(), serviceReady else { return }
         tick()
         guard isRequested else { return }
-        // Device names, RSSI, addresses and account data are deliberately not recorded.
+        // Raw RSSI stays transient; only opt-in quantized aggregate bars leave this callback.
+        // Never link a graph sample to this peripheral, its token, or an account.
+        if signalEnabled, isAuthenticatedWalk,
+            let sample = signalMeter.observe(
+                rssi: rssi.intValue, uptime: ProcessInfo.processInfo.systemUptime, date: Date())
+        {
+            signalSample = sample
+        }
+        // Device names, addresses and account data are deliberately not recorded.
         if let candidate = candidates[peripheral.identifier] {
             candidate.lastSeen = Date()
         } else if candidates.count < Self.candidateLimit {

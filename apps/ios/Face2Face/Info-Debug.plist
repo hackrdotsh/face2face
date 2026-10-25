@@ -39,7 +39,7 @@
 		<true/>
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>While discovery is on, face2face uses Bluetooth to swap short-lived anonymous tokens with other phones nearby. Debug builds also include separate Bluetooth tests.</string>
+	<string>While discovery is on, face2face uses Bluetooth to swap short-lived anonymous tokens. If you enable the signal graph, recent anonymous signal strength is shown, not distance or identity. Debug builds also include separate Bluetooth tests.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Connect to your development API on your local network.</string>
 	<key>NSSupportsLiveActivities</key>

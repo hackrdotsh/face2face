@@ -2,6 +2,27 @@ import XCTest
 
 @MainActor
 final class BlobCompanionUITests: XCTestCase {
+    func testExpandedIslandWaveKeepsTheAppInBackground() {
+        let app = launchPreview()
+        app.buttons["appSettings"].tap()
+        let toggle = app.switches["blobCompanionToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        if toggle.value as? String != "1" { tapSwitch(toggle) }
+        XCTAssertEqual(toggle.value as? String, "1")
+        XCUIDevice.shared.press(.home)
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        XCTAssertTrue(springboard.wait(for: .runningForeground, timeout: 5))
+        XCTAssertTrue(springboard.icons.firstMatch.waitForExistence(timeout: 5))
+        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.035)).press(forDuration: 1)
+        let wave = springboard.buttons["Say hello to your blob"]
+        XCTAssertTrue(wave.waitForExistence(timeout: 5), springboard.debugDescription)
+        wave.tap()
+        capture("expanded-island-wave")
+        XCTAssertNotEqual(app.state, .runningForeground)
+        app.activate()
+        if toggle.value as? String == "1" { tapSwitch(toggle) }
+    }
+
     func testCompanionCanStartReturnFromHomeAndStopWithoutDiscovery() {
         let app = launchPreview()
         app.buttons["appSettings"].tap()

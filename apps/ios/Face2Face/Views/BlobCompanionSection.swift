@@ -4,6 +4,7 @@ import SwiftUI
 struct BlobCompanionSection: View {
     let seed: String?
     @State private var model = BlobCompanionModel.shared
+    @AppStorage(BlobSurface.signalPreferenceKey) private var signalEnabled = false
 
     var body: some View {
         Section {
@@ -20,6 +21,13 @@ struct BlobCompanionSection: View {
             )
             .disabled(seed == nil)
             .accessibilityIdentifier("blobCompanionToggle")
+            Toggle("Anonymous signal graph", isOn: $signalEnabled)
+                .disabled(seed == nil)
+                .accessibilityIdentifier("islandSignalToggle")
+            Text(
+                "Uses recent Bluetooth signal strength only while discovery is already on. Not distance, direction, identity, or proof someone is nearby. No microphone or location access. Background updates are best effort."
+            )
+            .font(.footnote).foregroundStyle(.secondary)
             if let current = model.session {
                 LabeledContent("Rest time") { Text(current.endsAt, style: .time) }
             }

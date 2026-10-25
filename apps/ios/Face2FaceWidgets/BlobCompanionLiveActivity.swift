@@ -5,64 +5,121 @@ import WidgetKit
 struct BlobCompanionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: BlobCompanionAttributes.self) { context in
-            HStack(spacing: 16) {
-                BlobGlyph(seed: context.attributes.seed).frame(width: 72, height: 72)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(context.isStale ? "Time to rest." : "Your little plus-one.")
-                        .font(.system(.headline, design: .rounded))
+            HStack(spacing: 14) {
+                IslandBlob(seed: context.attributes.seed, pulse: context.state.pulse)
+                    .frame(width: 64, height: 64)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(title(context)).font(.system(.headline, design: .rounded))
                     Text(
-                        context.isStale
-                            ? "Open face2face to say hello again."
-                            : "Just company. No discovery enabled here."
+                        context.state.signal.mode == .off
+                            ? "A little company for the road."
+                            : "Radio strength only · not distance or identity"
                     )
-                    .font(.caption).foregroundStyle(.white.opacity(0.7))
+                    .font(.caption).foregroundStyle(.white.opacity(0.65))
+                    if context.state.signal.mode != .off {
+                        SignalBars(levels: levels(context)).frame(height: 28)
+                    }
                 }
                 Spacer(minLength: 0)
+                if context.state.endsAt > Date() { waveButton }
             }
-            .padding(16)
-            .activityBackgroundTint(Color(red: 0.04, green: 0.09, blue: 0.08))
+            .padding(18)
+            .activityBackgroundTint(Color(red: 0.035, green: 0.09, blue: 0.1))
             .activitySystemActionForegroundColor(.white)
             .foregroundStyle(.white)
             .widgetURL(BlobSurface.townURL)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    BlobGlyph(seed: context.attributes.seed).frame(width: 58, height: 58)
+                    IslandBlob(seed: context.attributes.seed, pulse: context.state.pulse)
+                        .frame(width: 58, height: 58)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Image(systemName: context.isStale ? "moon.zzz" : "sparkles")
-                        .font(.title2).foregroundStyle(.mint).padding(12)
+                    if context.state.signal.mode == .off {
+                        Image(systemName: "sparkles").font(.title2).foregroundStyle(.mint).padding(12)
+                    } else {
+                        SignalBars(levels: levels(context)).frame(height: 40).padding(.top, 10)
+                    }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(context.isStale ? "Time to rest." : "A little company.").font(.headline)
-                            Text("Open your town ↗").font(.caption).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text(title(context)).font(.headline)
+                            Spacer(minLength: 6)
+                            if context.state.endsAt > Date() { waveButton }
+                            if !context.isStale {
+                                Text(
+                                    timerInterval: context.state.endsAt.addingTimeInterval(
+                                        -BlobSurface.sessionDuration)...context.state.endsAt, countsDown: true
+                                )
+                                .font(.caption.monospacedDigit()).frame(width: 52)
+                                .accessibilityLabel("Companion time remaining")
+                            }
                         }
-                        Spacer()
-                        if !context.isStale {
-                            Text(
-                                timerInterval: context.state.endsAt.addingTimeInterval(
-                                    -BlobSurface.sessionDuration)...context.state.endsAt, countsDown: true
-                            )
-                            .monospacedDigit().font(.caption).frame(width: 52)
-                            .accessibilityLabel("Companion time remaining")
-                        }
+                        Text(
+                            context.state.signal.mode == .off
+                                ? "Open your little town ↗"
+                                : "Anonymous signal · not distance or verified proximity"
+                        )
+                        .font(.caption2).foregroundStyle(.secondary)
                     }
-                    .fontDesign(.rounded)
-                    .padding(.bottom, 8)
+                    .fontDesign(.rounded).padding(.bottom, 8)
                 }
             } compactLeading: {
-                BlobGlyph(seed: context.attributes.seed).frame(width: 28, height: 28)
+                IslandBlob(seed: context.attributes.seed, pulse: context.state.pulse).frame(
+                    width: 28, height: 28)
             } compactTrailing: {
-                Image(systemName: context.isStale ? "moon.zzz" : "sparkles").foregroundStyle(.mint)
-                    .accessibilityLabel(context.isStale ? "Companion resting" : "Blob companion")
+                if context.state.signal.mode == .off {
+                    Image(systemName: "sparkles").foregroundStyle(.mint).accessibilityLabel("Blob companion")
+                } else {
+                    SignalBars(levels: levels(context), compact: true).frame(height: 20)
+                        .accessibilityHidden(false).accessibilityLabel(title(context))
+                }
             } minimal: {
-                BlobGlyph(seed: context.attributes.seed).frame(width: 24, height: 24)
+                IslandBlob(seed: context.attributes.seed, pulse: context.state.pulse).frame(
+                    width: 24, height: 24)
             }
             .widgetURL(BlobSurface.townURL)
             .keylineTint(.mint)
         }
+    }
+
+    private func title(_ context: ActivityViewContext<BlobCompanionAttributes>) -> String {
+        if context.isStale {
+            return Date() >= context.state.endsAt ? "Time to rest." : "No recent signal"
+        }
+        return context.state.signal.title
+    }
+
+    private var waveButton: some View {
+        Button(intent: WaveBlobIntent()) {
+            Image(systemName: "hand.wave.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .background(.white.opacity(0.09), in: Circle())
+        }
+        .buttonStyle(.plain).foregroundStyle(.mint)
+        .accessibilityLabel("Say hello to your blob")
+    }
+
+    private func levels(_ context: ActivityViewContext<BlobCompanionAttributes>) -> [Int] {
+        context.isStale ? [] : context.state.signal.sample.levels
+    }
+}
+
+private struct IslandBlob: View {
+    let seed: String
+    let pulse: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        BlobGlyph(seed: seed)
+            .scaleEffect(
+                x: reduceMotion ? 1 : pulse.isMultiple(of: 2) ? 1.05 : 0.95,
+                y: reduceMotion ? 1 : pulse.isMultiple(of: 2) ? 0.95 : 1.05
+            )
+            .rotationEffect(.degrees(reduceMotion ? 0 : pulse.isMultiple(of: 2) ? -6 : 6))
+            .animation(reduceMotion ? nil : .spring(response: 0.8, dampingFraction: 0.5), value: pulse)
     }
 }
 
@@ -70,6 +127,10 @@ struct BlobCompanionLiveActivity: Widget {
     BlobCompanionLiveActivity()
 } contentStates: {
     BlobCompanionAttributes.ContentState(endsAt: .now.addingTimeInterval(3600))
+    BlobCompanionAttributes.ContentState(
+        endsAt: .now.addingTimeInterval(3600),
+        signal: .init(
+            mode: .receiving, sample: .init(levels: [1, 1, 2, 3, 2, 3, 4, 3, 4], observedAt: .now)), pulse: 1)
 }
 
 #Preview(
@@ -77,7 +138,9 @@ struct BlobCompanionLiveActivity: Widget {
 ) {
     BlobCompanionLiveActivity()
 } contentStates: {
-    BlobCompanionAttributes.ContentState(endsAt: .now.addingTimeInterval(3600))
+    BlobCompanionAttributes.ContentState(
+        endsAt: .now.addingTimeInterval(3600),
+        signal: .init(mode: .receiving, sample: .init(levels: [1, 2, 3, 4, 3], observedAt: .now)), pulse: 1)
 }
 
 #Preview(
@@ -85,13 +148,8 @@ struct BlobCompanionLiveActivity: Widget {
 ) {
     BlobCompanionLiveActivity()
 } contentStates: {
-    BlobCompanionAttributes.ContentState(endsAt: .now.addingTimeInterval(3600))
-}
-
-#Preview(
-    "Minimal", as: .dynamicIsland(.minimal), using: BlobCompanionAttributes(seed: BlobSurface.previewSeed)
-) {
-    BlobCompanionLiveActivity()
-} contentStates: {
-    BlobCompanionAttributes.ContentState(endsAt: .now.addingTimeInterval(3600))
+    BlobCompanionAttributes.ContentState(
+        endsAt: .now.addingTimeInterval(3600),
+        signal: .init(
+            mode: .receiving, sample: .init(levels: [1, 1, 2, 3, 2, 3, 4, 3, 4], observedAt: .now)), pulse: 1)
 }

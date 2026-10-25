@@ -14,6 +14,7 @@ protocol BlobCompanionClient {
     var sessions: [BlobCompanionSession] { get }
     func start(seed: String, endsAt: Date) throws -> BlobCompanionSession
     func end(_ session: BlobCompanionSession) async
+    func update(_ session: BlobCompanionSession, signal: BlobSignal, pulse: Int) async
     func updates(for session: BlobCompanionSession) -> AsyncStream<Bool>
 }
 
@@ -22,7 +23,7 @@ struct SystemBlobCompanionClient: BlobCompanionClient {
     var isAvailable: Bool { ActivityAuthorizationInfo().areActivitiesEnabled }
 
     static func isOngoing(_ state: ActivityState) -> Bool {
-        state != .ended && state != .dismissed && state != .stale
+        state != .ended && state != .dismissed
     }
 
     var sessions: [BlobCompanionSession] {
@@ -47,6 +48,18 @@ struct SystemBlobCompanionClient: BlobCompanionClient {
             })
         else { return }
         await activity.end(nil, dismissalPolicy: .immediate)
+    }
+
+    nonisolated func update(_ session: BlobCompanionSession, signal: BlobSignal, pulse: Int) async {
+        guard
+            let activity = ActivityKit.Activity<BlobCompanionAttributes>.activities.first(where: {
+                $0.id == session.id
+            })
+        else { return }
+        let state = BlobCompanionAttributes.ContentState(
+            endsAt: session.endsAt, signal: signal, pulse: max(pulse, activity.content.state.pulse + 1))
+        await activity.update(
+            ActivityContent(state: state, staleDate: min(session.endsAt, signal.staleDate ?? session.endsAt)))
     }
 
     func updates(for session: BlobCompanionSession) -> AsyncStream<Bool> {
@@ -87,6 +100,10 @@ final class BlobCompanionModel {
     @ObservationIgnored private var monitor: Task<Void, Never>?
     @ObservationIgnored private var expiry: Task<Void, Never>?
     @ObservationIgnored private var endingIDs: Set<String> = []
+    @ObservationIgnored private var signalUpdate: Task<Void, Never>?
+    @ObservationIgnored private var latestSignal = BlobSignal.off
+    @ObservationIgnored private var lastSignalUpdate = Date.distantPast
+    @ObservationIgnored private var pulse = 0
 
     init(client: any BlobCompanionClient, now: @escaping () -> Date = Date.init) {
         self.client = client
@@ -97,9 +114,29 @@ final class BlobCompanionModel {
     deinit {
         monitor?.cancel()
         expiry?.cancel()
+        signalUpdate?.cancel()
     }
 
     var isEnabled: Bool { session != nil }
+
+    /// Coalesced event updates, not a timer that keeps the app or Island awake.
+    func updateSignal(_ signal: BlobSignal, force: Bool = false) {
+        guard force || signal != latestSignal else { return }
+        latestSignal = signal
+        signalUpdate?.cancel()
+        guard let current = session else { return }
+        let delay =
+            signal.mode == .receiving && !force ? max(0, 10 - now().timeIntervalSince(lastSignalUpdate)) : 0
+        signalUpdate = Task { [weak self] in
+            if delay > 0 {
+                do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            }
+            guard let self, !Task.isCancelled, self.session?.id == current.id else { return }
+            self.pulse += 1
+            self.lastSignalUpdate = self.now()
+            await self.client.update(current, signal: self.latestSignal, pulse: self.pulse)
+        }
+    }
 
     /// Reconcile only after authentication resolves. Never automatically restart a dismissed activity.
     func refresh(seed: String?) {
@@ -144,6 +181,7 @@ final class BlobCompanionModel {
     }
 
     private func observe(_ current: BlobCompanionSession?) {
+        signalUpdate?.cancel()
         monitor?.cancel()
         expiry?.cancel()
         session = current

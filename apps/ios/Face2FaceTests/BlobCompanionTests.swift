@@ -11,6 +11,11 @@ private final class CompanionClientStub: BlobCompanionClient {
     var ended: [String] = []
     var failsToStart = false
     var continuations: [String: AsyncStream<Bool>.Continuation] = [:]
+    var signals: [BlobSignal] = []
+
+    func update(_ session: BlobCompanionSession, signal: BlobSignal, pulse: Int) async {
+        signals.append(signal)
+    }
 
     func start(seed: String, endsAt: Date) throws -> BlobCompanionSession {
         if failsToStart { throw CocoaError(.featureUnsupported) }
@@ -36,12 +41,39 @@ final class BlobCompanionTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
     private let seed = BlobSurface.previewSeed
 
+    func testExistingCompanionContentDecodesAfterUpgrade() throws {
+        let state = try JSONDecoder().decode(
+            BlobCompanionAttributes.ContentState.self, from: Data(#"{"endsAt":1234}"#.utf8))
+        XCTAssertEqual(state.signal, .off)
+        XCTAssertEqual(state.pulse, 0)
+    }
+
+    func testSignalUpdateDoesNotStartACompanionAndStopsWithItsSession() async {
+        let client = CompanionClientStub()
+        let model = BlobCompanionModel(client: client, now: { self.now })
+        let signal = BlobSignal(mode: .receiving, sample: .init(levels: [1, 2, 3], observedAt: now))
+        model.updateSignal(signal, force: true)
+        await drainTasks()
+        XCTAssertEqual(client.starts, 0)
+        XCTAssertTrue(client.signals.isEmpty)
+        model.start(seed: seed)
+        model.updateSignal(signal, force: true)
+        await drainTasks()
+        XCTAssertEqual(client.signals.last, signal)
+        model.stop()
+        let count = client.signals.count
+        model.updateSignal(.off, force: true)
+        await drainTasks()
+        XCTAssertEqual(client.signals.count, count)
+    }
+
     func testPendingPresentationIsNotMistakenForDismissal() {
         XCTAssertTrue(SystemBlobCompanionClient.isOngoing(.active))
         if #available(iOS 26.0, *) {
             XCTAssertTrue(SystemBlobCompanionClient.isOngoing(.pending))
         }
-        XCTAssertFalse(SystemBlobCompanionClient.isOngoing(.stale))
+        XCTAssertTrue(
+            SystemBlobCompanionClient.isOngoing(.stale), "A stale signal must not terminate the companion")
         XCTAssertFalse(SystemBlobCompanionClient.isOngoing(.ended))
         XCTAssertFalse(SystemBlobCompanionClient.isOngoing(.dismissed))
     }
@@ -160,7 +192,7 @@ final class BlobCompanionTests: XCTestCase {
             try JSONSerialization.jsonObject(with: JSONEncoder().encode(attributes)) as? [String: Any]
         let content = try JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as? [String: Any]
         XCTAssertEqual(Set(object?.keys.map { $0 } ?? []), ["seed"])
-        XCTAssertEqual(Set(content?.keys.map { $0 } ?? []), ["endsAt"])
+        XCTAssertEqual(Set(content?.keys.map { $0 } ?? []), ["endsAt", "signal", "pulse"])
     }
 
     private func drainTasks() async {

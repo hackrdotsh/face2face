@@ -17,6 +17,6 @@
     <key>UILaunchScreen</key><dict/>
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
     <key>UIBackgroundModes</key><array><string>bluetooth-central</string><string>bluetooth-peripheral</string></array>
-    <key>NSBluetoothAlwaysUsageDescription</key><string>While discovery is on, face2face uses Bluetooth to swap short-lived anonymous tokens with other phones nearby.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key><string>While discovery is on, face2face uses Bluetooth to swap short-lived anonymous tokens. If you enable the signal graph, recent anonymous signal strength is shown, not distance or identity.</string>
 </dict>
 </plist>
