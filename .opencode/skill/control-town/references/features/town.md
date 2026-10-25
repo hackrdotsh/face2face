@@ -28,6 +28,12 @@ For a destination sheet, append `-town-destination forums`, `connections` or
 populated states. Preview does not exercise authentication.
 
 Preview account actions and developer tools are disabled so the preview makes no authenticated requests.
+Debug Settings has `exitTownPreview` (Return to sign in), outside the disabled
+preview tools. `deploy <udid> -start-signed-out` opens the real login without
+restoring a token; it does not delete Keychain data, accounts or onboarding.
+Omit `-town-preview` for real-account testing. Use a new email address to exercise
+onboarding, rather than deleting an existing person's data. UI coverage:
+`FreshSignInUITests.swift`.
 
 UI tests: `apps/ios/Face2FaceUITests/TownUITests.swift`. They check tap targets,
 settings access, sheet dismissal, large text and preview states. Decorative NPCs never represent
@@ -38,9 +44,12 @@ grass band should appear above or behind the home indicator.
 Notifications UI tests: `apps/ios/Face2FaceUITests/NotificationsUITests.swift`.
 `preview -town-notifications` opens the inbox with labelled sample data. Append
 `-notifications-preview-state empty` or `error` to check those states. Signed-in
-sessions load the API, never samples. This page has no unread tracking, live socket,
-or APNs delivery. Event notices open the forums list; connection notices open the
-corresponding town lists.
+sessions load the API, never samples. The town and inbox share the unread count;
+opening marks it seen, rows swipe to delete, and Clear All removes the inbox.
+Connection APNs alerts and foreground arrivals are handled by `PushNotifications`;
+delivery requires suitable signing/entitlements and backend APNs configuration.
+Event notices open the corresponding event; connection notices open the
+corresponding town lists. Chat-message push delivery is not added here.
 
 ## Public friend visitors
 
@@ -84,6 +93,11 @@ background delivery is best effort and needs hardware validation. Only real upda
 animate the Island. Tests: `CampfireTests`, `CampfireUITests`,
 `AnonymousSignalMeterTests`, and `BlobCompanionTests`.
 
+Widget links and tapped notification requests use the same town presentation queue.
+The inbox shares the town's `NotificationsModel` so marking it seen updates the bell.
+`face2face://notifications` exercises the inbox route, including dismissal of the
+campfire/profile/settings surface. Authentication is still required before routing.
+
 ## Messaging
 
 - The café opens `ChatsView`. Only accepted private/public connections are listed.
@@ -118,3 +132,75 @@ Tests: `ChatTests.swift`, opt-in `LiveChatTests.swift`, native `ChatModelTests.s
 and `ChatUITests.swift`. The native photo test uses the API's EXIF/GPS fixture.
 The photo-picker UI test uses an existing simulator photo, or skips if the library
 is empty. Seed it with `xcrun simctl addmedia booted <test-image>` before running.
+
+## Forums and interests
+
+- The poster board opens `ForumsView`: Upcoming events across selected interests,
+  plus Your forums. `forumInterests` opens the interest picker; `forumCreate` opens
+  a new event. Empty accounts must choose interests before posting or joining forums.
+- The board reuses the account page's `InterestsSection`, `InterestsModel`, catalog
+  ranking and name rules. Picks save serially through the same `/api/interests`
+  client. `interestSearch` searches or adds names; `forumInterestsDone` returns to
+  the board. Removing an interest hides its forum but keeps existing RSVPs.
+- New interests wait for three members before a forum opens. The board uses the
+  server's actual forum list, not a client-side member-count guess. Existing seeded
+  forums remain available. Users can create up to five new interests per day.
+- `forum-post-<id>` opens an event. `forumRSVP` joins/leaves, `forumAttendees` lists
+  attendee names/avatars. Hosts and attendees are visible to forum members; this is
+  separate from the mutual-public-connection gate used for friend NPCs.
+- Only `isAuthor` posts expose Edit/Cancel. `forumEventTitle`, `forumEventDescription`,
+  `forumEventLocation`, `forumEventStarts`, `forumEventEnds`, and `forumEventSave`
+  control editing. Optional values encode null so fields can be cleared.
+- New RSVPs are disabled for cancelled/past events. Existing attendees can still
+  leave. Server refusals reload the event; membership loss clears cached details.
+- `forumLoadMore` uses `after` for Upcoming and `before` for a forum feed. Opening,
+  returning to the foreground, pull-to-refresh and successful mutations refresh data.
+- Notifications for events open their exact post, including cancellation state.
+
+`preview -town-destination forums` uses an in-memory, labelled sample board.
+`-forums-preview-state empty`, `waiting` or `error` exercises those states. Preview edits reset
+when the board closes and never change a real account.
+
+`node scripts/forums-smoke.mjs` uses the existing isolated Worker harness to verify
+real Swift interest selection, forum access, create/edit/cancel, idempotent RSVP,
+attendees, notifications, unauthorized access and opening a new forum with three
+distinct accounts. It does not touch shared local D1.
+
+Tests: portable `ForumsTests.swift`, opt-in `LiveForumsTests.swift`, native
+`ForumsModelTests.swift`, `ForumsUITests.swift`, and event routing in
+`NotificationsUITests.swift`.
+
+## Recently encountered
+
+- The venue opens `RecentlyEncounteredView`. Cards show only shared interests, a
+  generic silhouette, expiry and the viewer's own decision. Names, photos and the
+  other person's decision are never rendered, even if unexpected identity data is
+  present in a response. This is not proof of physical proximity or a live map.
+- `accept-<connectionId>` sends `accepted`; `decline-<connectionId>` asks for
+  confirmation, then sends `declined`. Requests identify only the connection and
+  decision; the server determines the authenticated side. A saved answer cannot
+  be changed. Waiting cards have no repeated answer buttons.
+- A decline closes the chance as expired; the card disappears. Block is available
+  from `chanceOptions-<connectionId>`. Expired/changed/already-answered refusals
+  reload the server state instead of blindly resubmitting a non-idempotent answer.
+- Mutual acceptance produces a private connection, never public consent.
+  `encounterOpenChat` opens the real conversation; `encountersChats` opens the café
+  list. Neither path reveals identity unless the connection is separately public.
+- The page refreshes on entry, foreground, pull-down and every five seconds while
+  visible, so the first accepter can see when the other person also accepts.
+  In-flight reads are invalidated by decisions/backgrounding; failed loads clear
+  stale cards. A lost acceptance response is reconciled from a fresh read.
+
+`preview -town-destination encounters` shows labelled sample chances; accepting
+the first sample opens a local anonymous chat. `-encounters-preview-state empty`,
+`error`, `expired`, `stale`, `peer-accepts` or `lost-response` exercises those cases.
+Preview actions never change a real account.
+
+`node scripts/encounters-smoke.mjs` verifies decline, one-sided waiting, repeated
+answer rejection, mutual acceptance, anonymous chat access and outsider denial
+against an isolated Worker. Encounters in this rehearsal are explicitly simulated.
+`node scripts/chat-smoke.mjs` now accepts through the real decision client before
+verifying bidirectional text/photos. Neither rehearsal proves Bluetooth discovery.
+
+Tests: `ConnectionsTests.swift`, `LiveEncountersTests.swift`, native
+`EncountersModelTests.swift`, and `EncountersUITests.swift`.

@@ -23,6 +23,10 @@ struct RootView: View {
         .background { KeyboardDismissOnTap().frame(width: 0, height: 0) }
         .task {
             #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-start-signed-out") {
+                    session.showSignInForTesting()
+                    return
+                }
                 if ProcessInfo.processInfo.arguments.contains("-town-preview") {
                     session.enterTownPreview()
                     return
@@ -32,7 +36,7 @@ struct RootView: View {
         }
         .preferredColorScheme(appearance.colorScheme)
         .onOpenURL { url in
-            guard url == BlobSurface.townURL || url == BlobSurface.connectionsURL else { return }
+            guard TownSurfaceRoute(url: url) != nil else { return }
             // Retain cold-launch/widget routes until authentication and onboarding resolve.
             incomingSurfaceURL = url
         }

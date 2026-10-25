@@ -1,6 +1,20 @@
 import Face2FaceCore
 import SwiftUI
 
+/// One presentation queue for widget links and tapped push notifications.
+enum TownSurfaceRoute: Equatable {
+    case town, connections, notifications
+
+    init?(url: URL) {
+        switch url {
+        case BlobSurface.townURL: self = .town
+        case BlobSurface.connectionsURL: self = .connections
+        case BlobSurface.notificationsURL: self = .notifications
+        default: return nil
+        }
+    }
+}
+
 /// The signed-in front door. Public friend visitors are representations, not live presence.
 struct TownView: View {
     let account: Account
@@ -9,6 +23,8 @@ struct TownView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.scenePhase) private var scenePhase
     @State private var friends: TownFriendsModel
+    @State private var inbox: NotificationsModel
+    @State private var push = PushNotifications.shared
     @State private var openedPreviewProfile = false
     @State private var openedLaunchRoutes = false
     @State private var destination: TownDestination?
@@ -18,7 +34,7 @@ struct TownView: View {
     @State private var chatRoute: ChatRoute?
     @State private var queuedChat: ChatRoute?
     @State private var showingCampfire = false
-    @State private var pendingSurfaceURL: URL?
+    @State private var pendingSurfaceRoute: TownSurfaceRoute?
     @Binding private var incomingSurfaceURL: URL?
 
     init(
@@ -30,6 +46,7 @@ struct TownView: View {
         self.passkeys = passkeys
         _incomingSurfaceURL = incomingSurfaceURL
         _friends = State(initialValue: TownFriendsModel(session: session))
+        _inbox = State(initialValue: NotificationsModel(session: session))
     }
 
     var body: some View {
@@ -101,20 +118,8 @@ struct TownView: View {
         .onChange(of: incomingSurfaceURL, initial: true) { _, incoming in
             guard let url = incoming else { return }
             incomingSurfaceURL = nil
-            guard url == BlobSurface.townURL || url == BlobSurface.connectionsURL else { return }
-            let presented =
-                destination != nil || showingAccount || showingSettings || showingNotifications
-                || showingCampfire || friends.selectedID != nil || chatRoute != nil
-            pendingSurfaceURL = url
-            destination = nil
-            showingAccount = false
-            showingSettings = false
-            showingNotifications = false
-            showingCampfire = false
-            queuedChat = nil
-            chatRoute = nil
-            friends.closeProfile()
-            if !presented { finishSurfaceRoute() }
+            guard let route = TownSurfaceRoute(url: url) else { return }
+            requestSurface(route)
         }
         .toolbar(.hidden, for: .navigationBar, .tabBar)
         .sheet(item: $destination, onDismiss: finishSurfaceRoute) { place in
@@ -133,7 +138,7 @@ struct TownView: View {
             }
         }
         .fullScreenCover(isPresented: $showingNotifications, onDismiss: finishSurfaceRoute) {
-            NotificationsView(session: session)
+            NotificationsView(session: session, model: inbox)
         }
         .fullScreenCover(item: $chatRoute, onDismiss: finishSurfaceRoute) { route in
             NavigationStack { ChatConversationView(chatID: route.id, session: session) }
@@ -190,8 +195,22 @@ struct TownView: View {
             friends.clearVisibleData()
             friends.closeProfile()
         }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                await inbox.refreshUnreadCount()
+                do { try await Task.sleep(for: .seconds(30)) } catch { return }
+            }
+        }
+        .onChange(of: push.foregroundArrivals) { Task { await inbox.refreshUnreadCount() } }
+        .onChange(of: push.inboxRequested, initial: true) {
+            guard push.inboxRequested else { return }
+            push.inboxRequested = false
+            requestSurface(.notifications)
+        }
         .task(id: account.user.id) {
             guard !session.isTownPreview else { return }
+            await PushNotifications.shared.start(for: account, session: session)
             await ConnectedDiscoveryModel.backgroundWalk.restore(for: account)
         }
         #if DEBUG
@@ -247,9 +266,29 @@ struct TownView: View {
     }
 
     private func finishSurfaceRoute() {
-        guard let url = pendingSurfaceURL else { return }
-        pendingSurfaceURL = nil
-        if url == BlobSurface.connectionsURL { destination = .connections }
+        guard let route = pendingSurfaceRoute else { return }
+        pendingSurfaceRoute = nil
+        switch route {
+        case .town: break
+        case .connections: destination = .connections
+        case .notifications: showingNotifications = true
+        }
+    }
+
+    private func requestSurface(_ route: TownSurfaceRoute) {
+        let presented =
+            destination != nil || showingAccount || showingSettings || showingNotifications
+            || showingCampfire || friends.selectedID != nil || chatRoute != nil
+        pendingSurfaceRoute = route
+        destination = nil
+        showingAccount = false
+        showingSettings = false
+        showingNotifications = false
+        showingCampfire = false
+        queuedChat = nil
+        chatRoute = nil
+        friends.closeProfile()
+        if !presented { finishSurfaceRoute() }
     }
 
     private var headerControls: some View {
@@ -265,14 +304,18 @@ struct TownView: View {
             Button {
                 showingNotifications = true
             } label: {
-                Image(systemName: "bell")
+                Image(systemName: inbox.unreadCount > 0 ? "bell.fill" : "bell")
                     .font(.system(size: 19, weight: .semibold))
                     .frame(width: 44, height: 44)
                     .background(MeadowPalette.paper.opacity(0.85), in: Circle())
                     .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
+                    .overlay(alignment: .topTrailing) {
+                        if inbox.unreadCount > 0 { UnreadBadge(count: inbox.unreadCount) }
+                    }
             }
             .buttonStyle(MeadowPressStyle())
             .accessibilityLabel("Notifications")
+            .accessibilityValue(inbox.unreadCount > 0 ? "\(inbox.unreadCount) new" : "")
             .accessibilityIdentifier("townNotifications")
             Button {
                 showingSettings = true
@@ -526,5 +569,23 @@ struct TownScene: View {
             if old { elapsed += Date().timeIntervalSince(startedAt) }
             if new { startedAt = Date() }
         }
+    }
+}
+
+/// The count of notifications that arrived since the inbox was last opened.
+private struct UnreadBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text(count > 99 ? "99+" : "\(count)")
+            .font(.system(size: 11, weight: .heavy, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(MeadowPalette.paper)
+            .padding(.horizontal, 5)
+            .frame(minWidth: 20, minHeight: 20)
+            .background(MeadowPalette.errorInk, in: Capsule())
+            .overlay(Capsule().strokeBorder(MeadowPalette.paper, lineWidth: 2))
+            .offset(x: 4, y: -4)
+            .accessibilityHidden(true)
     }
 }

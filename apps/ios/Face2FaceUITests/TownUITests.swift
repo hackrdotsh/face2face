@@ -19,11 +19,19 @@ final class TownUITests: XCTestCase {
             button.tap()
             if identifiers[index] == "connections" {
                 XCTAssertTrue(app.staticTexts["chatsPreviewLabel"].waitForExistence(timeout: 4))
+            } else if identifiers[index] == "forums" {
+                XCTAssertTrue(app.staticTexts["forumsPreviewLabel"].waitForExistence(timeout: 4))
             } else {
-                XCTAssertTrue(app.staticTexts["Town preview"].waitForExistence(timeout: 4))
+                XCTAssertTrue(app.staticTexts["encountersPreviewLabel"].waitForExistence(timeout: 4))
             }
             capture(identifiers[index])
-            app.buttons["Done"].tap()
+            if identifiers[index] == "encounters" {
+                app.buttons["encountersBack"].tap()
+            } else if identifiers[index] == "forums" {
+                app.buttons["Back to town"].tap()
+            } else {
+                app.buttons["Done"].tap()
+            }
             XCTAssertTrue(button.waitForExistence(timeout: 4))
         }
     }
@@ -124,7 +132,7 @@ final class TownUITests: XCTestCase {
         app.swipeUp()
         XCTAssertTrue(forums.isHittable)
         forums.tap()
-        XCTAssertTrue(app.staticTexts["Town preview"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["forumsPreviewLabel"].waitForExistence(timeout: 4))
         capture("large-text-destination")
     }
 

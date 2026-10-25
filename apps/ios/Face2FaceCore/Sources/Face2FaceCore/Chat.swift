@@ -117,10 +117,6 @@ public struct ChatTranscript: Sendable {
 }
 
 extension APIClient {
-    public func blockConnection(_ id: String) async throws {
-        let path = try Self.chatPath(id).replacingOccurrences(of: "api/chats/", with: "api/connections/")
-        _ = try await post(path + "/block", [String: String](), authenticated: true)
-    }
     public func chats() async throws -> [ChatSummary] {
         struct Result: Decodable { let chats: [ChatSummary] }
         return try decode(

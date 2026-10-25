@@ -52,10 +52,11 @@ final class BlobCompanionUITests: XCTestCase {
     func testWidgetURLReturnsToTown() {
         let app = launchPreview()
         app.buttons["town-forums"].tap()
-        XCTAssertTrue(app.staticTexts["Town preview"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["forumsPreviewLabel"].waitForExistence(timeout: 4))
         app.open(URL(string: "face2face://town")!)
         XCTAssertTrue(app.buttons["townAccount"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["Town preview"].exists)
+        XCTAssertFalse(app.staticTexts["forumsPreviewLabel"].exists)
+        XCTAssertTrue(app.buttons["townAccount"].isHittable)
     }
 
     func testSignedOutCannotStartCompanionOrUseWidgetLinkToBypassSignIn() {

@@ -2,7 +2,22 @@ import Face2FaceCore
 import Foundation
 
 #if DEBUG
-    enum ChatPreview {
+    @MainActor enum ChatPreview {
+        private static var encounteredChats: [String: ChatSummary] = [:]
+        static func registerConnection(_ connection: TownConnection) throws {
+            guard connection.isFriend else { return }
+            let row: [String: Any] = [
+                "id": connection.id,
+                "connection": [
+                    "id": connection.id, "status": "private", "sharedInterests": connection.sharedInterests,
+                    "expiresAt": connection.expiresAt, "them": NSNull(),
+                ],
+                "lastMessage": NSNull(), "unreadCount": 0,
+            ]
+            encounteredChats[connection.id] = try JSONDecoder().decode(
+                ChatSummary.self,
+                from: JSONSerialization.data(withJSONObject: row))
+        }
         static func chats() throws -> [ChatSummary] {
             let json = """
                 [{"id":"preview-ava","connection":{"id":"preview-ava","status":"public","sharedInterests":["music","coffee"],
@@ -18,6 +33,7 @@ import Foundation
                 "expiresAt":"2026-10-26T00:00:00Z"},"lastMessage":null,"unreadCount":0}]
                 """
             return try JSONDecoder().decode([ChatSummary].self, from: Data(json.utf8))
+                + encounteredChats.values.sorted { $0.id < $1.id }
         }
         static func messages(chatID: String) throws -> [ChatMessage] {
             let greeting =

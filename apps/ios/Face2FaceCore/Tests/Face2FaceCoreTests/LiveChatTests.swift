@@ -26,12 +26,10 @@ func liveChatRoundTrip() async throws {
     let object = try #require(JSONSerialization.jsonObject(with: encounter) as? [String: Any])
     let row = try #require(object["connection"] as? [String: Any])
     let id = try #require(row["id"] as? String)
-    _ = try await livePost(
-        config, path: "api/connections/\(id)/decision", body: ["decision": "accepted"],
-        token: await firstTokens.load())
-    _ = try await livePost(
-        config, path: "api/connections/\(id)/decision", body: ["decision": "accepted"],
-        token: await secondTokens.load())
+    let firstAnswer = try await first.decideConnection(id, decision: .accepted)
+    #expect(firstAnswer.isPending && firstAnswer.you?.decision == .accepted)
+    let secondAnswer = try await second.decideConnection(id, decision: .accepted)
+    #expect(secondAnswer.status == "private" && secondAnswer.them == nil)
     #expect(try await first.chat(id).title == "Anonymous connection")
     let a = URLSessionChatSocket()
     let b = URLSessionChatSocket()

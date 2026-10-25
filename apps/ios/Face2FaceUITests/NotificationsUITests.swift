@@ -13,8 +13,8 @@ final class NotificationsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["notification-preview-0"].waitForExistence(timeout: 4))
         capture("notifications-populated")
         app.buttons["notification-preview-0"].tap()
-        XCTAssertTrue(app.navigationBars["Recently encountered"].waitForExistence(timeout: 4))
-        app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["encountersPreviewLabel"].waitForExistence(timeout: 4))
+        app.buttons["encountersBack"].tap()
         XCTAssertTrue(app.buttons["notificationsBack"].waitForExistence(timeout: 4))
         app.buttons["notificationsRefresh"].tap()
         XCTAssertTrue(app.buttons["notification-preview-0"].waitForExistence(timeout: 4))
@@ -52,7 +52,33 @@ final class NotificationsUITests: XCTestCase {
         XCTAssertTrue(event.isHittable)
         capture("notifications-large-text")
         event.tap()
-        XCTAssertTrue(app.navigationBars["Forums"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["forumEventHeading"].waitForExistence(timeout: 4))
+    }
+
+    func testBellCountsUnseenAndSwipeDeletes() {
+        let app = launch()
+        let bell = app.buttons["townNotifications"]
+        XCTAssertEqual(bell.value as? String, "2 new")
+        capture("bell-unread")
+        bell.tap()
+        let first = app.buttons["notification-preview-0"]
+        XCTAssertTrue(first.waitForExistence(timeout: 4))
+        first.swipeLeft()
+        capture("notification-swiped")
+        app.buttons["Delete"].firstMatch.tap()
+        let gone = NSPredicate(format: "exists == false")
+        expectation(for: gone, evaluatedWith: first)
+        waitForExpectations(timeout: 4)
+        XCTAssertTrue(app.buttons["notification-preview-1"].exists)
+
+        app.buttons["notificationsClearAll"].tap()
+        app.buttons["notificationsConfirmClear"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["notificationsEmpty"].waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["notificationsClearAll"].exists)
+        capture("notifications-cleared")
+        app.buttons["notificationsBack"].tap()
+        XCTAssertTrue(bell.waitForExistence(timeout: 4))
+        XCTAssertEqual(bell.value as? String ?? "", "")
     }
 
     private func launch(state: String? = nil, extra: [String] = []) -> XCUIApplication {

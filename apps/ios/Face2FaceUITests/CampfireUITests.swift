@@ -2,6 +2,20 @@ import XCTest
 
 @MainActor
 final class CampfireUITests: XCTestCase {
+    func testInboxRouteDismissesCampfireAndSharesTheUnreadCount() {
+        let app = launch()
+        XCTAssertEqual(app.buttons["townNotifications"].value as? String, "2 new")
+        app.buttons["townCampfire"].tap()
+        XCTAssertTrue(app.staticTexts["campfirePreviewLabel"].waitForExistence(timeout: 5))
+        app.open(URL(string: "face2face://notifications")!)
+        XCTAssertTrue(app.staticTexts["notificationsPreviewLabel"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["campfirePreviewLabel"].exists)
+        app.buttons["notificationsBack"].tap()
+        let bell = app.buttons["townNotifications"]
+        XCTAssertTrue(bell.waitForExistence(timeout: 5))
+        XCTAssertEqual(bell.value as? String ?? "", "")
+    }
+
     func testCampfireWidgetGalleryRendersArtwork() {
         _ = launch()
         XCUIDevice.shared.press(.home)

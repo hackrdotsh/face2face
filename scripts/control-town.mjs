@@ -153,9 +153,10 @@ try {
   doctor                              List physical devices and booted simulators
   preview [-town-destination forums]   Build, install and open an offline Debug preview
   screenshot <path> [device-udid]      Capture the booted simulator or specified phone
-  deploy <device-udid> [-town-preview] Build, install and launch on an explicit phone
+  deploy <device-udid> [app-arguments] Build, install and launch on an explicit phone
 
 Preview never creates an account, saves a bearer token or contacts the API.
+Use -start-signed-out to test login without restoring or deleting saved credentials.
 Omit -town-preview when verifying a real sign-in. Builds fail fast before install.`);
   }
 } catch (error) {

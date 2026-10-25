@@ -32,6 +32,7 @@ struct BlobCompanionAttributes: ActivityAttributes {
 enum BlobSurface {
     static let townURL = URL(string: "face2face://town")!
     static let connectionsURL = URL(string: "face2face://connections")!
+    static let notificationsURL = URL(string: "face2face://notifications")!
     static let previewSeed = "AAAAAAAAAAAAAAAAAAAAAA"
     static let sessionDuration: TimeInterval = 60 * 60
     static let signalPreferenceKey = "islandSignalEnabled"

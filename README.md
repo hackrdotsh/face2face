@@ -12,8 +12,17 @@ validated on hardware yet, and a match does not prove that two people were near.
 New server-confirmed discovery matches trigger the system's short success haptic
 throughout the foreground app, subject to device support and system settings.
 Repeated receipts and session resets do not trigger feedback. Background matches
-do not buzz or replay a haptic when you reopen the app; background notification
-alerts are not implemented.
+do not buzz or replay a haptic when you reopen the app. Connection notification
+alerts are supported through APNs when permission, signing, and backend push
+configuration are in place; they are separate from the foreground match haptic.
+
+**Recently encountered** now lets you accept, decline, or block anonymous chances
+and open a chat after mutual acceptance. The **Forums** board supports interest
+selection, event creation/editing/cancellation, RSVPs, and attendee lists.
+The notification bell shares its unread count with the inbox; opening marks it
+seen, rows can be swiped away, and Clear All clears the inbox across devices.
+Notification taps and widget links share a presentation queue so an open campfire
+or profile sheet is dismissed before the requested destination opens.
 
 On iOS 18 and later, the welcome, onboarding, and profile backgrounds are a 3D forest
 with layered pines and rounded versions of the blob avatars. **Settings → 3D forest**
@@ -104,6 +113,9 @@ Do not commit the generated Xcode project. `apps/ios/project.yml` is its source.
 The generated project embeds the **Face2FaceWidgets** extension in the app. Use the
 same development team for both targets; keep the extension bundle ID prefixed by
 the app bundle ID if you customize them. Live Activities require no push setup.
+Connection alerts do require the app's Push Notifications entitlement and backend
+APNs configuration; see [architecture](docs/architecture.md). This is independent
+of the Live Activity and campfire widget capabilities.
 Both targets also need the **group.systems.rocky.face2face** App Group for campfire
 sharing. Keep that group identical in both entitlements files if you customize it.
 To preserve local signing across project generation, create the ignored

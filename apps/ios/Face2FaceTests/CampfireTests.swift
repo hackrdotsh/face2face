@@ -5,6 +5,14 @@ import XCTest
 
 @MainActor
 final class CampfireTests: XCTestCase {
+    func testWidgetAndInboxRoutesUseOnlyRecognizedAppURLs() {
+        XCTAssertEqual(TownSurfaceRoute(url: BlobSurface.townURL), .town)
+        XCTAssertEqual(TownSurfaceRoute(url: BlobSurface.connectionsURL), .connections)
+        XCTAssertEqual(TownSurfaceRoute(url: BlobSurface.notificationsURL), .notifications)
+        XCTAssertNil(TownSurfaceRoute(url: URL(string: "https://example.com/connections")!))
+        XCTAssertNil(TownSurfaceRoute(url: URL(string: "face2face://unknown")!))
+    }
+
     func testAllFriendsAppearAcrossPagesWithoutDuplicates() {
         let guests = (0..<47).map {
             CampfireGuest(id: $0, name: "Friend \($0)", seed: BlobSurface.previewSeed, isAnonymous: true)

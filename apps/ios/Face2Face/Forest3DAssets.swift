@@ -99,26 +99,20 @@ enum Forest3DAssets {
         let tree = Entity()
         tree.name = "forest-pine"
         let trunk = ModelEntity(
-            mesh: .generateCylinder(height: 1.1, radius: 0.13), materials: [SimpleMaterial()])
+            mesh: .generateCylinder(height: 0.9, radius: 0.14), materials: [SimpleMaterial()])
         trunk.name = "trunk"
-        trunk.position.y = 0.55
+        trunk.position.y = 0.45
         tree.addChild(trunk)
-        let shadow = try contactShadow(width: 3, depth: 2.7)
+        let shadow = try contactShadow(width: 2.6, depth: 2.3)
         shadow.position.y = 0.01
         tree.addChild(shadow)
-        let canopy = PineCrown(branches: 8 + variant)
-        var descriptor = MeshDescriptor(name: "pine-boughs-\(variant)")
-        descriptor.positions = MeshBuffers.Positions(canopy.positions)
-        descriptor.normals = MeshBuffers.Normals(canopy.normals)
-        descriptor.primitives = .triangles(canopy.indices)
-        descriptor.materials = .perFace(canopy.faceMaterials)
-        let mesh = try MeshResource.generate(from: [descriptor])
-        let tiers: [(Float, Float, Float)] = [(1.3, 1.35, 0.65), (1.0, 1.35, 1.45), (0.68, 1.45, 2.2)]
-        for tier in tiers {
+        let tiers: [(Float, Float, Float)] = [
+            (1.05, 1.45, 1.05), (0.87, 1.3, 1.75), (0.64, 1.1, 2.4), (0.36, 0.86, 2.98),
+        ]
+        for (band, tier) in tiers.enumerated() {
             let crown = ModelEntity(
-                mesh: mesh, materials: [SimpleMaterial(), SimpleMaterial(), SimpleMaterial()])
-            crown.name = "needles-\(variant)"
-            crown.scale = [tier.0, tier.1, tier.0]
+                mesh: .generateCone(height: tier.1, radius: tier.0), materials: [SimpleMaterial()])
+            crown.name = "leaves-\(variant)-\(band)"
             crown.components.set(DynamicLightShadowComponent(castsShadow: true))
             crown.position.y = tier.2
             tree.addChild(crown)

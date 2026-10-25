@@ -9,11 +9,26 @@ public struct TownForum: Decodable, Sendable, Identifiable {
 
 /// Only the participant-facing fields needed on the landing page. No hidden peer identity.
 public struct TownConnection: Decodable, Sendable, Identifiable {
+    public struct Viewer: Decodable, Sendable {
+        public let decision: ConnectionDecision?
+        public let decidedAt: String?
+        public let publicAt: String?
+    }
     public let id: String
     public let status: String
     public let sharedInterests: [String]
     public let them: PublicPerson?
     public let expiresAt: String
+    public let createdAt: String?
+    public let you: Viewer?
+
+    public var expiryDate: Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: expiresAt) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: expiresAt)
+    }
 
     public struct PublicPerson: Decodable, Sendable {
         public let userId: String?

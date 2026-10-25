@@ -74,12 +74,19 @@ final class SessionModel {
         BlobCompanionModel.shared.stop()
         ConnectedDiscoveryModel.backgroundWalk.stop(reason: "Signed out")
         await activity.run {
-            do { try await self.client().signOut() } catch APIError.unauthenticated {}
+            let client = try self.client()
+            await PushNotifications.shared.signOut(client: client)
+            do { try await client.signOut() } catch APIError.unauthenticated {}
             self.phase = .signedOut
         }
     }
 
     #if DEBUG
+        /// Starts the real login UI without restoring a session or deleting saved credentials.
+        func showSignInForTesting() {
+            phase = .signedOut
+        }
+
         /// Prototype bypass: enter the town without a session. Scratch only — never ship.
         func enterTownPreview() {
             let json = """

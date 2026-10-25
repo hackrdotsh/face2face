@@ -44,6 +44,15 @@ struct SettingsView: View {
                 }
                 .disabled(session.isTownPreview)
                 #if DEBUG
+                    if session.isTownPreview {
+                        Section("Town preview") {
+                            Button("Return to sign in") {
+                                session.showSignInForTesting()
+                                dismiss()
+                            }
+                            .accessibilityIdentifier("exitTownPreview")
+                        }
+                    }
                     Section("Developer tools") {
                         if account == nil {
                             Button("Preview town") {

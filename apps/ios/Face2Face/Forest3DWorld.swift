@@ -157,10 +157,12 @@ final class Forest3DWorld {
     }
 
     private func paint(_ entity: Entity, dark: Bool, foliage: [[any RealityKit.Material]]) {
-        if entity.name.hasPrefix("needles-"), let variant = Int(entity.name.suffix(1)),
-            foliage.indices.contains(variant), let model = entity as? ModelEntity
+        let parts = entity.name.split(separator: "-")
+        if parts.count == 3, parts[0] == "leaves", let variant = Int(parts[1]), let band = Int(parts[2]),
+            foliage.indices.contains(variant), foliage[variant].indices.contains(band),
+            let model = entity as? ModelEntity
         {
-            model.model?.materials = foliage[variant]
+            model.model?.materials = [foliage[variant][band]]
         }
         let color: UIColor?
         switch entity.name {
@@ -180,19 +182,17 @@ final class Forest3DWorld {
         let palettes: [[UInt32]] =
             dark
             ? [
-                [0x294E29, 0x537C40, 0x162C1B], [0x335B31, 0x698B4C, 0x19351E],
-                [0x264B32, 0x4A7546, 0x132D1E],
+                [0x204637, 0x305D46, 0x4E7D5E, 0x74A57A],
+                [0x274D35, 0x386544, 0x608B5E, 0x8BB47A],
+                [0x193F37, 0x295A4B, 0x467D67, 0x69A28A],
             ]
             : [
-                [0x568E28, 0x78B03C, 0x355F24], [0x437F28, 0x67A336, 0x2B5822],
-                [0x619C2D, 0x8AB942, 0x416D29],
+                [0x376E42, 0x548B4A, 0x78AF5E, 0xA8CE78],
+                [0x44743C, 0x65924A, 0x8BBB61, 0xBDD982],
+                [0x2B6848, 0x468A57, 0x6AAD70, 0x9BCB8C],
             ]
         return palettes.map { colors in
-            [
-                SimpleMaterial(color: hex(colors[0]), roughness: 1, isMetallic: false),
-                SimpleMaterial(color: hex(colors[1]), roughness: 1, isMetallic: false),
-                UnlitMaterial(color: hex(colors[2])),
-            ]
+            colors.map { SimpleMaterial(color: hex($0), roughness: 1, isMetallic: false) }
         }
     }
 

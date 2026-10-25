@@ -12,6 +12,8 @@ public enum APIError: Error, LocalizedError, Equatable {
     case rateLimited
     case interestLimitReached
     case invalidResponse
+    case forumCancelled, forumEventOver, forumNotAuthor
+    case chanceEnded, chanceAlreadyAnswered, connectionChanged
     case server(Int)
 
     public var errorDescription: String? {
@@ -27,6 +29,12 @@ public enum APIError: Error, LocalizedError, Equatable {
         case .rateLimited: "Too many attempts. Wait a minute and try again."
         case .interestLimitReached: "You can pick up to 10 interests. Remove one to add another."
         case .invalidResponse: "The API returned an unexpected response."
+        case .forumCancelled: "This event was cancelled. You can still leave an existing RSVP."
+        case .forumEventOver: "This event has finished, so it can't accept new RSVPs."
+        case .forumNotAuthor: "Only the person who posted this event can change it."
+        case .chanceEnded: "This chance has ended. Refresh to see the latest chances."
+        case .chanceAlreadyAnswered: "Your answer is already saved. Check the latest status."
+        case .connectionChanged: "This chance changed while you were answering. Check its latest status."
         case .server(400): "Check what you entered, then try again."
         case .server(let status): "The API returned HTTP \(status). Try again."
         }
@@ -43,6 +51,12 @@ extension APIError {
     static func from(status: Int, body: Data) -> APIError {
         let decoded = try? JSONDecoder().decode(ServerErrorBody.self, from: body)
         switch (status, decoded?.error ?? decoded?.code) {
+        case (409, "not_pending"): return .chanceEnded
+        case (409, "already_decided"): return .chanceAlreadyAnswered
+        case (409, "conflict"): return .connectionChanged
+        case (409, "post_cancelled"): return .forumCancelled
+        case (409, "event_over"): return .forumEventOver
+        case (403, "not_author"): return .forumNotAuthor
         case (400, "invalid_fields"): return .invalidFields(decoded?.fields ?? [:])
         case (400, "INVALID_OTP"), (400, "OTP_EXPIRED"), (403, "TOO_MANY_ATTEMPTS"): return .invalidCode
         case (401, "INVALID_EMAIL_OR_PASSWORD"): return .invalidCredentials

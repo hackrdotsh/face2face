@@ -34,8 +34,8 @@ The camera is orthographic and virtual, not AR: there is no camera permission,
 tracking session, downloaded model, or new dependency. Pine meshes are generated
 once and shared by a finite repeating grid. The three decorative blobs use the
 existing `BlobAvatar` silhouette, gradients, pill eyes, and idle timing;
-`BlobVolume` supplies portable, tested mesh geometry. Pines use full, scalloped
-`PineCrown` boughs with rounded leaf clusters and separate foliage, tip, and underside material bands.
+`BlobVolume` supplies portable, tested mesh geometry. Pines use the original
+four-tier shape with four green color bands, getting lighter toward the tip.
 Decorative greetings retain the first crossing at four seconds and the 16-second
 spacing, with a turn, hop, wave bubble, and expanding ring. The main blob faces up
 the path while walking and turns sideways only to greet. Fireflies belong to
@@ -84,7 +84,10 @@ in separate tables that reference `user.id` and cascade on account deletion.
 - `interest` is a lookup table with a unique lowercase `name`. A seed migration
   adds the list. `member_count` is the number of people who chose it. Triggers
   on `profile_interest` keep it current, including when an account is deleted.
-  Interests are not an onboarding field yet. Only seeded people have them.
+  Interests are saved through `/api/interests`, including the optional onboarding
+  step. Onboarding, the native account page and Forums share the same picker.
+  New interests open a forum when they reach three members; existing seeded forums
+  remain available. Creating an interest selects it and is limited to five per day.
 
 ### Onboarding fields
 
@@ -242,20 +245,52 @@ Routes, all behind `requireOnboarded`:
 Each person's `UserCoordinator` Durable Object keeps their inbox, the latest
 200 notifications. The inbox is the record. A WebSocket only delivers new
 notifications while a client is open. An iPhone app in the background has no
-socket. Background delivery needs APNs later, sent from the same `notify` call.
+socket, so `notify` also sends an APNs alert for `encounter`, `connected`, and
+`public` to each of the person's registered phones.
 
 A client, web or iPhone:
 1. Loads `GET /api/notifications` on launch and when it returns to the foreground.
+   The response is `{ notifications, unreadCount }`.
 2. Gets a 60-second ticket from `POST /api/notifications/ticket` with its bearer token.
 3. Opens `/api/notifications/socket?ticket=…`. Browsers cannot set an
    `Authorization` header on a WebSocket, and a bearer token must not go in a URL.
-4. Receives `{"type":"ready"}`, then `{"type":"notification","notification":…}`
-   for each new one. Sending `ping` returns `{"type":"pong"}`.
+4. Receives `{"type":"ready"}`, then
+   `{"type":"notification","notification":…,"unreadCount":…}` for each new one.
+   Sending `ping` returns `{"type":"pong"}`.
 5. Reconnects with backoff when the socket closes and reloads the inbox.
+
+Inbox actions:
+- `POST /api/notifications/seen` marks everything in the inbox as seen.
+  `unreadCount` counts notifications created after that point.
+- `DELETE /api/notifications/:id` deletes one notification. `DELETE
+  /api/notifications` clears the inbox. Both delete on the server, so every
+  device agrees.
 
 Notification kinds are `encounter` (shared interests and expiry), `connected`,
 `public`, `post_updated`, `post_cancelled`, and `post_rsvp`. None identifies the
 other person. The post kinds hold only `postId` and `forumId`.
+
+### Push
+
+- The iPhone app asks for notification permission the first time it reaches the
+  town. It then sends its APNs token to `PUT /api/notifications/devices/:token`
+  with `{ "environment": "sandbox" | "production" }`. Debug builds use the
+  sandbox. Sign out calls `DELETE /api/notifications/devices/:token` first.
+- The coordinator keeps the newest 10 tokens for each person. It forgets a token
+  when APNs answers 410, `BadDeviceToken`, or `DeviceTokenNotForTopic`.
+- The alert holds the same text as the inbox card, the unread count as the app
+  badge, and `notificationId`, `kind`, and `connectionId`. It never names the
+  other person.
+- While the app is open it shows no banner. The bell's count updates instead.
+- Push is off until the Worker has `APNS_KEY_ID` and `APNS_PRIVATE_KEY` (the
+  .p8 contents) and `APPLE_APP_ID` is set. The team ID and topic come from
+  `APPLE_APP_ID`. The build also needs the `aps-environment` entitlement.
+- A phone belongs to the account that registered it last. D1's `push_device`
+  table maps the SHA-256 hash of each token to its owner. Registering removes the
+  token from the previous owner's coordinator, so a phone stops getting an
+  account's alerts as soon as someone else signs in on it, even when the old
+  session expired without sign out. Unregistering only removes the caller's own
+  ownership.
 
 ### Simulator
 
@@ -290,7 +325,7 @@ the connection ID. A block closes the chat for both people.
   that the Worker gives it. A client cannot call it directly.
 - **`UserCoordinator`** gets a `chat_activity` event when a message arrives for
   its person. It sends the event to that person's notification sockets. The
-  inbox does not keep it. APNs can be added at the same place.
+  inbox does not keep it.
 - **Images binding** re-encodes each upload. **R2** (`MEDIA`) keeps the result.
   The bucket is not public.
 
@@ -386,8 +421,11 @@ files in R2.
 
 ## Forums
 
-Each interest has one forum. Migration `0008_seed_forums` makes one for every
-interest, with the interest ID as the forum ID. A post in a forum is an event.
+An interest has at most one forum, using its interest ID. Migration
+`0008_seed_forums` opened the seeded forums. Migration `0011_interest_creation`
+opens newly created interests at three members; an opened forum stays open if its
+member count later drops. The matching Worker and migration must be deployed
+together. A post in a forum is an event.
 
 ### Data
 
@@ -523,7 +561,9 @@ Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required
   Without callbacks or an execution grant, discovery pauses when the token expires.
   A phone that reports
   first sees the match when it returns to the foreground.
-- The iPhone app has no Passed screen yet. Check a match's chance in the web client.
+- The iPhone's Recently Encountered page shows pending chances and accept/decline
+  controls. Mutual acceptance opens private chat; public-profile consent remains
+  a separate action and still needs native controls.
 
 `pnpm test:streetpass` runs the contract over real HTTP against a local API with
 `DEV_TOOLS` set to `"true"`. It signs in as two seed people who are not connected
@@ -562,13 +602,13 @@ or blocked and expires their earlier pending chance first. It tests no Bluetooth
 
 ## Suggested next slice
 
-The encounter simulator, StreetPass discovery, connections, notifications, and
-chat exist. Next:
-- Add the Face2FaceCore client for the inbox, chats, tickets, and sockets, then
-  the iPhone screens.
-- Before deploying chat, create the `face2face-media` R2 bucket and enable
-  Images transformations on the account.
-- Let people choose interests during onboarding.
+The native client has the inbox, chat with photos, public-friend visitors, forums,
+event editing/RSVP, and interest selection. Remaining demo gates:
+- Add mutual go-public controls to the native connection flow. Accept/decline and
+  the handoff into private messaging are implemented.
+- Rehearse real sign-in and image delivery against production. Local chat tests do
+  not verify email delivery or production R2/Images configuration.
+- Onboarding interest selection depends on the matching Worker deployment; optional
+  interest changes finish saving before the client advances.
 - Run the two-phone check above. A simulated or client-reported encounter must
   never count as proof of actual proximity.
-- Add a Passed screen to the iPhone app.
