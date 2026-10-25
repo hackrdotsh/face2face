@@ -7,12 +7,15 @@ struct AccountView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var passkeyEnrollment: PasskeyEnrollmentModel
     @State private var interests: InterestsModel
+    @State private var statusMessage: StatusMessageModel
 
     init(account: Account, session: SessionModel, passkeys: PasskeyAuthorizer) {
         self.account = account
         self.session = session
         _passkeyEnrollment = State(initialValue: PasskeyEnrollmentModel(session: session, passkeys: passkeys))
         _interests = State(initialValue: InterestsModel(session: session))
+        _statusMessage = State(
+            initialValue: StatusMessageModel(session: session, saved: account.user.statusMessage))
     }
 
     var body: some View {
@@ -27,6 +30,7 @@ struct AccountView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         MeadowCard { profile }
+                        MeadowCard { StatusMessageSection(model: statusMessage) }
                         MeadowCard { InterestsSection(model: interests) }
                         MeadowCard {
                             DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk, account: account)

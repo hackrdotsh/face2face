@@ -68,6 +68,7 @@ struct TownView: View {
                                     MeadowPalette.paper, in: RoundedRectangle(cornerRadius: 20))
                             }
                             .accessibilityLabel("\(friend.name), public friend")
+                            .accessibilityValue(friend.statusMessage.map { "Status: \($0)" } ?? "")
                             .accessibilityIdentifier("town-friend-\(friend.id)")
                         }
                     }.padding(.horizontal, 20)

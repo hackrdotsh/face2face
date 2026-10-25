@@ -66,6 +66,21 @@ struct CompactPublicProfileView: View {
                         .foregroundStyle(MeadowPalette.secondaryInk)
                 }
             }
+            if let statusMessage = friend.statusMessage {
+                Label {
+                    Text(statusMessage)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "text.bubble.fill").foregroundStyle(MeadowPalette.secondaryInk)
+                }
+                .font(.body.weight(.medium))
+                .padding(.horizontal, 16).padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(MeadowPalette.paper, in: RoundedRectangle(cornerRadius: MeadowRadius.control))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Status: \(statusMessage)")
+                .accessibilityIdentifier("publicProfileStatus")
+            }
             if !friend.interests.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("A few things they love").font(.subheadline.weight(.bold))
