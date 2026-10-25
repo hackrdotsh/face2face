@@ -153,6 +153,9 @@ struct TownView: View {
             friends.clearVisibleData()
             friends.closeProfile()
         }
+        .task(id: account.user.id) {
+            await ConnectedDiscoveryModel.backgroundWalk.restore(for: account)
+        }
         #if DEBUG
             .onAppear {
                 if ProcessInfo.processInfo.arguments.contains("-town-notifications") {
@@ -182,6 +185,16 @@ struct TownView: View {
             }
             Spacer(minLength: 0)
             Button {
+                showingAccount = true
+            } label: {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    DiscoveryBadge(state: ConnectedDiscoveryModel.backgroundWalk.discoveryState)
+                }
+            }
+            .buttonStyle(MeadowPressStyle())
+            .accessibilityHint("Opens Account, where discovery is turned on or off")
+            .accessibilityIdentifier("townDiscovery")
+            Button {
                 showingNotifications = true
             } label: {
                 Image(systemName: "bell")
@@ -207,6 +220,51 @@ struct TownView: View {
         .padding(.horizontal, 24)
         .padding(.top, 12)
         .padding(.bottom, 8)
+    }
+}
+
+/// Whether discovery is on. The switch itself stays on the Account screen.
+private struct DiscoveryBadge: View {
+    let state: ConnectedDiscoveryModel.DiscoveryState
+
+    private var title: String {
+        switch state {
+        case .off: "Off"
+        case .starting: "Starting"
+        case .on: "On"
+        case .paused: "Paused"
+        }
+    }
+
+    private var symbol: String {
+        switch state {
+        case .off: "antenna.radiowaves.left.and.right.slash"
+        case .starting, .on: "antenna.radiowaves.left.and.right"
+        case .paused: "pause.circle"
+        }
+    }
+
+    private var ink: Color {
+        switch state {
+        case .off: MeadowPalette.secondaryInk
+        case .on: MeadowPalette.accentInk
+        case .starting, .paused: MeadowPalette.ink
+        }
+    }
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(ink)
+            .contentTransition(.symbolEffect(.replace))
+            .frame(width: 44, height: 44)
+            .background(
+                state == .on ? MeadowPalette.accent : MeadowPalette.paper.opacity(0.85), in: Circle()
+            )
+            .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Discovery")
+            .accessibilityValue(title)
     }
 }
 

@@ -28,6 +28,19 @@ final class TownUITests: XCTestCase {
         XCTAssertTrue(app.buttons["town-forums"].waitForExistence(timeout: 4))
     }
 
+    func testDiscoveryBadgeShowsStateAndOpensAccount() {
+        let app = launch()
+        let badge = app.buttons["townDiscovery"]
+        XCTAssertTrue(badge.waitForExistence(timeout: 8))
+        XCTAssertEqual(badge.value as? String, "Off")
+        XCTAssertGreaterThanOrEqual(badge.frame.height, 44)
+        XCTAssertFalse(badge.frame.intersects(app.buttons["townNotifications"].frame))
+        capture("discovery-badge")
+        badge.tap()
+        XCTAssertTrue(app.otherElements["accountHome"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.switches["discoveryToggle"].waitForExistence(timeout: 4))
+    }
+
     func testAccessibilityTextUsesFullSizeNavigation() {
         let app = launch(extra: [
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",

@@ -106,6 +106,16 @@ final class ConnectedDiscoveryModel {
 
     var isEnabled: Bool { allowsBackground ? optIn != nil : isRunning || isStarting }
 
+    enum DiscoveryState { case off, starting, on, paused }
+
+    var discoveryState: DiscoveryState {
+        guard isEnabled else { return .off }
+        if isStarting { return .starting }
+        guard isRunning, radio.isRequested, walkRemaining > 0, radio.isScanning, radio.isAdvertising
+        else { return .paused }
+        return .on
+    }
+
     var discoveryStatus: String {
         guard isEnabled else { return "Off" }
         if isStarting { return "Starting…" }

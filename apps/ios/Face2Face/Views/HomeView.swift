@@ -46,9 +46,6 @@ struct HomeView: View {
         .activityAlert(passkeyEnrollment.activity)
         .sheet(isPresented: $showingSettings) { SettingsView(session: session) }
         .accessibilityIdentifier("accountHome")
-        .task(id: account.user.id) {
-            await ConnectedDiscoveryModel.backgroundWalk.restore(for: account)
-        }
     }
 
     private var profileCard: some View {
