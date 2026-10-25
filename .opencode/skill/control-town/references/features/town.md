@@ -32,6 +32,11 @@ has a recessed water surface and four modeled streams. Native tests check canopy
 clearance from the camera and water below the basin rim; inspect both day and night
 previews for missing surfaces, clipping, and obscured destination labels.
 
+The profile stress test rapidly taps `townAccount`, closes the sheet, and repeats
+12 times with 3D scenery enabled. The forest greeting bubbles face the fixed camera
+explicitly; do not reintroduce `BillboardComponent`, which crashed RealityKit when
+profile scenes were repeatedly presented and destroyed.
+
 ## Evidence commands
 
 ```sh

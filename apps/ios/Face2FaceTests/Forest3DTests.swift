@@ -1,11 +1,28 @@
 import RealityKit
 import XCTest
+import simd
 
 @testable import Face2Face
 
 @available(iOS 18.0, *)
 @MainActor
 final class Forest3DTests: XCTestCase {
+    func testGreetingsFaceTheCameraWithoutNativeBillboards() throws {
+        let world = try Forest3DWorld(initialTime: 4)
+        let entities = descendants(world.root)
+        XCTAssertTrue(entities.allSatisfy { $0.components[BillboardComponent.self] == nil })
+        let bubbles = entities.filter { $0.name == "greeting-bubble" }
+        XCTAssertEqual(bubbles.filter(\.isEnabled).count, 2)
+        for _ in 0..<8 {
+            let expected = world.camera.orientation(relativeTo: world.root).act(SIMD3<Float>(0, 0, 1))
+            for bubble in bubbles where bubble.isEnabled {
+                let actual = bubble.orientation(relativeTo: world.root).act(SIMD3<Float>(0, 0, 1))
+                XCTAssertEqual(simd_dot(actual, expected), 1, accuracy: 0.0001)
+            }
+            world.update(delta: 0.1)
+        }
+    }
+
     func testForestHasPinesSeededBlobsAndAnOrthographicCamera() throws {
         let world = try Forest3DWorld()
         let entities = descendants(world.root)

@@ -154,6 +154,11 @@ final class Forest3DWorld {
         let targetZ = 4 - (fraction - 0.5) * 28 / 0.65
         let x = blobs.first?.root.position.x ?? 0
         camera.look(at: [x, 0, targetZ], from: [x, 24, targetZ + 28], relativeTo: nil)
+        // Avoid RealityKit's billboard hierarchy crash when the profile scene is repeatedly dismissed.
+        let facing = camera.orientation(relativeTo: root)
+        for blob in blobs where blob.greeting.isEnabled {
+            blob.greeting.setOrientation(facing, relativeTo: root)
+        }
     }
 
     private func paint(_ entity: Entity, dark: Bool, foliage: [[any RealityKit.Material]]) {

@@ -40,6 +40,9 @@ Decorative greetings retain the first crossing at four seconds and the 16-second
 spacing, with a turn, hop, wave bubble, and expanding ring. The main blob faces up
 the path while walking and turns sideways only to greet. Fireflies belong to
 the scrolling terrain tiles, with only small local drift, rather than the camera.
+Greeting bubbles copy the camera's orientation after each pose update instead of
+using `BillboardComponent`: RealityKit's billboard hierarchy tracking crashed on
+repeated profile-sheet presentation and teardown.
 For deterministic Debug screenshots, `-forest-preview-time 4` freezes a greeting.
 
 A view-owned task updates forest transforms approximately 30 times per second;

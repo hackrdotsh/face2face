@@ -2,6 +2,20 @@ import XCTest
 
 @MainActor
 final class TownUITests: XCTestCase {
+    func testRepeatedProfileTapsKeepTheAppRunning() {
+        let app = launch()
+        let account = app.buttons["townAccount"]
+        XCTAssertTrue(account.waitForExistence(timeout: 8))
+        for cycle in 0..<12 {
+            account.tap(withNumberOfTaps: 5, numberOfTouches: 1)
+            XCTAssertTrue(app.otherElements["accountHome"].waitForExistence(timeout: 5), "Open \(cycle)")
+            XCTAssertEqual(app.state, .runningForeground)
+            app.navigationBars["Account"].buttons["Done"].tap()
+            XCTAssertTrue(account.waitForExistence(timeout: 5), "Return \(cycle)")
+            XCTAssertEqual(app.state, .runningForeground)
+        }
+    }
+
     func testTwoDimensionalTownRemainsAvailable() {
         let app = launch(scenery3D: false)
         let forums = app.buttons["town-forums"]
