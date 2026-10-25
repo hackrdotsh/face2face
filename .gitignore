@@ -21,3 +21,4 @@ xcuserdata/
 *.tsbuildinfo
 *.log
 .DS_Store
+apps/ios/signing.local.yml

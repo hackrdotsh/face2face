@@ -1,4 +1,7 @@
 name: Face2Face
+include:
+  - path: signing.local.yml
+    optional: true
 options:
   minimumXcodeGenVersion: 2.44.0
   deploymentTarget:
@@ -41,7 +44,7 @@ targets:
     platform: iOS
     sources:
       - path: Face2FaceWidgets
-        excludes: ["Info.plist"]
+        excludes: ["Info.plist", "*.entitlements"]
       - path: Face2FaceSurfaces
     dependencies:
       - package: Face2FaceCore
@@ -50,6 +53,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: systems.rocky.face2face.widgets
         PRODUCT_NAME: Face2FaceWidgets
         INFOPLIST_FILE: Face2FaceWidgets/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Face2FaceWidgets/Face2FaceWidgets.entitlements
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
