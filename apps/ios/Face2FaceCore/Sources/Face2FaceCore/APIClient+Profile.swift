@@ -18,11 +18,28 @@ extension APIClient {
         return try decode(AvatarResponse.self, from: response).avatar
     }
 
+    /// Shown to public connections. Nil or blank text clears it. Returns what the server saved.
+    public func updateStatusMessage(_ statusMessage: String?) async throws -> String? {
+        let body = try JSONEncoder().encode(StatusMessageBody(statusMessage: statusMessage))
+        let response = try await send(
+            APIRequest(path: "api/profile/status", method: "PUT", body: body, authenticated: true))
+        return try decode(StatusMessageBody.self, from: response).statusMessage
+    }
+
     private static let uploadTimeout: TimeInterval = 60
 }
 
 private struct AvatarResponse: Decodable {
     let avatar: Avatar
+}
+
+private struct StatusMessageBody: Codable {
+    let statusMessage: String?
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(statusMessage, forKey: .statusMessage)
+    }
 }
 
 /// A `multipart/form-data` body with one file.

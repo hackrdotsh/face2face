@@ -36,6 +36,7 @@ public struct TownConnection: Decodable, Sendable, Identifiable {
         public let avatar: Avatar
         public let age: Int?
         public let interests: [String]?
+        public let statusMessage: String?
     }
 
     public var isFriend: Bool { status == "private" || status == "public" }
@@ -56,6 +57,8 @@ public struct PublicTownFriend: Identifiable, Sendable, Equatable {
     public let age: Int?
     public let interests: [String]
     public let sharedInterests: [String]
+    /// Set only when the friend wrote one. Never empty.
+    public let statusMessage: String?
 
     public init?(connection: TownConnection) {
         guard connection.status == "public", let person = connection.them,
@@ -69,6 +72,7 @@ public struct PublicTownFriend: Identifiable, Sendable, Equatable {
         age = person.age
         interests = person.interests ?? []
         sharedInterests = connection.sharedInterests
+        statusMessage = person.statusMessage.flatMap(StatusMessage.normalized)
     }
 }
 
