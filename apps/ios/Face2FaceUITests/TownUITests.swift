@@ -28,17 +28,17 @@ final class TownUITests: XCTestCase {
         XCTAssertTrue(app.buttons["town-forums"].waitForExistence(timeout: 4))
     }
 
-    func testDiscoveryBadgeShowsStateAndOpensAccount() {
+    func testDiscoveryToggleIsOffAndDisabledWithoutBluetooth() {
         let app = launch()
-        let badge = app.buttons["townDiscovery"]
-        XCTAssertTrue(badge.waitForExistence(timeout: 8))
-        XCTAssertEqual(badge.value as? String, "Off")
-        XCTAssertGreaterThanOrEqual(badge.frame.height, 44)
-        XCTAssertFalse(badge.frame.intersects(app.buttons["townNotifications"].frame))
-        capture("discovery-badge")
-        badge.tap()
-        XCTAssertTrue(app.otherElements["accountHome"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.switches["discoveryToggle"].waitForExistence(timeout: 4))
+        let toggle = app.descendants(matching: .any)["townDiscovery"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 8))
+        XCTAssertEqual(toggle.label, "Discovery")
+        XCTAssertEqual(toggle.value as? String, "Off")
+        XCTAssertFalse(toggle.isEnabled)
+        XCTAssertEqual(toggle.frame.width, 44, accuracy: 1)
+        XCTAssertEqual(toggle.frame.height, 44, accuracy: 1)
+        XCTAssertFalse(toggle.frame.intersects(app.buttons["townNotifications"].frame))
+        capture("discovery-toggle")
     }
 
     func testAccessibilityTextUsesFullSizeNavigation() {

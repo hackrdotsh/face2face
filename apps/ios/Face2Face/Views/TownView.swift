@@ -184,16 +184,9 @@ struct TownView: View {
                     .accessibilityAddTraits(.isHeader)
             }
             Spacer(minLength: 0)
-            Button {
+            DiscoveryButton(model: ConnectedDiscoveryModel.backgroundWalk, account: account) {
                 showingAccount = true
-            } label: {
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    DiscoveryBadge(state: ConnectedDiscoveryModel.backgroundWalk.discoveryState)
-                }
             }
-            .buttonStyle(MeadowPressStyle())
-            .accessibilityHint("Opens Account, where discovery is turned on or off")
-            .accessibilityIdentifier("townDiscovery")
             Button {
                 showingNotifications = true
             } label: {
@@ -223,7 +216,61 @@ struct TownView: View {
     }
 }
 
-/// Whether discovery is on. The switch itself stays on the Account screen.
+/// Turns discovery on or off with the same rules as the Account toggle.
+private struct DiscoveryButton: View {
+    @Bindable var model: ConnectedDiscoveryModel
+    let account: Account
+    let openAccount: () -> Void
+    @State private var awaitsResult = false
+    @State private var failure: String?
+
+    private var isOn: Bool { model.isEnabled || model.isStarting }
+
+    var body: some View {
+        Button {
+            if isOn {
+                awaitsResult = false
+                model.stop()
+            } else {
+                awaitsResult = true
+                model.enable(for: account)
+                // A failed save sets the message synchronously, maybe to its previous value.
+                if !model.isEnabled, let message = model.errorMessage { report(message) }
+            }
+        } label: {
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                DiscoveryBadge(state: model.discoveryState)
+            }
+        }
+        .buttonStyle(MeadowPressStyle())
+        .disabled((model.revocationPending && !model.isEnabled) || BluetoothDiscoveryService.isSimulator)
+        .accessibilityHint("Turns discovery on or off")
+        .accessibilityAddTraits(.isToggle)
+        .accessibilityIdentifier("townDiscovery")
+        .onChange(of: model.errorMessage) { _, message in
+            if awaitsResult, let message { report(message) }
+        }
+        .onChange(of: model.discoveryState) { _, state in
+            if state == .on { awaitsResult = false }
+        }
+        .alert(
+            "Discovery could not start",
+            isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } }),
+            presenting: failure
+        ) { _ in
+            Button("Open Account", action: openAccount)
+            Button("OK", role: .cancel) {}
+        } message: { message in
+            Text(message)
+        }
+    }
+
+    private func report(_ message: String) {
+        awaitsResult = false
+        failure = message
+    }
+}
+
 private struct DiscoveryBadge: View {
     let state: ConnectedDiscoveryModel.DiscoveryState
 
