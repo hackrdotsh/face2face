@@ -216,10 +216,6 @@ struct TownView: View {
 
     private var headerControls: some View {
         HStack(alignment: .center, spacing: 12) {
-            Text("FACE2FACE")
-                .font(.system(size: 10, weight: .heavy, design: .rounded))
-                .tracking(3)
-                .foregroundStyle(MeadowPalette.secondaryInk)
             Spacer(minLength: 0)
             DiscoveryButton(model: ConnectedDiscoveryModel.backgroundWalk, account: account) {
                 showingAccount = true

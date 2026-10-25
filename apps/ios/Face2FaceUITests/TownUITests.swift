@@ -41,6 +41,7 @@ final class TownUITests: XCTestCase {
         let settings = app.buttons["appSettings"]
         let account = app.buttons["townAccount"]
         XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["FACE2FACE"].exists)
         XCTAssertTrue(account.exists)
         XCTAssertLessThan(settings.frame.maxX, account.frame.minX)
         XCTAssertEqual(settings.frame.midY, account.frame.midY, accuracy: 4)
