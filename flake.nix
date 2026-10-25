@@ -57,7 +57,8 @@
               export HOME="$TMPDIR/home"
               mkdir -p "$HOME"
               bash scripts/swift-format.sh lint --strict
-              swift test --package-path apps/ios/Face2FaceCore --scratch-path "$TMPDIR/swift-build" --disable-sandbox
+              # Core uses Swift Testing; Darwin's sandbox has no XCTest runtime.
+              swift test --package-path apps/ios/Face2FaceCore --scratch-path "$TMPDIR/swift-build" --disable-sandbox ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin "--disable-xctest"}
             '';
             installPhase = ''touch "$out"'';
           };
