@@ -1,5 +1,8 @@
-import CoreGraphics
 import Foundation
+
+#if canImport(CoreGraphics)
+    import CoreGraphics
+#endif
 
 /// A square viewport over an image that fills it at zoom 1. The person pans and zooms the image,
 /// and the circle inscribed in the viewport is the photo they keep.
