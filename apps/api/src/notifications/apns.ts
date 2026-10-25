@@ -6,6 +6,8 @@ export interface PushAlert {
   title: string;
   body: string;
   badge: number;
+  /** Alerts with the same key replace each other on the phone. */
+  group?: string;
   /** Extra keys next to `aps`. They must hold no identity of another person. */
   data: Record<string, string>;
 }
@@ -76,6 +78,7 @@ class ApnsSender implements PushSender {
         "apns-topic": this.config.topic,
         "apns-push-type": "alert",
         "apns-priority": "10",
+        ...(alert.group ? { "apns-collapse-id": alert.group } : {}),
         "content-type": "application/json",
       },
       body: JSON.stringify({
@@ -83,6 +86,7 @@ class ApnsSender implements PushSender {
           alert: { title: alert.title, body: alert.body },
           badge: alert.badge,
           sound: "default",
+          ...(alert.group ? { "thread-id": alert.group } : {}),
         },
         ...alert.data,
       }),

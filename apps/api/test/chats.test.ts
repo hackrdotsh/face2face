@@ -1,5 +1,8 @@
+import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
+import { messagePreview } from "../src/chats/chat-room";
+import type { PushAlert } from "../src/notifications/apns";
 import { photoWithExif } from "./fixtures/photo-with-exif";
 import {
   bearerHeaders,
@@ -471,5 +474,121 @@ describe("blocking", () => {
       headers: avaHeaders,
     });
     expect(history.status).toBe(404);
+  });
+});
+
+describe("message notifications", () => {
+  interface Inbox {
+    notifications: { id: string; kind: string; chatId?: string }[];
+    unreadCount: number;
+  }
+
+  async function freshCoordinator(userId: string) {
+    const alerts: PushAlert[] = [];
+    await runInDurableObject(
+      env.USER_COORDINATORS.getByName(userId),
+      async (coordinator) => {
+        await coordinator.clearNotifications();
+        await coordinator.registerDevice("c".repeat(64), "sandbox");
+        coordinator.pushSender = {
+          async send(_token, _environment, alert) {
+            alerts.push(alert);
+            return "sent";
+          },
+        };
+      },
+    );
+    return alerts;
+  }
+
+  async function inbox(headers: Headers) {
+    const response = await callAPI("/api/notifications", { headers });
+    return response.json<Inbox>();
+  }
+
+  async function send(socket: TestSocket, clientId: string, text: string) {
+    const acks = socket.ofType("ack").length;
+    socket.send({ type: "send", clientId, text });
+    return (await socket.waitFor("ack", acks + 1)).message as ChatMessage;
+  }
+
+  it("leaves one card per chat and pushes a preview when the chat is closed", async () => {
+    const { chatId, avaHeaders, benHeaders } = await connectedPair();
+    await postJSON("/api/notifications/seen", {}, benHeaders);
+    const alerts = await freshCoordinator(ben);
+    const avaSocket = await openChatSocket(avaHeaders, chatId);
+
+    await send(avaSocket, "m1", "Coffee tomorrow?\nI know a place.");
+    await send(avaSocket, "m2", "Around 10?");
+    await expect.poll(() => alerts.length).toBe(2);
+
+    expect(alerts.map((alert) => alert.body)).toEqual([
+      "Coffee tomorrow?",
+      "Around 10?",
+    ]);
+    expect(alerts[1]).toMatchObject({
+      title: "New message",
+      group: chatId,
+      badge: 1,
+      data: { kind: "message", chatId },
+    });
+    expect(JSON.stringify(alerts)).not.toMatch(/seed-|Ava|Ben/);
+    const { notifications, unreadCount } = await inbox(benHeaders);
+    expect(notifications.filter((n) => n.kind === "message")).toEqual([
+      expect.objectContaining({ kind: "message", chatId }),
+    ]);
+    expect(JSON.stringify(notifications)).not.toMatch(/Coffee|Around/);
+    expect(unreadCount).toBe(1);
+    avaSocket.close();
+  });
+
+  it("stays quiet while the recipient has the chat open", async () => {
+    const { chatId, avaHeaders, benHeaders } = await connectedPair();
+    const alerts = await freshCoordinator(ben);
+    const benSocket = await openChatSocket(benHeaders, chatId);
+    const avaSocket = await openChatSocket(avaHeaders, chatId);
+
+    await send(avaSocket, "m1", "Hi there");
+    await benSocket.waitFor("message");
+    expect(alerts).toEqual([]);
+    expect(
+      (await inbox(benHeaders)).notifications.some((n) => n.kind === "message"),
+    ).toBe(false);
+    benSocket.close();
+    avaSocket.close();
+  });
+
+  it("removes the card once the recipient reads the chat", async () => {
+    const { chatId, avaHeaders, benHeaders } = await connectedPair();
+    await freshCoordinator(ben);
+    const avaSocket = await openChatSocket(avaHeaders, chatId);
+    const message = await send(avaSocket, "m1", "Hello");
+    await expect
+      .poll(async () =>
+        (await inbox(benHeaders)).notifications.some(
+          (n) => n.kind === "message",
+        ),
+      )
+      .toBe(true);
+
+    const benSocket = await openChatSocket(benHeaders, chatId);
+    benSocket.send({ type: "read", messageId: message.id });
+    await expect
+      .poll(async () =>
+        (await inbox(benHeaders)).notifications.some(
+          (n) => n.kind === "message",
+        ),
+      )
+      .toBe(false);
+    benSocket.close();
+    avaSocket.close();
+  });
+
+  it("previews the first line, shortens long text, and names photos", () => {
+    expect(messagePreview({ text: "  Hello\nthere " })).toBe("Hello");
+    expect(messagePreview({ text: null })).toBe("Sent a photo");
+    const long = messagePreview({ text: "a".repeat(300) });
+    expect(long).toHaveLength(120);
+    expect(long.endsWith("…")).toBe(true);
   });
 });

@@ -115,6 +115,7 @@ export type NotificationEvent =
     }
   | { kind: "connected"; connectionId: string }
   | { kind: "public"; connectionId: string }
+  | { kind: "message"; chatId: string }
   | {
       kind: "post_updated" | "post_cancelled" | "post_rsvp";
       postId: string;
