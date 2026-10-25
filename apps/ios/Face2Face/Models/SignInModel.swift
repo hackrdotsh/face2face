@@ -26,6 +26,8 @@ final class SignInModel {
     /// Counts rejected codes, so the code input can react to each one.
     private(set) var codeRejections = 0
     let activity = Activity()
+    /// Runs each step change, so the view can animate it as one transaction.
+    var changeStep: @MainActor (() -> Void) -> Void = { $0() }
 
     private let session: SessionModel
     private let passkeys: PasskeyAuthorizer
@@ -113,7 +115,7 @@ final class SignInModel {
     }
 
     func backToDetails() {
-        step = .details
+        changeStep { step = .details }
         code = ""
         notice = nil
     }
@@ -133,13 +135,13 @@ final class SignInModel {
     private func showCodeEntry(_ purpose: EmailCodePurpose) {
         code = ""
         notice = "Enter the 6-digit code we sent to \(email)."
-        step = .code(purpose)
+        changeStep { step = .code(purpose) }
     }
 
     private func finishPasswordReset() {
         clearSecrets()
         method = .password
-        step = .details
+        changeStep { step = .details }
         notice = "Password updated. Sign in with your new password."
     }
 

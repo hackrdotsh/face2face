@@ -40,9 +40,11 @@ final class OnboardingModel {
         }
     }
 
-    func next() async {
-        guard let form, let field = currentField else { return }
+    /// Saves the current step. Finishes onboarding after the last one. Returns true when the next step should show.
+    func saveCurrentStep() async -> Bool {
+        guard let form, let field = currentField else { return false }
         fieldErrors[field.key] = nil
+        var showNext = false
         await activity.run {
             if let value = form.values()[field.key] {
                 do {
@@ -55,10 +57,16 @@ final class OnboardingModel {
             if self.isLastStep {
                 try await self.finish()
             } else {
-                self.movedForward = true
-                self.step += 1
+                showNext = true
             }
         }
+        return showNext
+    }
+
+    func forward() {
+        guard step < stepCount - 1 else { return }
+        movedForward = true
+        step += 1
     }
 
     func back() {

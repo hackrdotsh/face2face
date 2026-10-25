@@ -40,6 +40,10 @@ struct SignInView: View {
             if case .code = step { focusedField.wrappedValue = .code }
         }
         .onChange(of: model.codeRejections) { focusedField.wrappedValue = .code }
+        .onAppear {
+            let animation = modeAnimation
+            model.changeStep = { change in withAnimation(animation) { change() } }
+        }
     }
 
     private var header: some View {
@@ -118,8 +122,10 @@ struct SignInView: View {
                             ? (
                                 "Forgot Password?",
                                 {
-                                    focusedField.wrappedValue = nil
-                                    Task { await model.forgotPassword() }
+                                    Task {
+                                        await dismissKeyboard()
+                                        await model.forgotPassword()
+                                    }
                                 }
                             ) : nil
                     ) {
@@ -160,7 +166,10 @@ struct SignInView: View {
                     .accessibilityIdentifier("createAccountLink")
                     .transition(modeTransition)
                 linkButton("Sign In", after: " with a Passkey", symbol: "person.badge.key") {
-                    Task { await model.signInWithPasskey() }
+                    Task {
+                        await dismissKeyboard()
+                        await model.signInWithPasskey()
+                    }
                 }
                 .transition(modeTransition)
             }
@@ -254,13 +263,23 @@ struct SignInView: View {
     }
 
     private func submitDetails() {
-        focusedField.wrappedValue = nil
-        Task { await model.submitDetails() }
+        Task {
+            await dismissKeyboard()
+            await model.submitDetails()
+        }
     }
 
     private func submitCode() {
+        Task {
+            await dismissKeyboard()
+            await model.submitCode()
+        }
+    }
+
+    /// Clears focus and waits for the keyboard to finish hiding, so it never animates at the same time as the card.
+    private func dismissKeyboard() async {
         focusedField.wrappedValue = nil
-        Task { await model.submitCode() }
+        await Keyboard.waitUntilHidden()
     }
 
     /// A text button where only `title` is underlined; `before` and `after` are plain text around it.
@@ -269,10 +288,7 @@ struct SignInView: View {
         action: @escaping () -> Void
     ) -> some View {
         let text = Text("\(before)\(Text(title).underline())\(after)")
-        return Button {
-            if focusedField.wrappedValue != .code { focusedField.wrappedValue = nil }
-            action()
-        } label: {
+        return Button(action: action) {
             if let symbol {
                 Label {
                     text

@@ -14,6 +14,7 @@ struct RootView: View {
                 .toolbar(.hidden, for: .navigationBar)
                 .activityAlert(session.activity)
         }
+        .background { KeyboardDismissOnTap().frame(width: 0, height: 0) }
         .task {
             #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-town-preview") {

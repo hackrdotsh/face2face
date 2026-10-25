@@ -17,11 +17,12 @@ struct OnboardingView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                MeadowScene(
-                    isMoving: !textFocused,
-                    encounterBottomInset: geometry.safeAreaInsets.bottom + 104
-                )
-                .ignoresSafeArea()
+                // Its own geometry ignores the keyboard, so opening it does not move the walker or the camera.
+                GeometryReader { scene in
+                    MeadowScene(isMoving: true, encounterBottomInset: scene.safeAreaInsets.bottom + 104)
+                        .ignoresSafeArea()
+                }
+                .ignoresSafeArea(.keyboard)
 
                 ScrollView {
                     VStack(spacing: 0) {
@@ -37,7 +38,6 @@ struct OnboardingView: View {
                         Color.clear.frame(
                             height: max(0, 24 + geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom))
                     }
-                    .animation(stepAnimation, value: model.step)
                     .frame(maxWidth: 440)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: max(0, geometry.size.height - 44))
@@ -55,12 +55,6 @@ struct OnboardingView: View {
         .disabled(model.activity.isBusy)
         .activityAlert(model.activity)
         .task { await model.load() }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { textFocused = false }
-            }
-        }
     }
 
     private var topBar: some View {
@@ -103,7 +97,6 @@ struct OnboardingView: View {
                     .frame(width: index == model.step ? 24 : 8, height: 8)
             }
         }
-        .animation(stepAnimation, value: model.step)
         .accessibilityElement()
         .accessibilityLabel("Step \(model.step + 1) of \(model.stepCount)")
     }
@@ -130,7 +123,6 @@ struct OnboardingView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .animation(stepAnimation, value: model.step)
         }
         .clipped()
     }
@@ -155,13 +147,12 @@ struct OnboardingView: View {
 
     private func advance() {
         guard model.canContinue else { return }
-        textFocused = false
         Task {
-            let step = model.step
-            await model.next()
-            if model.step != step {
-                AccessibilityNotification.Announcement("Step \(model.step + 1) of \(model.stepCount)").post()
-            }
+            textFocused = false
+            await Keyboard.waitUntilHidden()
+            guard await model.saveCurrentStep() else { return }
+            withAnimation(stepAnimation) { model.forward() }
+            AccessibilityNotification.Announcement("Step \(model.step + 1) of \(model.stepCount)").post()
         }
     }
 
