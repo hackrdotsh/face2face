@@ -3,7 +3,6 @@ import SwiftUI
 @MainActor
 struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Namespace private var accountTransition
     @Bindable var session: SessionModel
     let passkeys: PasskeyAuthorizer
@@ -59,28 +58,10 @@ struct ContentView: View {
     }
 
     private var toolbar: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 7) {
-                Image(systemName: "figure.2")
-                    .font(.system(size: 18, weight: .bold))
-                Text("face2face")
-                    .font(.system(.headline, design: .rounded, weight: .heavy))
-            }
-            .accessibilityElement(children: .combine)
-            Spacer(minLength: 4)
-            Button {
-                focusedField = nil
-                showingSettings = true
-            } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .frame(width: 44, height: 44)
-                    .background(MeadowPalette.paper, in: Circle())
-            }
-            .accessibilityLabel("Settings")
-            .accessibilityIdentifier("appSettings")
+        MeadowHeader {
+            focusedField = nil
+            showingSettings = true
         }
-        .font(.system(.subheadline, weight: .semibold))
-        .buttonStyle(MeadowPressStyle())
     }
 
     private var welcome: some View {
@@ -126,33 +107,9 @@ struct ContentView: View {
     @ViewBuilder
     private func accountSurface(expanded: Bool) -> some View {
         if expanded {
-            glassSurface(RoundedRectangle(cornerRadius: 32), interactive: false)
+            MeadowGlass(shape: RoundedRectangle(cornerRadius: 32))
         } else {
-            glassSurface(Capsule(), interactive: true)
-        }
-    }
-
-    @ViewBuilder
-    private func glassSurface<Surface: InsettableShape>(
-        _ shape: Surface, interactive: Bool
-    ) -> some View {
-        if reduceTransparency {
-            shape.fill(MeadowPalette.paper)
-        } else if #available(iOS 26.0, *) {
-            shape.fill(.clear)
-                .glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
-        } else {
-            shape.fill(.ultraThinMaterial)
-                .overlay {
-                    shape.strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                MeadowPalette.glassEdge.opacity(0.9), MeadowPalette.glassEdge.opacity(0.15),
-                                MeadowPalette.glassEdge.opacity(0.6),
-                            ],
-                            startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: 1)
-                }
+            MeadowGlass(shape: Capsule(), interactive: true)
         }
     }
 

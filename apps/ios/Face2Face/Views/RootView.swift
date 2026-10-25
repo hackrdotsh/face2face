@@ -11,11 +11,16 @@ struct RootView: View {
         NavigationStack {
             screen
                 .navigationTitle("face2face")
-                .toolbar(session.phase == .signedOut ? .hidden : .visible, for: .navigationBar)
+                .toolbar(navigationBarVisibility, for: .navigationBar)
                 .activityAlert(session.activity)
         }
         .task { await session.restore() }
         .preferredColorScheme(appearance.colorScheme)
+    }
+
+    private var navigationBarVisibility: Visibility {
+        if case .needsOnboarding = session.phase { return .visible }
+        return .hidden
     }
 
     @ViewBuilder private var screen: some View {

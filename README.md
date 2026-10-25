@@ -3,7 +3,7 @@
 An iPhone app for meeting people with shared interests as you pass them in real life.
 The current build has sign-in with an emailed code, a verified password, or a
 passkey, password reset, and profile onboarding. The login screen uses the animated
-meadow and glass form; onboarding and account screens remain functional placeholders.
+meadow and glass form; the account screen shares this style. Profile onboarding is server-driven.
 Proximity discovery is not implemented yet.
 
 The welcome screen is a scrolling pastel meadow. **Login** expands into the
