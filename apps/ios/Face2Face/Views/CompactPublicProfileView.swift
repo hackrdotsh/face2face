@@ -79,7 +79,7 @@ struct CompactPublicProfileView: View {
                 .background(MeadowPalette.paper, in: RoundedRectangle(cornerRadius: MeadowRadius.control))
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Status: \(statusMessage)")
-                .accessibilityIdentifier("publicProfileStatus")
+                .accessibilityIdentifier("publicProfileStatusMessage")
             }
             if !friend.interests.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
