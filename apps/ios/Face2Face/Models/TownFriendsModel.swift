@@ -120,7 +120,7 @@ final class TownFriendsModel {
                     "them": [
                         "userId": id, "name": name, "age": age, "interests": interests,
                         "avatar": ["seed": id == "ava" ? "AAAAAAAAAAAAAAAAAAAAAA" : "AQIDBAUGBwgJCgsMDQ4PEA"],
-                        "statusMessage": statusMessage ?? NSNull(),
+                        "statusMessage": statusMessage.map { $0 as Any } ?? NSNull(),
                     ],
                 ]
             }
