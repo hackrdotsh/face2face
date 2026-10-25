@@ -36,11 +36,12 @@ final class Forest3DTests: XCTestCase {
         XCTAssertEqual(blobs.map(\.position), initialPositions)
     }
 
-    func testPineBoughsKeepThreeDistinctMaterialBands() throws {
+    func testPinesKeepOriginalShapeWithFourColorBands() throws {
         let world = try Forest3DWorld()
-        let boughs = descendants(world.root).compactMap { $0 as? ModelEntity }.filter { $0.name.hasPrefix("needles-") }
-        XCTAssertEqual(boughs.count, 240 * 3)
-        XCTAssertTrue(boughs.allSatisfy { $0.model?.materials.count == 3 })
+        let boughs = descendants(world.root).compactMap { $0 as? ModelEntity }.filter { $0.name.hasPrefix("leaves-") }
+        XCTAssertEqual(boughs.count, 240 * 4)
+        XCTAssertTrue(boughs.allSatisfy { $0.model?.materials.count == 1 })
+        XCTAssertEqual(Set(boughs.compactMap { $0.name.split(separator: "-").last }), ["0", "1", "2", "3"])
     }
 
     func testMeetingBlobsShowWaveBubblesAndRingsThenContinue() throws {
