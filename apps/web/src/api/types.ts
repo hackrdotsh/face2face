@@ -96,7 +96,12 @@ export type NotificationEvent =
       expiresAt: string;
     }
   | { kind: "connected"; connectionId: string }
-  | { kind: "public"; connectionId: string };
+  | { kind: "public"; connectionId: string }
+  | {
+      kind: "post_updated" | "post_cancelled" | "post_rsvp";
+      postId: string;
+      forumId: string;
+    };
 
 export type AppNotification = NotificationEvent & {
   id: string;
@@ -207,4 +212,53 @@ export interface InterestChoice {
 export interface InterestChoices {
   maxSelected: number;
   interests: InterestChoice[];
+}
+
+export interface Forum {
+  id: string;
+  interestId: string;
+  interestName: string;
+  upcomingPostCount: number;
+}
+
+/** Forum members see each other's names and photos. */
+export interface ForumPerson {
+  userId: string;
+  name: string;
+  image: string | null;
+}
+
+export interface Post {
+  id: string;
+  forumId: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  author: ForumPerson;
+  attendeeCount: number;
+  /** The first few attendees, by RSVP time. */
+  attendeePreview: ForumPerson[];
+  attending: boolean;
+  isAuthor: boolean;
+  edited: boolean;
+  past: boolean;
+  cancelled: boolean;
+}
+
+export interface PostPage {
+  posts: Post[];
+  hasMore: boolean;
+}
+
+/** `null` clears a field. */
+export interface PostInput {
+  title: string;
+  description: string | null;
+  location: string | null;
+  startsAt: string;
+  endsAt: string | null;
 }

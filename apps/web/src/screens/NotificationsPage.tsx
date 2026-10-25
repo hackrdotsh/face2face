@@ -66,8 +66,16 @@ export function NotificationsPage({ feed }: { feed: NotificationFeed }) {
 }
 
 function destinationOf(notification: AppNotification): Route {
-  if (notification.kind === "encounter") return { page: "passed" };
-  return { page: "chats", chatId: notification.connectionId };
+  switch (notification.kind) {
+    case "encounter":
+      return { page: "passed" };
+    case "post_updated":
+    case "post_cancelled":
+    case "post_rsvp":
+      return { page: "post", postId: notification.postId };
+    default:
+      return { page: "chats", chatId: notification.connectionId };
+  }
 }
 
 function describeNotification(notification: AppNotification): string {
@@ -80,5 +88,11 @@ function describeNotification(notification: AppNotification): string {
       return "You both accepted. Your chat is open.";
     case "public":
       return "You both went public.";
+    case "post_updated":
+      return "An event you're going to changed.";
+    case "post_cancelled":
+      return "An event you're going to was cancelled.";
+    case "post_rsvp":
+      return "Someone is going to your event.";
   }
 }

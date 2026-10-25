@@ -1,5 +1,6 @@
 import {
   BellIcon,
+  CalendarDotsIcon,
   ChatCircleIcon,
   type Icon,
   SparkleIcon,
@@ -7,11 +8,12 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { hrefFor, type PageName } from "@/navigation/routes";
+import { hrefFor, navRoute, type PageName } from "@/navigation/routes";
 
 const navItems: { page: PageName; label: string; icon: Icon }[] = [
   { page: "passed", label: "Passed", icon: UsersThreeIcon },
   { page: "chats", label: "Chats", icon: ChatCircleIcon },
+  { page: "forums", label: "Forums", icon: CalendarDotsIcon },
   { page: "notifications", label: "Alerts", icon: BellIcon },
   { page: "interests", label: "Interests", icon: SparkleIcon },
   { page: "account", label: "Account", icon: UserCircleIcon },
@@ -26,16 +28,14 @@ export function AppNav({
 }) {
   return (
     <nav aria-label="Pages" className="rounded-xl border bg-card p-1">
-      <ul className="grid grid-cols-5 gap-1">
+      <ul className="grid grid-cols-6 gap-1">
         {navItems.map(({ page, label, icon: ItemIcon }) => {
           const isCurrent = page === current;
           const count = counts[page] ?? 0;
           return (
             <li key={page}>
               <a
-                href={hrefFor(
-                  page === "chats" ? { page, chatId: null } : { page },
-                )}
+                href={hrefFor(navRoute(page))}
                 aria-current={isCurrent ? "page" : undefined}
                 className={cn(
                   "relative flex flex-col items-center gap-0.5 rounded-lg px-1 py-2 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-ring",

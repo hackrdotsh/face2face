@@ -1,4 +1,8 @@
-import { FlaskIcon, UsersThreeIcon } from "@phosphor-icons/react";
+import {
+  CalendarDotsIcon,
+  FlaskIcon,
+  UsersThreeIcon,
+} from "@phosphor-icons/react";
 import type { DevConnection } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +35,15 @@ export function SimulatorPanel() {
         </Button>
         <Button
           size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={simulator.seedForumPosts}
+        >
+          <CalendarDotsIcon />
+          Seed forum posts
+        </Button>
+        <Button
+          size="sm"
           variant="ghost"
           disabled={busy}
           onClick={simulator.reload}
@@ -43,7 +56,7 @@ export function SimulatorPanel() {
           disabled={busy}
           onClick={simulator.resetConnections}
         >
-          Delete all connections
+          Delete connections and posts
         </Button>
       </div>
       <PeopleList simulator={simulator} />
