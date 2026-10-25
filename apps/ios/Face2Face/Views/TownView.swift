@@ -53,57 +53,16 @@ struct TownView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            if let error = friends.error, friends.selectedID == nil {
-                HStack(spacing: 8) {
-                    Text(error).font(.caption).accessibilityIdentifier("townFriendsError")
-                    Button("Retry") { Task { await friends.refresh() } }.font(.caption.weight(.bold))
-                        .accessibilityIdentifier("townFriendsRetry")
-                }
-                .foregroundStyle(MeadowPalette.secondaryInk)
-                .padding(.horizontal, 24).padding(.vertical, 6)
-            } else if !friends.visitors.isEmpty {
-                Text(
-                    friends.isPreview
-                        ? "Preview · sample public friends" : "Public friends · tap a familiar face"
-                )
-                .font(.caption).foregroundStyle(MeadowPalette.secondaryInk)
-                .padding(.horizontal, 24).padding(.bottom, 4)
-            }
+        Group {
             if typeSize.isAccessibilitySize {
-                ScrollView {
-                    VStack(spacing: 12) {
-                        TownScene(isMoving: false).frame(height: 320).accessibilityHidden(true)
-                        ForEach(TownDestination.allCases) { place in placeRow(place) }
-                        ForEach(friends.visitors) { friend in
-                            Button {
-                                friends.select(friend)
-                            } label: {
-                                HStack(spacing: 12) {
-                                    AvatarView(avatar: friend.avatar, session: session, side: 40)
-                                    Text(friend.name).font(.headline)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                }
-                                .padding(20).background(
-                                    MeadowPalette.paper, in: RoundedRectangle(cornerRadius: 20))
-                            }
-                            .accessibilityLabel("\(friend.name), public friend")
-                            .accessibilityValue(friend.statusMessage.map { "Status: \($0)" } ?? "")
-                            .accessibilityIdentifier("town-friend-\(friend.id)")
-                        }
-                    }.padding(.horizontal, 20)
-                }
+                ScrollView { townContent }
             } else {
-                TownScene(
-                    isMoving: destination == nil && !showingAccount && !showingSettings
-                        && !showingNotifications
-                        && friends.selectedID == nil && chatRoute == nil && !showingCampfire,
-                    visitors: friends.visitors, badges: [.connections: cafeUnread], session: session,
-                    onSelect: { destination = $0 }, onSelectFriend: { friends.select($0) }
-                )
-                .ignoresSafeArea(.container, edges: .bottom)
+                townContent
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if !typeSize.isAccessibilitySize {
+                headerControls.padding(.trailing, 24).padding(.top, 12)
             }
         }
         .background(MeadowPalette.grass.ignoresSafeArea())
@@ -244,6 +203,60 @@ struct TownView: View {
         #endif
     }
 
+    private var townContent: some View {
+        VStack(spacing: 0) {
+            header
+            if let error = friends.error, friends.selectedID == nil {
+                HStack(spacing: 8) {
+                    Text(error).font(.caption).accessibilityIdentifier("townFriendsError")
+                    Button("Retry") { Task { await friends.refresh() } }.font(.caption.weight(.bold))
+                        .accessibilityIdentifier("townFriendsRetry")
+                }
+                .foregroundStyle(MeadowPalette.secondaryInk)
+                .padding(.horizontal, 24).padding(.vertical, 6)
+            } else if !friends.visitors.isEmpty {
+                Text(
+                    friends.isPreview
+                        ? "Preview · sample public friends" : "Public friends · tap a familiar face"
+                )
+                .font(.caption).foregroundStyle(MeadowPalette.secondaryInk)
+                .padding(.horizontal, 24).padding(.bottom, 4)
+            }
+            if typeSize.isAccessibilitySize {
+                VStack(spacing: 12) {
+                    TownScene(isMoving: false).frame(height: 320).accessibilityHidden(true)
+                    ForEach(TownDestination.allCases) { place in placeRow(place) }
+                    ForEach(friends.visitors) { friend in
+                        Button {
+                            friends.select(friend)
+                        } label: {
+                            HStack(spacing: 12) {
+                                AvatarView(avatar: friend.avatar, session: session, side: 40)
+                                Text(friend.name).font(.headline)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .padding(20).background(
+                                MeadowPalette.paper, in: RoundedRectangle(cornerRadius: 20))
+                        }
+                        .accessibilityLabel("\(friend.name), public friend")
+                        .accessibilityValue(friend.statusMessage.map { "Status: \($0)" } ?? "")
+                        .accessibilityIdentifier("town-friend-\(friend.id)")
+                    }
+                }.padding(.horizontal, 20)
+            } else {
+                TownScene(
+                    isMoving: destination == nil && !showingAccount && !showingSettings
+                        && !showingNotifications
+                        && friends.selectedID == nil && chatRoute == nil && !showingCampfire,
+                    visitors: friends.visitors, badges: [.connections: cafeUnread], session: session,
+                    onSelect: { destination = $0 }, onSelectFriend: { friends.select($0) }
+                )
+                .ignoresSafeArea(.container, edges: .bottom)
+            }
+        }
+    }
+
     private func placeRow(_ place: TownDestination) -> some View {
         let unread = place == .connections ? cafeUnread : 0
         return Button {
@@ -272,13 +285,19 @@ struct TownView: View {
         cafeUnread = chats.reduce(0) { $0 + $1.unreadCount }
     }
 
+    /// The controls run down the trailing edge. Over the scene they float, so the town keeps its height;
+    /// at accessibility sizes they sit beside the title instead of covering the list.
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            headerControls
-            Text("Your Little Town")
-                .font(.system(.title, design: .rounded, weight: .bold))
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
+            HStack(alignment: .top, spacing: 12) {
+                Text("Your Little Town")
+                    .font(.system(.title, design: .rounded, weight: .bold))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.top, 8)
+                Spacer(minLength: 64)
+                if typeSize.isAccessibilitySize { headerControls }
+            }
             Button {
                 showingCampfire = true
             } label: {
@@ -297,6 +316,7 @@ struct TownView: View {
             }
             .buttonStyle(MeadowPressStyle())
             .accessibilityIdentifier("townCampfire")
+            .padding(.trailing, typeSize.isAccessibilitySize ? 0 : 64)
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)
@@ -331,11 +351,30 @@ struct TownView: View {
     }
 
     private var headerControls: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Spacer(minLength: 0)
-            DiscoveryButton(model: ConnectedDiscoveryModel.backgroundWalk, account: account) {
+        VStack(spacing: 10) {
+            Button {
                 showingAccount = true
+            } label: {
+                AvatarView(avatar: account.user.avatar, session: session, side: 42)
+                    .padding(5)
+                    .background(MeadowPalette.paper.opacity(0.85), in: Circle())
+                    .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
             }
+            .buttonStyle(MeadowPressStyle())
+            .accessibilityLabel("Account")
+            .accessibilityIdentifier("townAccount")
+            Button {
+                showingSettings = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(.headline, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .background(MeadowPalette.paper.opacity(0.85), in: Circle())
+                    .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
+            }
+            .buttonStyle(MeadowPressStyle())
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier("appSettings")
             Button {
                 showingNotifications = true
             } label: {
@@ -354,29 +393,9 @@ struct TownView: View {
             .accessibilityLabel("Notifications")
             .accessibilityValue(TownUnreadCount.spoken(inbox.unreadCount))
             .accessibilityIdentifier("townNotifications")
-            Button {
-                showingSettings = true
-            } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(.headline, weight: .semibold))
-                    .frame(width: 52, height: 52)
-                    .background(MeadowPalette.paper.opacity(0.85), in: Circle())
-                    .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
-            }
-            .buttonStyle(MeadowPressStyle())
-            .accessibilityLabel("Settings")
-            .accessibilityIdentifier("appSettings")
-            Button {
+            DiscoveryButton(model: ConnectedDiscoveryModel.backgroundWalk, account: account) {
                 showingAccount = true
-            } label: {
-                AvatarView(avatar: account.user.avatar, session: session, side: 42)
-                    .padding(5)
-                    .background(MeadowPalette.paper.opacity(0.85), in: Circle())
-                    .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
             }
-            .buttonStyle(MeadowPressStyle())
-            .accessibilityLabel("Account")
-            .accessibilityIdentifier("townAccount")
         }
     }
 }

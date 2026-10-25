@@ -7,6 +7,31 @@ import simd
 @available(iOS 18.0, *)
 @MainActor
 final class Forest3DTests: XCTestCase {
+    func testSharedShadowMeshPreservesRequestedSize() throws {
+        let small = try Forest3DAssets.contactShadow(width: 2, depth: 1.5)
+        let large = try Forest3DAssets.contactShadow(width: 4, depth: 3)
+        XCTAssertTrue(small.model?.mesh === large.model?.mesh)
+        let smallBounds = small.visualBounds(relativeTo: nil)
+        let largeBounds = large.visualBounds(relativeTo: nil)
+        XCTAssertEqual(smallBounds.extents.x, 2, accuracy: 0.001)
+        XCTAssertEqual(smallBounds.extents.z, 1.5, accuracy: 0.001)
+        XCTAssertEqual(largeBounds.extents.x, 4, accuracy: 0.001)
+        XCTAssertEqual(largeBounds.extents.z, 3, accuracy: 0.001)
+    }
+
+    func testTreeInstancesShareMeshesButKeepIndependentTransforms() throws {
+        let first = try Forest3DAssets.pine(variant: 0)
+        let second = try Forest3DAssets.pine(variant: 1)
+        let firstCrown = try XCTUnwrap(first.children.first { $0.name == "leaves-0-0" } as? ModelEntity)
+        let secondCrown = try XCTUnwrap(second.children.first { $0.name == "leaves-1-0" } as? ModelEntity)
+        XCTAssertTrue(firstCrown.model?.mesh === secondCrown.model?.mesh)
+        XCTAssertFalse(firstCrown === secondCrown)
+        firstCrown.scale = [2, 2, 2]
+        XCTAssertEqual(secondCrown.scale, [1, 1, 1])
+        XCTAssertNil(first.parent)
+        XCTAssertNil(second.parent)
+    }
+
     func testGreetingsFaceTheCameraWithoutNativeBillboards() throws {
         let world = try Forest3DWorld(initialTime: 4)
         let entities = descendants(world.root)

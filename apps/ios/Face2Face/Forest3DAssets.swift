@@ -5,6 +5,19 @@ import UIKit
 @available(iOS 18.0, *)
 @MainActor
 enum Forest3DAssets {
+    private static let pineTrunk = MeshResource.generateCylinder(height: 0.9, radius: 0.14)
+    private static let pineTiers: [(radius: Float, height: Float, y: Float)] = [
+        (1.05, 1.45, 1.05), (0.87, 1.3, 1.75), (0.64, 1.1, 2.4), (0.36, 0.86, 2.98),
+    ]
+    private static let pineCrowns = pineTiers.map {
+        MeshResource.generateCone(height: $0.height, radius: $0.radius)
+    }
+    private static let shadowMesh = MeshResource.generatePlane(width: 1, depth: 1)
+    private static let greetingMesh = MeshResource.generatePlane(width: 0.65, height: 0.65)
+    private static var cachedShadowTexture: TextureResource?
+    private static var cachedGreetingTexture: TextureResource?
+    private static var cachedHaloMesh: MeshResource?
+
     struct Blob {
         let root: Entity
         let body: Entity
@@ -31,16 +44,22 @@ enum Forest3DAssets {
                 simd_quatf(angle: heading, axis: [0, 1, 0])
                 * simd_quatf(angle: wiggle, axis: [0, 0, 1])
             shadow.orientation = root.orientation.inverse
-            halo.orientation = root.orientation.inverse
-            halo.scale = SIMD3(repeating: 1 + Float(greetingProgress ?? 0) * 0.35)
-            greeting.position = [-facing * 0.42, 2.05 + hello * 0.12, 0]
-            greeting.isEnabled = hello > 0.001
-            halo.isEnabled = hello > 0.001
-            greeting.components.set(OpacityComponent(opacity: hello))
-            halo.components.set(OpacityComponent(opacity: hello * 0.7))
+            let greetingVisible = hello > 0.001
+            if greeting.isEnabled != greetingVisible {
+                greeting.isEnabled = greetingVisible
+                halo.isEnabled = greetingVisible
+            }
+            if greetingVisible {
+                halo.orientation = root.orientation.inverse
+                halo.scale = SIMD3(repeating: 1 + Float(greetingProgress ?? 0) * 0.35)
+                greeting.position = [-facing * 0.42, 2.05 + hello * 0.12, 0]
+                greeting.components.set(OpacityComponent(opacity: hello))
+                halo.components.set(OpacityComponent(opacity: hello * 0.7))
+            }
             for (eye, position) in zip(eyes, eyePositions) {
                 eye.position = position + [Float(pose.gaze) * 2, 0, 0]
-                eye.scale.y = Float(pose.eyeOpenness)
+                let openness = Float(pose.eyeOpenness)
+                if eye.scale.y != openness { eye.scale.y = openness }
             }
         }
     }
@@ -106,23 +125,18 @@ enum Forest3DAssets {
     static func pine(variant: Int) throws -> Entity {
         let tree = Entity()
         tree.name = "forest-pine"
-        let trunk = ModelEntity(
-            mesh: .generateCylinder(height: 0.9, radius: 0.14), materials: [SimpleMaterial()])
+        let trunk = ModelEntity(mesh: pineTrunk, materials: [SimpleMaterial()])
         trunk.name = "trunk"
         trunk.position.y = 0.45
         tree.addChild(trunk)
         let shadow = try contactShadow(width: 2.6, depth: 2.3)
         shadow.position.y = 0.01
         tree.addChild(shadow)
-        let tiers: [(Float, Float, Float)] = [
-            (1.05, 1.45, 1.05), (0.87, 1.3, 1.75), (0.64, 1.1, 2.4), (0.36, 0.86, 2.98),
-        ]
-        for (band, tier) in tiers.enumerated() {
-            let crown = ModelEntity(
-                mesh: .generateCone(height: tier.1, radius: tier.0), materials: [SimpleMaterial()])
+        for (band, tier) in pineTiers.enumerated() {
+            let crown = ModelEntity(mesh: pineCrowns[band], materials: [SimpleMaterial()])
             crown.name = "leaves-\(variant)-\(band)"
             crown.components.set(DynamicLightShadowComponent(castsShadow: true))
-            crown.position.y = tier.2
+            crown.position.y = tier.y
             tree.addChild(crown)
         }
         return tree
@@ -150,6 +164,18 @@ enum Forest3DAssets {
     static func pathCenter(_ z: Float) -> Float { sin(z * .pi / 16) * 1.35 }
 
     private static func greetingBubble() throws -> Entity {
+        var material = UnlitMaterial(color: .white)
+        material.color.texture = .init(try greetingTexture())
+        material.blending = .transparent(opacity: 1.0)
+        material.writesDepth = false
+        let bubble = ModelEntity(mesh: greetingMesh, materials: [material])
+        bubble.name = "greeting-bubble"
+        bubble.isEnabled = false
+        return bubble
+    }
+
+    private static func greetingTexture() throws -> TextureResource {
+        if let cachedGreetingTexture { return cachedGreetingTexture }
         let image = UIGraphicsImageRenderer(size: CGSize(width: 96, height: 96)).image { context in
             let circle = CGRect(x: 4, y: 4, width: 88, height: 88)
             context.cgContext.setFillColor(UIColor(red: 1, green: 0.99, blue: 0.96, alpha: 1).cgColor)
@@ -165,17 +191,22 @@ enum Forest3DAssets {
             symbol?.draw(in: CGRect(x: 25, y: 24, width: 46, height: 48))
         }
         let texture = try TextureResource.generate(from: image.cgImage!, options: .init(semantic: .color))
-        var material = UnlitMaterial(color: .white)
-        material.color.texture = .init(texture)
-        material.blending = .transparent(opacity: 1.0)
-        material.writesDepth = false
-        let bubble = ModelEntity(mesh: .generatePlane(width: 0.65, height: 0.65), materials: [material])
-        bubble.name = "greeting-bubble"
-        bubble.isEnabled = false
-        return bubble
+        cachedGreetingTexture = texture
+        return texture
     }
 
     private static func greetingHalo() throws -> Entity {
+        let ring = ModelEntity(
+            mesh: try haloMesh(),
+            materials: [UnlitMaterial(color: UIColor(red: 0.68, green: 0.55, blue: 0.8, alpha: 1))])
+        ring.name = "greeting-halo"
+        ring.position.y = 0.05
+        ring.isEnabled = false
+        return ring
+    }
+
+    private static func haloMesh() throws -> MeshResource {
+        if let cachedHaloMesh { return cachedHaloMesh }
         var positions: [SIMD3<Float>] = []
         var indices: [UInt32] = []
         for index in 0..<48 {
@@ -191,16 +222,24 @@ enum Forest3DAssets {
         descriptor.positions = MeshBuffers.Positions(positions)
         descriptor.normals = MeshBuffers.Normals(Array(repeating: [0, 1, 0], count: positions.count))
         descriptor.primitives = .triangles(indices)
-        let ring = ModelEntity(
-            mesh: try MeshResource.generate(from: [descriptor]),
-            materials: [UnlitMaterial(color: UIColor(red: 0.68, green: 0.55, blue: 0.8, alpha: 1))])
-        ring.name = "greeting-halo"
-        ring.position.y = 0.05
-        ring.isEnabled = false
-        return ring
+        let mesh = try MeshResource.generate(from: [descriptor])
+        cachedHaloMesh = mesh
+        return mesh
     }
 
     static func contactShadow(width: Float, depth: Float) throws -> ModelEntity {
+        var material = UnlitMaterial(color: UIColor(red: 0.1, green: 0.14, blue: 0.1, alpha: 1))
+        material.color.texture = .init(try shadowTexture())
+        material.blending = .transparent(opacity: 0.28)
+        material.writesDepth = false
+        let shadow = ModelEntity(mesh: shadowMesh, materials: [material])
+        shadow.scale = [width, 1, depth]
+        shadow.name = "contact-shadow"
+        return shadow
+    }
+
+    private static func shadowTexture() throws -> TextureResource {
+        if let cachedShadowTexture { return cachedShadowTexture }
         let image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { context in
             let colors = [UIColor.white.cgColor, UIColor.white.withAlphaComponent(0).cgColor]
             if let gradient = CGGradient(
@@ -212,13 +251,8 @@ enum Forest3DAssets {
             }
         }
         let texture = try TextureResource.generate(from: image.cgImage!, options: .init(semantic: .color))
-        var material = UnlitMaterial(color: UIColor(red: 0.1, green: 0.14, blue: 0.1, alpha: 1))
-        material.color.texture = .init(texture)
-        material.blending = .transparent(opacity: 0.28)
-        material.writesDepth = false
-        let shadow = ModelEntity(mesh: .generatePlane(width: width, depth: depth), materials: [material])
-        shadow.name = "contact-shadow"
-        return shadow
+        cachedShadowTexture = texture
+        return texture
     }
 
     private static func color(_ hsl: BlobAvatar.HSL) -> UIColor {
