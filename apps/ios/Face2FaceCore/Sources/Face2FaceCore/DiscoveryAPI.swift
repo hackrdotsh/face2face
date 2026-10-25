@@ -29,24 +29,16 @@ public struct DiscoveryLease: Codable, Sendable, Equatable {
     }
 }
 
-public struct ServerEncounter: Codable, Sendable, Equatable, Identifiable {
-    public enum Source: String, Codable, Sendable {
-        case clientReportedBluetooth = "client_reported_bluetooth"
-    }
-
-    public let id: String
-    public let peer: User
-    public let firstSeenAt: Int64
-    public let lastSeenAt: Int64
-    public let source: Source
-
-    public var lastSeenDate: Date { Date(timeIntervalSince1970: Double(lastSeenAt) / 1_000) }
-}
-
+/// A receipt never names the peer. `matchId` is opaque, shared by both phones, and stable for one pair of leases.
 public struct ObservationReceipt: Codable, Sendable, Equatable {
     public enum Status: String, Codable, Sendable { case pending, recorded }
     public let status: Status
-    public let encounter: ServerEncounter?
+    public let matchId: String?
+
+    public init(status: Status, matchId: String? = nil) {
+        self.status = status
+        self.matchId = matchId
+    }
 }
 
 public struct PendingDiscoveryObservation: Identifiable, Sendable, Equatable {

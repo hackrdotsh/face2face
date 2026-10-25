@@ -56,8 +56,7 @@ private let leaseJSON =
 @Test func discoveryClientUsesAuthenticatedEndpointsAndOnlySendsRadioLocators() async throws {
     let transport = DiscoveryTestTransport([
         discoveryResponse(leaseJSON), discoveryResponse(leaseJSON),
-        discoveryResponse(#"{"status":"pending","encounter":null}"#),
-        discoveryResponse(#"{"encounters":[]}"#),
+        discoveryResponse(#"{"status":"pending"}"#),
         discoveryResponse(#"{"stopped":true}"#),
     ])
     let client = APIClient(
@@ -70,13 +69,12 @@ private let leaseJSON =
     let receipt = try await client.observeEncounter(
         sessionId: lease.sessionId, peerToken: peer, observationId: observationId)
     #expect(receipt.status == .pending)
-    #expect(try await client.encounters().isEmpty)
     try await client.stopDiscovery(sessionId: lease.sessionId)
     let requests = await transport.requests
     #expect(
         requests.map { $0.url?.path } == [
-            "/api/discovery/start", "/api/discovery/rotate", "/api/encounters/observe",
-            "/api/encounters", "/api/discovery/stop",
+            "/api/discovery/start", "/api/discovery/rotate", "/api/discovery/observe",
+            "/api/discovery/stop",
         ])
     #expect(
         requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer signed-auth-token" })
@@ -90,26 +88,23 @@ private let leaseJSON =
     #expect(!String(decoding: payload, as: UTF8.self).contains("signed-auth-token"))
 }
 
-@Test func discoveryReceiptDecodesPeersAndRejectsInconsistentOrUnverifiedSources() async throws {
-    let json =
-        #"{"status":"recorded","encounter":{"id":"e1","peer":{"id":"u2","name":"Maya"},"firstSeenAt":1000000,"lastSeenAt":1001000,"source":"client_reported_bluetooth"}}"#
+@Test func discoveryReceiptCarriesOnlyAnOpaqueMatchAndRejectsInconsistentReceipts() async throws {
     let transport = DiscoveryTestTransport([
-        discoveryResponse(json), discoveryResponse(#"{"status":"recorded","encounter":null}"#),
-        discoveryResponse(
-            json.replacingOccurrences(of: "client_reported_bluetooth", with: "verified_proximity")),
+        discoveryResponse(#"{"status":"recorded","matchId":"opaque-match"}"#),
+        discoveryResponse(#"{"status":"recorded"}"#),
+        discoveryResponse(#"{"status":"pending","matchId":"opaque-match"}"#),
     ])
     let client = APIClient(
         configuration: try APIConfiguration(address: "https://api.example.test"),
         tokens: DiscoveryTestTokens(), transport: transport)
     let receipt = try await client.observeEncounter(
         sessionId: "s1", peerToken: DiscoveryToken(), observationId: UUID())
-    #expect(receipt.encounter?.peer.name == "Maya")
-    #expect(receipt.encounter?.lastSeenDate == Date(timeIntervalSince1970: 1001))
-    await #expect(throws: APIError.invalidResponse) {
-        try await client.observeEncounter(sessionId: "s1", peerToken: DiscoveryToken(), observationId: UUID())
-    }
-    await #expect(throws: APIError.invalidResponse) {
-        try await client.observeEncounter(sessionId: "s1", peerToken: DiscoveryToken(), observationId: UUID())
+    #expect(receipt == ObservationReceipt(status: .recorded, matchId: "opaque-match"))
+    for _ in 0..<2 {
+        await #expect(throws: APIError.invalidResponse) {
+            try await client.observeEncounter(
+                sessionId: "s1", peerToken: DiscoveryToken(), observationId: UUID())
+        }
     }
 }
 
@@ -172,7 +167,7 @@ private let leaseJSON =
     await tokens.save("new-account-token")
     #expect(try await run.usesSameCredential(as: base) == false)
     _ = try await run.startDiscovery()
-    await #expect(throws: APIError.unauthenticated) { try await run.encounters() }
+    await #expect(throws: APIError.unauthenticated) { try await run.rotateDiscovery(sessionId: "s1") }
     let requests = await transport.requests
     #expect(
         requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer signed-auth-token" })
