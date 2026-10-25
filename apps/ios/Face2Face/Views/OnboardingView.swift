@@ -26,13 +26,18 @@ struct OnboardingView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         topBar
+                        Spacer(minLength: 16)
                         if let form = Binding($model.form) {
-                            card(form: form).padding(.top, 16)
+                            card(form: form)
                         } else if model.activity.isBusy {
-                            ProgressView().accessibilityLabel("Loading").padding(.top, 48)
+                            ProgressView().accessibilityLabel("Loading")
                         }
                         Spacer(minLength: 0)
+                        // Balances the top bar, the uneven paddings, and the uneven safe areas, so the card centers on the screen.
+                        Color.clear.frame(
+                            height: max(0, 24 + geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom))
                     }
+                    .animation(stepAnimation, value: model.step)
                     .frame(maxWidth: 440)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: max(0, geometry.size.height - 44))
