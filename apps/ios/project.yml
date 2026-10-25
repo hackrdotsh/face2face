@@ -41,6 +41,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: sh.hackr.face2face.uitests
+        PRODUCT_NAME: Face2FaceUITests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
 schemes:
