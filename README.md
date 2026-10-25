@@ -4,7 +4,9 @@ An iPhone app for meeting people with shared interests as you pass them in real 
 The current build has sign-in with an emailed code, a verified password, or a
 passkey, password reset, and profile onboarding. The login screen uses the animated
 meadow and glass form; onboarding and account screens remain functional placeholders.
-Proximity discovery is not implemented yet.
+An opt-in, five-minute [StreetPass discovery](docs/architecture.md#streetpass-discovery)
+turns a reciprocal Bluetooth match into an anonymous chance to connect. It is not
+validated on hardware yet, and a match does not prove that two people were near.
 
 The welcome screen is a scrolling pastel meadow. **Login** expands into the
 account form, then the controls pop in sequentially after the glass finishes

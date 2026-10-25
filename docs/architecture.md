@@ -92,7 +92,6 @@ photo to `PUT /api/profile/photo`. `PATCH /api/onboarding` refuses a value for i
 A person can add one profile photo. A person without a photo gets a blob
 avatar. Forum members and public connections see it. The person API shape is
 `{ userId, name, avatar }`, and `avatar` is `{ seed, photo }`.
-
 - `PUT /api/profile/photo` takes multipart field `image`, up to 15 MB. It
   returns `{ avatar }`. Errors are `413 image_too_large` and
   `415 unsupported_image`. It needs a session, but not finished onboarding.
@@ -407,16 +406,93 @@ attendees), and the viewer's `attending` and `isAuthor`. It also includes
 `400 invalid_times`, `403 not_author`, `409 post_cancelled`, and
 `409 event_over`.
 
-## Proximity is a separate milestone
+## StreetPass discovery
 
-No Bluetooth scan, geolocation permission, encounter upload, or matching runs yet.
-Choose a discovery approach after testing physical iPhones. Measure background
-execution, battery use, permissions, false positives, and force-quit behavior.
+Discovery is opt-in, lasts up to five minutes, and is not validated on hardware
+yet. Phones swap short-lived random tokens over Bluetooth and report what they
+heard. When two phones report each other within two minutes, the server calls
+`recordEncounter`, so a match becomes a normal pending chance with an
+`encounter` notification. Code is in `apps/api/src/discovery` and
+`apps/api/src/routes/discovery.ts`.
 
-Before building the protocol:
-- Make discovery opt-in and easy to pause.
-- Never broadcast a stable account ID or profile. Evaluate rotating, expiring identifiers.
-- Treat client observations as untrusted. Plan for replay and fabricated encounters.
+A match is a client report. It does not prove that two people were near each
+other. A receipt never names the other person. A block stops the chance, and
+the reporter is not told.
+
+### Leases and tokens
+
+- A lease belongs to one account and one auth session. Starting a lease ends the
+  account's previous lease. Signing out deletes it.
+- A lease lasts 30 minutes, or until the auth session expires if that is sooner.
+  A token lasts 5 minutes. Rotation adds a token, and older tokens stay valid
+  until they expire, so a handshake in flight can finish.
+- The server stores only SHA-256 hashes of tokens. Advertisements never hold an
+  account ID or profile.
+- A pair of leases produces at most one encounter. A decline is not undone by
+  more reports on the same walk.
+- Each account can start 10 leases, rotate 12 times, and send 120 new reports a
+  minute. A repeated observation ID does not count against the limit.
+- Cleanup is bounded and runs on start. There is no scheduled job.
+
+### Routes
+
+All are `POST`, behind `requireSession` and `requireOnboarded`, and take only
+the listed fields. Identifiers are UUIDs.
+
+| Route                    | Body                                      | Response                                                     |
+| ------------------------ | ----------------------------------------- | ------------------------------------------------------------ |
+| `/api/discovery/start`   | `{}`                                      | Lease                                                        |
+| `/api/discovery/rotate`  | `{ sessionId }`                           | Lease with a new token                                       |
+| `/api/discovery/stop`    | `{ sessionId }`                           | `{ stopped: true }`, also for an unknown lease               |
+| `/api/discovery/observe` | `{ sessionId, peerToken, observationId }` | `{ status: "pending" }` or `{ status: "recorded", matchId }` |
+
+A lease is `{ sessionId, token, expiresAt, sessionExpiresAt, serverTime }`. Times
+are epoch milliseconds. Clients use them relative to `serverTime`, not the phone
+clock. `matchId` is an opaque hash of the two lease IDs. Both phones get the same
+value, and it stays the same for one pair of leases.
+
+The phone picks `observationId` and reuses it on retries. A retry returns the
+current receipt, so a phone that got `pending` resends the same report every
+5 seconds until the two-minute window closes. That is how the first reporter
+learns about the match.
+
+Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required`,
+`409 observation_conflict` (an observation ID reused for another token),
+`410 discovery_inactive`, `410 invalid_peer_token`, and `429 rate_limited` with
+`Retry-After: 60`.
+
+### iPhone
+
+- Release builds show a **Discover people nearby** toggle on the home screen. It
+  runs the five-minute Walk and shows the time left and the match count.
+- Debug builds add Walk, Connected, Pocket, and Device test tabs beside the
+  account screen. The Device and Pocket tests are anonymous and never reach the API.
+- In the background, iOS gives only short upload passes. A phone that reports
+  first sees the match when it returns to the foreground.
+- The iPhone app has no Passed screen yet. Check a match's chance in the web client.
+
+`pnpm test:streetpass` runs the contract over real HTTP against a local API with
+`DEV_TOOLS` set to `"true"`. It signs in as two seed people who are not connected
+or blocked and expires their earlier pending chance first. It tests no Bluetooth.
+
+### Two-phone check
+
+1. Run `pnpm db:migrate`, then the API over Tailscale or the LAN, as in the README.
+2. Sign in on each iPhone as a different onboarded person, such as two seed
+   people after `POST /api/dev/seed`.
+3. Turn on discovery on both phones with the screens unlocked, then bring them
+   together.
+4. Confirm that each phone shows one match, and that the web client shows one
+   pending chance for each person with their shared interests and no name.
+5. Keep both phones near each other for a minute. The count must stay at one,
+   and no second chance may appear.
+6. Turn discovery off on one phone. The other phone must not record a new match.
+7. Repeat with one phone in the background, then locked, and write down the results.
+
+## Before real users
+
+- Measure background execution, battery use, permissions, false positives, and
+  force-quit behavior on hardware.
 - Do not expose precise locations or a live nearby-person map by default.
 - Decide what each person must consent to before revealing identity or messaging.
 - Include blocking, reporting, account deletion, retention, and age/safety policy
@@ -425,11 +501,13 @@ Before building the protocol:
 
 ## Suggested next slice
 
-The encounter simulator, connections, notifications, and chat exist. Next:
+The encounter simulator, StreetPass discovery, connections, notifications, and
+chat exist. Next:
 - Add the Face2FaceCore client for the inbox, chats, tickets, and sockets, then
   the iPhone screens.
 - Before deploying chat, create the `face2face-media` R2 bucket and enable
   Images transformations on the account.
 - Let people choose interests during onboarding.
-- Test discovery on two physical iPhones. A simulated encounter must never
-  count as proof of actual proximity.
+- Run the two-phone check above. A simulated or client-reported encounter must
+  never count as proof of actual proximity.
+- Add a Passed screen to the iPhone app.
