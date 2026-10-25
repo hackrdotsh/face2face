@@ -21,6 +21,15 @@ public struct TownConnection: Decodable, Sendable, Identifiable {
     public let expiresAt: String
     public let createdAt: String?
     public let you: Viewer?
+    /// The other person's blob seed, sent before they go public. Never a photo.
+    public let theirAvatar: SeedOnly?
+    public struct SeedOnly: Decodable, Sendable { public let seed: String }
+
+    /// Their full avatar once public, otherwise their blob without a photo.
+    public var avatar: Avatar? {
+        if status == "public", let them { return them.avatar }
+        return theirAvatar.map { Avatar(seed: $0.seed, photo: nil) }
+    }
 
     public var expiryDate: Date? {
         let formatter = ISO8601DateFormatter()

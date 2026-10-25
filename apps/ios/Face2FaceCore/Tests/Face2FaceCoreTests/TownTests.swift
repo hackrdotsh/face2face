@@ -36,3 +36,20 @@ import Testing
         configuration: try configuration(), tokens: MemoryTokens("signed"), transport: transport)
     await #expect(throws: APIError.invalidResponse) { try await signed.townForums() }
 }
+
+@Test func privateConnectionsUseTheirBlobWithoutAPhoto() throws {
+    let json = #"""
+        [{"id":"c1","status":"private","sharedInterests":[],"them":null,
+          "theirAvatar":{"seed":"AAAAAAAAAAAAAAAAAAAAAA"},"expiresAt":"2026-10-26T00:00:00Z"},
+         {"id":"c2","status":"expired","sharedInterests":[],"them":null,"theirAvatar":null,
+          "expiresAt":"2026-10-26T00:00:00Z"},
+         {"id":"c3","status":"pending","sharedInterests":[],"them":null,"expiresAt":"2026-10-26T00:00:00Z"},
+         {"id":"c4","status":"pending","sharedInterests":[],"expiresAt":"2026-10-26T00:00:00Z",
+          "them":{"name":"Hidden","avatar":{"seed":"BBBBBBBBBBBBBBBBBBBBBB"}}}]
+        """#
+    let connections = try JSONDecoder().decode([TownConnection].self, from: Data(json.utf8))
+    #expect(connections[0].avatar == Avatar(seed: "AAAAAAAAAAAAAAAAAAAAAA", photo: nil))
+    #expect(connections[1].avatar == nil)
+    #expect(connections[2].avatar == nil)
+    #expect(connections[3].avatar == nil)
+}
