@@ -58,3 +58,56 @@ import Testing
     await #expect(throws: APIError.server(503)) { try await client.notifications() }
     await #expect(throws: APIError.invalidResponse) { try await client.notifications() }
 }
+
+@Test func inboxCarriesTheUnreadCount() async throws {
+    let transport = StubTransport([
+        response(json: #"{"notifications":[],"unreadCount":3}"#),
+        response(json: #"{"notifications":[]}"#),
+    ])
+    let client = APIClient(
+        configuration: try configuration(), tokens: MemoryTokens("signed"), transport: transport)
+    #expect(try await client.notificationInbox().unreadCount == 3)
+    #expect(try await client.notificationInbox().unreadCount == 0)
+}
+
+@Test func seenDeleteAndClearUseTheirOwnRoutes() async throws {
+    let transport = StubTransport([
+        response(json: #"{"unreadCount":0}"#),
+        response(json: #"{"unreadCount":2}"#),
+        response(json: #"{"unreadCount":0}"#),
+    ])
+    let client = APIClient(
+        configuration: try configuration(), tokens: MemoryTokens("signed"), transport: transport)
+    #expect(try await client.markNotificationsSeen() == 0)
+    #expect(try await client.deleteNotification("4f6c-9a") == 2)
+    try await client.clearNotifications()
+    await #expect(throws: APIError.invalidResponse) { try await client.deleteNotification("") }
+    await #expect(throws: APIError.invalidResponse) { try await client.deleteNotification("../devices") }
+
+    let requests = await transport.requests
+    #expect(requests.map(\.httpMethod) == ["POST", "DELETE", "DELETE"])
+    #expect(
+        requests.map(\.url?.path) == [
+            "/api/notifications/seen", "/api/notifications/4f6c-9a", "/api/notifications",
+        ])
+    #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer signed" })
+}
+
+@Test func pushDevicesAreSentAsLowercaseHex() async throws {
+    let transport = StubTransport([response(204, json: ""), response(204, json: "")])
+    let client = APIClient(
+        configuration: try configuration(), tokens: MemoryTokens("signed"), transport: transport)
+    let token = Data((0..<32).map { UInt8($0 * 8) })
+    try await client.registerPushDevice(token: token, environment: .sandbox)
+    try await client.unregisterPushDevice(token: token)
+    await #expect(throws: APIError.invalidResponse) {
+        try await client.registerPushDevice(token: Data([1, 2, 3]), environment: .production)
+    }
+
+    let requests = await transport.requests
+    let path = "/api/notifications/devices/" + token.map { String(format: "%02x", $0) }.joined()
+    #expect(requests.map(\.url?.path) == [path, path])
+    #expect(requests.map(\.httpMethod) == ["PUT", "DELETE"])
+    #expect(path.hasSuffix("0008101820283038404850586068707880889098a0a8b0b8c0c8d0d8e0e8f0f8"))
+    #expect(requests.first?.httpBody == Data(#"{"environment":"sandbox"}"#.utf8))
+}

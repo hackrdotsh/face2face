@@ -50,12 +50,79 @@ public struct InboxNotification: Decodable, Sendable, Identifiable {
     }
 }
 
+public struct NotificationInbox: Decodable, Sendable {
+    public let notifications: [InboxNotification]
+    /// Notifications that arrived after the inbox was last seen.
+    public let unreadCount: Int
+
+    private enum CodingKeys: String, CodingKey { case notifications, unreadCount }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        notifications = try values.decode([InboxNotification].self, forKey: .notifications)
+        unreadCount = try values.decodeIfPresent(Int.self, forKey: .unreadCount) ?? 0
+    }
+}
+
+/// Which APNs gateway a device token belongs to. Development-signed builds use the sandbox.
+public enum PushEnvironment: String, Encodable, Sendable {
+    case sandbox, production
+}
+
 extension APIClient {
     public func notifications() async throws -> [InboxNotification] {
-        struct Inbox: Decodable { let notifications: [InboxNotification] }
+        try await notificationInbox().notifications
+    }
+
+    public func notificationInbox() async throws -> NotificationInbox {
+        try decode(
+            NotificationInbox.self,
+            from: try await send(APIRequest(path: "api/notifications", authenticated: true)))
+    }
+
+    /// Marks everything in the inbox as seen. Returns the new unread count.
+    public func markNotificationsSeen() async throws -> Int {
+        try decode(
+            UnreadCount.self,
+            from: try await post("api/notifications/seen", [String: String](), authenticated: true)
+        ).unreadCount
+    }
+
+    /// Deletes one notification for good. Returns the new unread count.
+    public func deleteNotification(_ id: String) async throws -> Int {
+        guard !id.isEmpty, id.utf8.count <= 200,
+            id.unicodeScalars.allSatisfy({
+                $0.isASCII && (CharacterSet.alphanumerics.contains($0) || $0 == "-")
+            })
+        else { throw APIError.invalidResponse }
         return try decode(
-            Inbox.self,
-            from: try await send(APIRequest(path: "api/notifications", authenticated: true))
-        ).notifications
+            UnreadCount.self,
+            from: try await send(
+                APIRequest(path: "api/notifications/" + id, method: "DELETE", authenticated: true))
+        ).unreadCount
+    }
+
+    public func clearNotifications() async throws {
+        _ = try await send(APIRequest(path: "api/notifications", method: "DELETE", authenticated: true))
+    }
+
+    public func registerPushDevice(token: Data, environment: PushEnvironment) async throws {
+        struct Body: Encodable { let environment: PushEnvironment }
+        _ = try await send(
+            APIRequest(
+                path: try Self.devicePath(token), method: "PUT",
+                body: try JSONEncoder().encode(Body(environment: environment)), authenticated: true))
+    }
+
+    public func unregisterPushDevice(token: Data) async throws {
+        _ = try await send(
+            APIRequest(path: try Self.devicePath(token), method: "DELETE", authenticated: true))
+    }
+
+    private struct UnreadCount: Decodable { let unreadCount: Int }
+
+    private static func devicePath(_ token: Data) throws -> String {
+        guard (32...100).contains(token.count) else { throw APIError.invalidResponse }
+        return "api/notifications/devices/" + token.map { String(format: "%02x", $0) }.joined()
     }
 }
