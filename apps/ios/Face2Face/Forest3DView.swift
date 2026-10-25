@@ -29,7 +29,20 @@ private struct Forest3DView: View {
     @State private var world: Forest3DWorld?
     @State private var failed = false
 
-    private var running: Bool { isMoving && !reduceMotion && scenePhase == .active }
+    private var running: Bool { isMoving && !reduceMotion && scenePhase == .active && previewTime == nil }
+
+    private var previewTime: Double? {
+        #if DEBUG
+            let arguments = ProcessInfo.processInfo.arguments
+            if let index = arguments.firstIndex(of: "-forest-preview-time"),
+                arguments.indices.contains(index + 1),
+                let time = Double(arguments[index + 1]), time.isFinite, time >= 0
+            {
+                return time
+            }
+        #endif
+        return nil
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -38,7 +51,7 @@ private struct Forest3DView: View {
             } else {
                 RealityView { content in
                     do {
-                        let world = try Forest3DWorld()
+                        let world = try Forest3DWorld(initialTime: previewTime ?? 0)
                         world.configure(
                             dark: colorScheme == .dark, viewport: geometry.size, bottomInset: bottomInset)
                         content.camera = .virtual

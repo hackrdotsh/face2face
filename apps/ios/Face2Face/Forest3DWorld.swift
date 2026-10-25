@@ -1,3 +1,4 @@
+import Face2FaceCore
 import RealityKit
 import SwiftUI
 import UIKit
@@ -13,13 +14,19 @@ final class Forest3DWorld {
     private let keyLight = DirectionalLight()
     private let fillLight = DirectionalLight()
     private let blobs: [Forest3DAssets.Blob]
-    private var fireflies: [Entity] = []
+    private struct Firefly {
+        let entity: Entity
+        let origin: SIMD3<Float>
+        let phase: Double
+    }
+    private var fireflies: [Firefly] = []
     private var isDark: Bool?
     private var elapsed = 0.0
     private var viewport = CGSize(width: 420, height: 900)
     private var bottomInset: CGFloat = 130
 
-    init() throws {
+    init(initialTime: Double = 0) throws {
+        elapsed = initialTime.isFinite && initialTime >= 0 ? initialTime : 0
         root.name = "forest-world"
         landscape.name = "landscape"
         root.addChild(landscape)
@@ -82,14 +89,19 @@ final class Forest3DWorld {
         fillLight.look(at: .zero, from: [10, 15, -10], relativeTo: nil)
         root.addChild(keyLight)
         root.addChild(fillLight)
-        for index in 0..<16 {
-            let light = ModelEntity(
-                mesh: .generateSphere(radius: 0.035),
-                materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.9, blue: 0.5, alpha: 1))])
-            light.name = "firefly"
-            light.position = [Float(index % 4 - 2) * 2.4, 0.65, Float(index * 3) - 28]
-            root.addChild(light)
-            fireflies.append(light)
+        let fireflyMesh = MeshResource.generateSphere(radius: 0.035)
+        let fireflyMaterial = UnlitMaterial(color: UIColor(red: 1, green: 0.9, blue: 0.5, alpha: 1))
+        for tile in -2...1 {
+            for index in 0..<8 {
+                let z = Float(tile * 32 + index * 4)
+                let bank: Float = index.isMultiple(of: 2) ? -1 : 1
+                let origin: SIMD3<Float> = [Forest3DAssets.pathCenter(z) + bank * 2.15, 0.85, z]
+                let light = ModelEntity(mesh: fireflyMesh, materials: [fireflyMaterial])
+                light.name = "firefly"
+                light.position = origin
+                landscape.addChild(light)
+                fireflies.append(Firefly(entity: light, origin: origin, phase: Double(index) * 1.7))
+            }
         }
         configure(dark: false, viewport: viewport, bottomInset: bottomInset)
         update(delta: 0)
@@ -100,11 +112,11 @@ final class Forest3DWorld {
         self.bottomInset = bottomInset
         if isDark != dark {
             isDark = dark
-            paint(root, dark: dark)
+            paint(root, dark: dark, foliage: foliageMaterials(dark: dark))
             keyLight.light.color = dark ? UIColor(red: 0.7, green: 0.77, blue: 1, alpha: 1) : .white
             keyLight.light.intensity = dark ? 650 : 2_000
             fillLight.light.intensity = dark ? 140 : 650
-            for firefly in fireflies { firefly.isEnabled = dark }
+            for firefly in fireflies { firefly.entity.isEnabled = dark }
         }
         positionCamera()
     }
@@ -114,16 +126,25 @@ final class Forest3DWorld {
         elapsed += min(max(delta, 0), 0.1)
         let scroll = Float(elapsed * 0.65).truncatingRemainder(dividingBy: 32)
         landscape.position.z = scroll
+        let passers = (0..<2).map { ForestPasserPose.at(time: elapsed, slot: $0) }
+        let greeting = passers.first { $0.greetingProgress != nil }?.greetingProgress
         for (index, blob) in blobs.enumerated() {
-            let z: Float =
-                index == 0
-                ? 4 : -22 + (Float(elapsed * 0.95) + Float(index * 13)).truncatingRemainder(dividingBy: 34)
-            let lane: Float = index == 0 ? -0.65 : 0.65
+            let z: Float = index == 0 ? 4 : passers[index - 1].z
+            let progress = index == 0 ? greeting : passers[index - 1].greetingProgress
+            let hello = progress.map { Float(sin($0 * .pi)) } ?? 0
+            let lane: Float = (index == 0 ? -1 : 1) * (0.65 + hello * 0.25)
             blob.root.position = [Forest3DAssets.pathCenter(z - scroll) + lane, 0, z]
-            blob.pose(at: elapsed + Double(index))
+            blob.pose(
+                at: elapsed + Double(index), greetingProgress: progress,
+                facing: index == 0 ? 1 : -1, walkingAway: index == 0)
         }
-        for (index, light) in fireflies.enumerated() {
-            light.position.y = 0.6 + Float(sin(elapsed * 0.9 + Double(index))) * 0.25
+        for light in fireflies {
+            light.entity.position =
+                light.origin + [
+                    Float(sin(elapsed * 0.4 + light.phase)) * 0.18,
+                    Float(sin(elapsed * 0.9 + light.phase)) * 0.25,
+                    Float(cos(elapsed * 0.5 + light.phase)) * 0.15,
+                ]
         }
         positionCamera()
     }
@@ -135,22 +156,44 @@ final class Forest3DWorld {
         camera.look(at: [x, 0, targetZ], from: [x, 24, targetZ + 28], relativeTo: nil)
     }
 
-    private func paint(_ entity: Entity, dark: Bool) {
+    private func paint(_ entity: Entity, dark: Bool, foliage: [[any RealityKit.Material]]) {
+        if entity.name.hasPrefix("needles-"), let variant = Int(entity.name.suffix(1)),
+            foliage.indices.contains(variant), let model = entity as? ModelEntity
+        {
+            model.model?.materials = foliage[variant]
+        }
         let color: UIColor?
         switch entity.name {
         case "grass": color = dark ? hex(0x172D2E) : hex(0xC8DDB2)
         case "path": color = dark ? hex(0x526162) : hex(0xF1DFB4)
         case "path-edge": color = dark ? hex(0x364D49) : hex(0xBCBD91)
         case "trunk": color = dark ? hex(0x62524B) : hex(0x8F6D52)
-        case "leaves-0": color = dark ? hex(0x254A43) : hex(0x508C59)
-        case "leaves-1": color = dark ? hex(0x2D5850) : hex(0x659E65)
-        case "leaves-2": color = dark ? hex(0x356354) : hex(0x7BB376)
         default: color = nil
         }
         if let color, let model = entity as? ModelEntity {
             model.model?.materials = [SimpleMaterial(color: color, roughness: 1, isMetallic: false)]
         }
-        for child in entity.children { paint(child, dark: dark) }
+        for child in entity.children { paint(child, dark: dark, foliage: foliage) }
+    }
+
+    private func foliageMaterials(dark: Bool) -> [[any RealityKit.Material]] {
+        let palettes: [[UInt32]] =
+            dark
+            ? [
+                [0x294E29, 0x537C40, 0x162C1B], [0x335B31, 0x698B4C, 0x19351E],
+                [0x264B32, 0x4A7546, 0x132D1E],
+            ]
+            : [
+                [0x568E28, 0x78B03C, 0x355F24], [0x437F28, 0x67A336, 0x2B5822],
+                [0x619C2D, 0x8AB942, 0x416D29],
+            ]
+        return palettes.map { colors in
+            [
+                SimpleMaterial(color: hex(colors[0]), roughness: 1, isMetallic: false),
+                SimpleMaterial(color: hex(colors[1]), roughness: 1, isMetallic: false),
+                UnlitMaterial(color: hex(colors[2])),
+            ]
+        }
     }
 
     private func hex(_ value: UInt32) -> UIColor {

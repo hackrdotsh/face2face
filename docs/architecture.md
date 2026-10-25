@@ -34,7 +34,13 @@ The camera is orthographic and virtual, not AR: there is no camera permission,
 tracking session, downloaded model, or new dependency. Pine meshes are generated
 once and shared by a finite repeating grid. The three decorative blobs use the
 existing `BlobAvatar` silhouette, gradients, pill eyes, and idle timing;
-`BlobVolume` supplies portable, tested mesh geometry.
+`BlobVolume` supplies portable, tested mesh geometry. Pines use full, scalloped
+`PineCrown` boughs with rounded leaf clusters and separate foliage, tip, and underside material bands.
+Decorative greetings retain the first crossing at four seconds and the 16-second
+spacing, with a turn, hop, wave bubble, and expanding ring. The main blob faces up
+the path while walking and turns sideways only to greet. Fireflies belong to
+the scrolling terrain tiles, with only small local drift, rather than the camera.
+For deterministic Debug screenshots, `-forest-preview-time 4` freezes a greeting.
 
 A view-owned task updates transforms approximately 30 times per second while the
 screen is moving and active. It cancels on disappearance, backgrounding, or Reduce

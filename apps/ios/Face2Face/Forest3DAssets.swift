@@ -9,17 +9,35 @@ enum Forest3DAssets {
         let root: Entity
         let body: Entity
         let shadow: Entity
+        let greeting: Entity
+        let halo: Entity
         let eyes: [Entity]
         let eyePositions: [SIMD3<Float>]
         let motion: BlobIdleMotion
 
-        func pose(at time: Double) {
+        func pose(
+            at time: Double, greetingProgress: Double? = nil, facing: Float = 1, walkingAway: Bool = false
+        ) {
             let pose = motion.pose(at: time)
             let breath = Float(sin(pose.breath))
-            body.scale = [1 + breath * 0.025, 1 - breath * 0.035, 1 + breath * 0.025]
-            body.position.y = 0.83 + abs(Float(sin(time * 3))) * 0.045
-            root.orientation = simd_quatf(angle: Float(sin(time * 3)) * 0.045, axis: [0, 0, 1])
+            let hello = greetingProgress.map { Float(sin($0 * .pi)) } ?? 0
+            body.scale = [
+                1 + breath * 0.025 - hello * 0.04, 1 - breath * 0.035 + hello * 0.07, 1 + breath * 0.025,
+            ]
+            body.position.y = 0.83 + abs(Float(sin(time * 3))) * 0.045 + hello * 0.18
+            let wiggle = Float(sin(time * 3)) * 0.045 + Float(sin(time * 13)) * hello * 0.1
+            let heading: Float = walkingAway ? .pi - hello * 2 * .pi / 3 : -hello * .pi / 3
+            root.orientation =
+                simd_quatf(angle: heading, axis: [0, 1, 0])
+                * simd_quatf(angle: wiggle, axis: [0, 0, 1])
             shadow.orientation = root.orientation.inverse
+            halo.orientation = root.orientation.inverse
+            halo.scale = SIMD3(repeating: 1 + Float(greetingProgress ?? 0) * 0.35)
+            greeting.position = [-facing * 0.42, 2.05 + hello * 0.12, 0]
+            greeting.isEnabled = hello > 0.001
+            halo.isEnabled = hello > 0.001
+            greeting.components.set(OpacityComponent(opacity: hello))
+            halo.components.set(OpacityComponent(opacity: hello * 0.7))
             for (eye, position) in zip(eyes, eyePositions) {
                 eye.position = position + [Float(pose.gaze) * 2, 0, 0]
                 eye.scale.y = Float(pose.eyeOpenness)
@@ -51,6 +69,10 @@ enum Forest3DAssets {
         let shadow = try contactShadow(width: 2, depth: 1.5)
         shadow.position.y = 0.035
         root.addChild(shadow)
+        let greeting = try greetingBubble()
+        let halo = try greetingHalo()
+        root.addChild(greeting)
+        root.addChild(halo)
         var eyes: [Entity] = []
         var positions: [SIMD3<Float>] = []
         for eye in avatar.eyes {
@@ -68,7 +90,8 @@ enum Forest3DAssets {
             positions.append(shape.position)
         }
         return Blob(
-            root: root, body: body, shadow: shadow, eyes: eyes, eyePositions: positions,
+            root: root, body: body, shadow: shadow, greeting: greeting, halo: halo, eyes: eyes,
+            eyePositions: positions,
             motion: BlobIdleMotion(seed: seed))
     }
 
@@ -76,20 +99,26 @@ enum Forest3DAssets {
         let tree = Entity()
         tree.name = "forest-pine"
         let trunk = ModelEntity(
-            mesh: .generateCylinder(height: 0.9, radius: 0.14), materials: [SimpleMaterial()])
+            mesh: .generateCylinder(height: 1.1, radius: 0.13), materials: [SimpleMaterial()])
         trunk.name = "trunk"
-        trunk.position.y = 0.45
+        trunk.position.y = 0.55
         tree.addChild(trunk)
-        let shadow = try contactShadow(width: 2.6, depth: 2.3)
+        let shadow = try contactShadow(width: 3, depth: 2.7)
         shadow.position.y = 0.01
         tree.addChild(shadow)
-        let tiers: [(Float, Float, Float)] = [
-            (1.05, 1.45, 1.05), (0.87, 1.3, 1.75), (0.64, 1.1, 2.4), (0.36, 0.86, 2.98),
-        ]
+        let canopy = PineCrown(branches: 8 + variant)
+        var descriptor = MeshDescriptor(name: "pine-boughs-\(variant)")
+        descriptor.positions = MeshBuffers.Positions(canopy.positions)
+        descriptor.normals = MeshBuffers.Normals(canopy.normals)
+        descriptor.primitives = .triangles(canopy.indices)
+        descriptor.materials = .perFace(canopy.faceMaterials)
+        let mesh = try MeshResource.generate(from: [descriptor])
+        let tiers: [(Float, Float, Float)] = [(1.3, 1.35, 0.65), (1.0, 1.35, 1.45), (0.68, 1.45, 2.2)]
         for tier in tiers {
             let crown = ModelEntity(
-                mesh: .generateCone(height: tier.1, radius: tier.0), materials: [SimpleMaterial()])
-            crown.name = "leaves-\(variant)"
+                mesh: mesh, materials: [SimpleMaterial(), SimpleMaterial(), SimpleMaterial()])
+            crown.name = "needles-\(variant)"
+            crown.scale = [tier.0, tier.1, tier.0]
             crown.components.set(DynamicLightShadowComponent(castsShadow: true))
             crown.position.y = tier.2
             tree.addChild(crown)
@@ -117,6 +146,58 @@ enum Forest3DAssets {
     }
 
     static func pathCenter(_ z: Float) -> Float { sin(z * .pi / 16) * 1.35 }
+
+    private static func greetingBubble() throws -> Entity {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 96, height: 96)).image { context in
+            let circle = CGRect(x: 4, y: 4, width: 88, height: 88)
+            context.cgContext.setFillColor(UIColor(red: 1, green: 0.99, blue: 0.96, alpha: 1).cgColor)
+            context.cgContext.fillEllipse(in: circle)
+            context.cgContext.setStrokeColor(UIColor(red: 0.64, green: 0.52, blue: 0.77, alpha: 1).cgColor)
+            context.cgContext.setLineWidth(5)
+            context.cgContext.strokeEllipse(in: circle)
+            let symbol = UIImage(
+                systemName: "hand.wave.fill",
+                withConfiguration: UIImage.SymbolConfiguration(pointSize: 48, weight: .medium))?
+                .withTintColor(
+                    UIColor(red: 0.2, green: 0.22, blue: 0.3, alpha: 1), renderingMode: .alwaysOriginal)
+            symbol?.draw(in: CGRect(x: 25, y: 24, width: 46, height: 48))
+        }
+        let texture = try TextureResource.generate(from: image.cgImage!, options: .init(semantic: .color))
+        var material = UnlitMaterial(color: .white)
+        material.color.texture = .init(texture)
+        material.blending = .transparent(opacity: 1.0)
+        material.writesDepth = false
+        let bubble = ModelEntity(mesh: .generatePlane(width: 0.65, height: 0.65), materials: [material])
+        bubble.name = "greeting-bubble"
+        bubble.components.set(BillboardComponent())
+        bubble.isEnabled = false
+        return bubble
+    }
+
+    private static func greetingHalo() throws -> Entity {
+        var positions: [SIMD3<Float>] = []
+        var indices: [UInt32] = []
+        for index in 0..<48 {
+            let angle = Float(index) / 48 * 2 * .pi
+            for radius: Float in [0.98, 1.015] {
+                positions.append([cos(angle) * radius, 0, sin(angle) * radius])
+            }
+            let a = UInt32(index * 2)
+            let b = UInt32(((index + 1) % 48) * 2)
+            indices += [a, b, a + 1, a + 1, b, b + 1]
+        }
+        var descriptor = MeshDescriptor(name: "greeting-ring")
+        descriptor.positions = MeshBuffers.Positions(positions)
+        descriptor.normals = MeshBuffers.Normals(Array(repeating: [0, 1, 0], count: positions.count))
+        descriptor.primitives = .triangles(indices)
+        let ring = ModelEntity(
+            mesh: try MeshResource.generate(from: [descriptor]),
+            materials: [UnlitMaterial(color: UIColor(red: 0.68, green: 0.55, blue: 0.8, alpha: 1))])
+        ring.name = "greeting-halo"
+        ring.position.y = 0.05
+        ring.isEnabled = false
+        return ring
+    }
 
     private static func contactShadow(width: Float, depth: Float) throws -> ModelEntity {
         let image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { context in
