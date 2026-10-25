@@ -46,7 +46,15 @@ enum Forest3DAssets {
     }
 
     static func blob(seed: [UInt8]) throws -> Blob {
-        let avatar = BlobAvatar(seed: seed)
+        try blob(avatar: BlobAvatar(seed: seed), motion: BlobIdleMotion(seed: seed))
+    }
+
+    static func blob(seed: String) throws -> Blob? {
+        guard let avatar = BlobAvatar(seed: seed), let motion = BlobIdleMotion(seed: seed) else { return nil }
+        return try blob(avatar: avatar, motion: motion)
+    }
+
+    private static func blob(avatar: BlobAvatar, motion: BlobIdleMotion) throws -> Blob {
         let volume = BlobVolume(avatar: avatar)
         var descriptor = MeshDescriptor(name: "seeded-blob")
         descriptor.positions = MeshBuffers.Positions(volume.positions.map { [$0.x, $0.y, $0.z] })
@@ -92,7 +100,7 @@ enum Forest3DAssets {
         return Blob(
             root: root, body: body, shadow: shadow, greeting: greeting, halo: halo, eyes: eyes,
             eyePositions: positions,
-            motion: BlobIdleMotion(seed: seed))
+            motion: motion)
     }
 
     static func pine(variant: Int) throws -> Entity {
@@ -193,7 +201,7 @@ enum Forest3DAssets {
         return ring
     }
 
-    private static func contactShadow(width: Float, depth: Float) throws -> ModelEntity {
+    static func contactShadow(width: Float, depth: Float) throws -> ModelEntity {
         let image = UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).image { context in
             let colors = [UIColor.white.cgColor, UIColor.white.withAlphaComponent(0).cgColor]
             if let gradient = CGGradient(
@@ -217,6 +225,28 @@ enum Forest3DAssets {
     private static func color(_ hsl: BlobAvatar.HSL) -> UIColor {
         let rgb = hsl.rgb
         return UIColor(red: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1)
+    }
+
+    static func color(hex value: UInt32) -> UIColor {
+        UIColor(
+            red: Double((value >> 16) & 255) / 255, green: Double((value >> 8) & 255) / 255,
+            blue: Double(value & 255) / 255, alpha: 1)
+    }
+
+    static func foliageMaterials(dark: Bool) -> [[any RealityKit.Material]] {
+        let palettes: [[UInt32]] =
+            dark
+            ? [
+                [0x204637, 0x305D46, 0x4E7D5E, 0x74A57A], [0x274D35, 0x386544, 0x608B5E, 0x8BB47A],
+                [0x193F37, 0x295A4B, 0x467D67, 0x69A28A],
+            ]
+            : [
+                [0x376E42, 0x548B4A, 0x78AF5E, 0xA8CE78], [0x44743C, 0x65924A, 0x8BBB61, 0xBDD982],
+                [0x2B6848, 0x468A57, 0x6AAD70, 0x9BCB8C],
+            ]
+        return palettes.map { colors in
+            colors.map { SimpleMaterial(color: color(hex: $0), roughness: 1, isMetallic: false) }
+        }
     }
 
     private static func gradient(_ colors: [BlobAvatar.HSL]) -> CGImage {
