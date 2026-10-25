@@ -17,6 +17,7 @@ export function useConnections(latestNotificationId: string | undefined) {
   const { client } = useSession();
   const activity = useActivity();
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [newlyConnectedId, setNewlyConnectedId] = useState<string | null>(null);
 
   const reload = useCallback(
     () =>
@@ -40,7 +41,9 @@ export function useConnections(latestNotificationId: string | undefined) {
 
   const decide = (connectionId: string, decision: ConnectionDecision) =>
     activity.run(async () => {
-      replace(await decideConnection(client, connectionId, decision));
+      const updated = await decideConnection(client, connectionId, decision);
+      replace(updated);
+      if (updated.status === "private") setNewlyConnectedId(updated.id);
     });
 
   const makePublic = (connectionId: string) =>
@@ -53,7 +56,15 @@ export function useConnections(latestNotificationId: string | undefined) {
       replace(await blockConnection(client, connectionId));
     });
 
-  return { connections, activity, reload, decide, makePublic, block };
+  return {
+    connections,
+    newlyConnectedId,
+    activity,
+    reload,
+    decide,
+    makePublic,
+    block,
+  };
 }
 
 export type ConnectionList = ReturnType<typeof useConnections>;

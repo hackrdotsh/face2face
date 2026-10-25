@@ -1,8 +1,10 @@
 import { InfoIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import type { ComponentProps, FormEvent, ReactNode } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import type { SocketState } from "@/flows/use-socket";
 
 export function ErrorAlert({ message }: { message: string | null }) {
   if (!message) return null;
@@ -14,12 +16,20 @@ export function ErrorAlert({ message }: { message: string | null }) {
   );
 }
 
-export function Notice({ message }: { message: string | null }) {
+export function Notice({
+  message,
+  children,
+}: {
+  message: string | null;
+  children?: ReactNode;
+}) {
   if (!message) return null;
   return (
     <Alert variant="info">
       <InfoIcon />
-      <AlertDescription>{message}</AlertDescription>
+      <AlertDescription>
+        {message} {children}
+      </AlertDescription>
     </Alert>
   );
 }
@@ -69,4 +79,19 @@ export function ActionForm({
       {children}
     </form>
   );
+}
+
+const socketBadges: Record<
+  SocketState,
+  { label: string; variant: "success" | "warning" | "outline" | "error" }
+> = {
+  live: { label: "live", variant: "success" },
+  connecting: { label: "connecting", variant: "outline" },
+  offline: { label: "offline", variant: "warning" },
+  closed: { label: "closed", variant: "error" },
+};
+
+export function SocketBadge({ state }: { state: SocketState }) {
+  const badge = socketBadges[state];
+  return <Badge variant={badge.variant}>{badge.label}</Badge>;
 }

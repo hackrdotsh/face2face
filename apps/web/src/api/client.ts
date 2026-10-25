@@ -6,6 +6,7 @@ export interface APIRequest {
   path: string;
   method?: HTTPMethod;
   query?: Record<string, string>;
+  /** Sent as JSON, except `FormData`, which is sent as multipart. */
   body?: unknown;
   /** Sends the saved bearer token. */
   authenticated?: boolean;
@@ -77,7 +78,8 @@ export class APIClient {
       request.method ?? (request.body === undefined ? "GET" : "POST");
     const url = this.url(request);
     const headers = new Headers({ Accept: "application/json" });
-    if (request.body !== undefined)
+    const isForm = request.body instanceof FormData;
+    if (request.body !== undefined && !isForm)
       headers.set("Content-Type", "application/json");
     const token = this.token;
     const authenticated = Boolean(request.authenticated && token);
@@ -98,8 +100,7 @@ export class APIClient {
       response = await (this.options.fetch ?? fetch)(url, {
         method,
         headers,
-        body:
-          request.body === undefined ? undefined : JSON.stringify(request.body),
+        body: encodeBody(request.body),
         credentials: request.withCookies ? "include" : "omit",
       });
     } catch (error) {
@@ -138,6 +139,12 @@ export class APIClient {
     }
     return url.toString();
   }
+}
+
+function encodeBody(body: unknown): BodyInit | undefined {
+  if (body === undefined) return undefined;
+  if (body instanceof FormData) return body;
+  return JSON.stringify(body);
 }
 
 async function readBody(response: Response): Promise<unknown> {

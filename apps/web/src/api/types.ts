@@ -108,6 +108,64 @@ export interface SocketTicket {
   expiresAt: string;
 }
 
+export type ImageVariantName = "original" | "preview" | "thumb";
+
+export interface ImageVariant {
+  /** Signed and relative to the server URL. It expires, so reload the message for a new one. */
+  path: string;
+  width: number;
+  height: number;
+}
+
+export interface ChatImage {
+  id: string;
+  variants: Record<ImageVariantName, ImageVariant>;
+}
+
+/** A chat message as one participant sees it. It never names either person. */
+export interface ChatMessage {
+  id: string;
+  clientId: string | null;
+  from: "you" | "them";
+  text: string | null;
+  image: ChatImage | null;
+  createdAt: string;
+}
+
+export interface ChatSummary {
+  id: string;
+  connection: Connection;
+  lastMessage: ChatMessage | null;
+  unreadCount: number;
+}
+
+export interface MessagePage {
+  messages: ChatMessage[];
+  hasMore: boolean;
+}
+
+export interface ChatActivity {
+  chatId: string;
+  messageId: string;
+  createdAt: string;
+}
+
+export type TypingState = "started" | "stopped";
+
+export type ChatClientFrame =
+  | { type: "send"; clientId: string; text?: string; imageId?: string }
+  | { type: "typing"; state: TypingState }
+  | { type: "read"; messageId: string };
+
+export type ChatServerFrame =
+  | { type: "ready" }
+  | { type: "pong" }
+  | { type: "ack"; clientId: string; message: ChatMessage }
+  | { type: "message"; message: ChatMessage }
+  | { type: "typing"; state: TypingState }
+  | { type: "error"; error: string; clientId?: string }
+  | { type: "closed" };
+
 export interface DevUser {
   id: string;
   name: string;

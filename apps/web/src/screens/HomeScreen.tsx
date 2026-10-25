@@ -1,105 +1,47 @@
-import { FingerprintIcon, TrashIcon } from "@phosphor-icons/react";
 import type { Account } from "@/api/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardPanel,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { useAccountHome } from "@/flows/use-account-home";
-import { useSession } from "@/session/session";
-import { ConnectionsCard } from "./ConnectionsCard";
-import { InterestsCard } from "./InterestsCard";
-import { ActionForm, ErrorAlert, TextField } from "./parts";
+import { useChats } from "@/flows/use-chats";
+import { useConnections } from "@/flows/use-connections";
+import { useNotifications } from "@/flows/use-notifications";
+import { useHashRoute } from "@/navigation/use-hash-route";
+import { AccountPage } from "./AccountPage";
+import { AppNav } from "./AppNav";
+import { ChatsPage } from "./ChatsPage";
+import { InterestsPage } from "./InterestsPage";
+import { NotificationsPage } from "./NotificationsPage";
+import { PassedPage, pendingChances } from "./PassedPage";
 
+/**
+ * The signed-in app. The notification socket and the lists behind the nav
+ * counts live here, so they stay open while the person moves between pages.
+ */
 export function HomeScreen({ account }: { account: Account }) {
-  const home = useAccountHome();
-  const session = useSession();
-  const { busy } = home.activity;
+  const { route, navigate } = useHashRoute();
+  const feed = useNotifications();
+  const connections = useConnections(feed.notifications[0]?.id);
+  const chats = useChats(feed);
+  const unansweredCount = pendingChances(connections.connections).filter(
+    (connection) => connection.you.decision === null,
+  ).length;
+
   return (
-    <div className="flex flex-col gap-6">
-      <ConnectionsCard />
-      <InterestsCard />
-      <Card>
-        <CardHeader>
-          <CardTitle>Hi, {account.user.name}</CardTitle>
-          <CardDescription>{account.user.email}</CardDescription>
-        </CardHeader>
-        <CardPanel className="flex flex-col gap-4">
-          <ErrorAlert message={home.activity.error} />
-          <div className="flex items-center gap-2 text-sm">
-            Coordinator
-            {home.coordinator ? (
-              <Badge variant={home.coordinator.ready ? "success" : "warning"}>
-                {home.coordinator.ready ? "ready" : "not ready"} ·{" "}
-                {home.coordinator.storage}
-              </Badge>
-            ) : (
-              <Badge variant="outline">unknown</Badge>
-            )}
-          </div>
-          <Separator />
-          <h3 className="font-medium text-sm">Passkeys</h3>
-          {home.passkeys.length === 0 && (
-            <p className="text-muted-foreground text-sm">
-              No passkeys yet. Adding one is optional.
-            </p>
-          )}
-          <ul className="flex flex-col gap-2">
-            {home.passkeys.map((passkey) => (
-              <li
-                key={passkey.id}
-                className="flex items-center justify-between gap-2 text-sm"
-              >
-                <span>
-                  {passkey.name || "Unnamed passkey"}{" "}
-                  <span className="text-muted-foreground">
-                    {passkey.deviceType}
-                    {passkey.backedUp ? ", synced" : ""}
-                  </span>
-                </span>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={`Delete ${passkey.name || "passkey"}`}
-                  disabled={busy}
-                  onClick={() => home.removePasskey(passkey.id)}
-                >
-                  <TrashIcon />
-                </Button>
-              </li>
-            ))}
-          </ul>
-          <ActionForm onSubmit={home.addPasskey}>
-            <TextField
-              label="Passkey name"
-              value={home.passkeyName}
-              onValueChange={home.setPasskeyName}
-            />
-            <Button type="submit" variant="outline" loading={busy}>
-              <FingerprintIcon />
-              Add a passkey
-            </Button>
-          </ActionForm>
-          <Separator />
-          <div className="flex gap-2">
-            <Button variant="outline" disabled={busy} onClick={home.reload}>
-              Refresh
-            </Button>
-            <Button
-              variant="destructive-outline"
-              loading={session.activity.busy}
-              onClick={session.signOut}
-            >
-              Sign out
-            </Button>
-          </div>
-        </CardPanel>
-      </Card>
+    <div className="flex flex-col gap-4">
+      <AppNav
+        current={route.page}
+        counts={{ passed: unansweredCount, chats: chats.unreadCount }}
+      />
+      {route.page === "passed" && <PassedPage list={connections} />}
+      {route.page === "chats" && (
+        <ChatsPage
+          chatId={route.chatId}
+          chats={chats}
+          connections={connections}
+          feed={feed}
+          navigate={navigate}
+        />
+      )}
+      {route.page === "notifications" && <NotificationsPage feed={feed} />}
+      {route.page === "interests" && <InterestsPage />}
+      {route.page === "account" && <AccountPage account={account} />}
     </div>
   );
 }
