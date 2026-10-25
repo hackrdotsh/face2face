@@ -8,6 +8,7 @@ import {
 } from "../src/connections/lifecycle";
 import { orderPair } from "../src/connections/pair";
 import app from "../src/index";
+import { avatarSeed } from "../src/profiles/person";
 import {
   bearerHeaders,
   callAPI,
@@ -26,6 +27,7 @@ interface ConnectionView {
   sharedInterests: string[];
   you: { decision: string | null; publicAt: string | null };
   them: { name: string; age: number; interests: string[] } | null;
+  theirAvatar: { seed: string } | null;
 }
 
 interface EncounterResponse {
@@ -185,7 +187,7 @@ describe("simulated encounters", () => {
         connectionId: connection?.id,
         sharedInterests: ["coffee", "hiking"],
       });
-      expect(JSON.stringify(notification)).not.toMatch(/seed-|Ava|Ben/);
+      expect(JSON.stringify(notification)).not.toMatch(/seed-|\bAva\b|\bBen\b/);
     }
   });
 
@@ -243,7 +245,7 @@ describe("connections API", () => {
       them: null,
     });
     expect(JSON.stringify(await listConnections(benHeaders))).not.toMatch(
-      /accepted|Ava/,
+      /accepted|\bAva\b/,
     );
 
     const accepted = await act(benHeaders, id, "decision", {
@@ -334,6 +336,51 @@ describe("connections API", () => {
       },
     );
     expect(response.status).toBe(400);
+  });
+});
+
+describe("their avatar", () => {
+  it("shows the other person's blob seed but no name or photo before going public", async () => {
+    const { connection } = await simulateEncounter(ava, ben);
+    if (!connection) throw new Error("Expected a chance");
+    const avaHeaders = await signInAs(ava);
+    const [pending] = await listConnections(avaHeaders);
+    expect(pending).toMatchObject({
+      status: "pending",
+      them: null,
+      theirAvatar: { seed: await avatarSeed(ben) },
+    });
+    expect(Object.keys(pending?.theirAvatar ?? {})).toEqual(["seed"]);
+
+    for (const userId of [ava, ben]) {
+      await act(await signInAs(userId), connection.id, "decision", {
+        decision: "accepted",
+      });
+    }
+    const [connected] = await listConnections(avaHeaders);
+    expect(connected).toMatchObject({
+      status: "private",
+      them: null,
+      theirAvatar: { seed: await avatarSeed(ben) },
+    });
+    expect(JSON.stringify(connected)).not.toMatch(/Ben|seed-ben/);
+  });
+
+  it("is not shown once a chance has expired", async () => {
+    const { connection } = await simulateEncounter(ava, ben);
+    if (!connection) throw new Error("Expected a chance");
+    await act(await signInAs(ben), connection.id, "decision", {
+      decision: "declined",
+    });
+    const response = await callAPI(`/api/connections/${connection.id}`, {
+      headers: await signInAs(ava),
+    });
+    if (response.status === 200) {
+      const { connection: view } = await response.json<{
+        connection: ConnectionView;
+      }>();
+      expect(view.theirAvatar).toBeNull();
+    }
   });
 });
 

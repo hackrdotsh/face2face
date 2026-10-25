@@ -8,7 +8,7 @@ import type {
   NotificationEvent,
   Notifier,
 } from "../notifications/notification";
-import type { PersonViewer } from "../profiles/person";
+import { avatarSeed, type PersonViewer } from "../profiles/person";
 import {
   agreeToPublic,
   block,
@@ -28,7 +28,12 @@ import {
   loadPublicProfiles,
   updateConnectionIfUnchanged,
 } from "./store";
-import { type ConnectionView, isVisibleTo, viewConnection } from "./view";
+import {
+  type ConnectionView,
+  type Counterparts,
+  isVisibleTo,
+  viewConnection,
+} from "./view";
 
 const maxUpdateAttempts = 3;
 
@@ -61,15 +66,16 @@ export async function listConnectionViews(
 ): Promise<ConnectionView[]> {
   await expireStaleChancesFor(db, userId, now);
   const rows = await listConnectionsFor(db, userId);
-  const profiles = await loadPublicProfiles(
+  const counterparts = await loadCounterparts(
     db,
     viewPerson,
-    publicCounterparts(rows, userId),
+    rows,
+    userId,
     now,
   );
   return rows
     .filter((row) => row.status !== "expired")
-    .map((row) => viewConnection(row, userId, profiles))
+    .map((row) => viewConnection(row, userId, counterparts))
     .filter((view) => view !== null);
 }
 
@@ -224,15 +230,39 @@ async function viewFor(
   userId: string,
   now: Date,
 ): Promise<ConnectionView> {
-  const profiles = await loadPublicProfiles(
+  const counterparts = await loadCounterparts(
     db,
     viewPerson,
-    publicCounterparts([row], userId),
+    [row],
+    userId,
     now,
   );
-  const view = viewConnection(row, userId, profiles);
+  const view = viewConnection(row, userId, counterparts);
   if (!view) throw new Error("A participant lost access to their connection");
   return view;
+}
+
+/** Loads profiles for public connections and avatar seeds for every other person. */
+export async function loadCounterparts(
+  db: Database,
+  viewPerson: PersonViewer,
+  rows: Connection[],
+  userId: string,
+  now: Date,
+): Promise<Counterparts> {
+  const others = [
+    ...new Set(
+      rows.flatMap((row) => {
+        const side = sideOf(row, userId);
+        return side ? [userOnSide(row, otherSide(side))] : [];
+      }),
+    ),
+  ];
+  const [profiles, seeds] = await Promise.all([
+    loadPublicProfiles(db, viewPerson, publicCounterparts(rows, userId), now),
+    Promise.all(others.map(async (id) => [id, await avatarSeed(id)] as const)),
+  ]);
+  return { profiles, avatarSeeds: new Map(seeds) };
 }
 
 export function publicCounterparts(
