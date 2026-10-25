@@ -1,5 +1,6 @@
 import { recordEncounter } from "../connections/encounter";
 import { listSharedInterestNames } from "../connections/store";
+import { sha256 } from "../crypto/sha256";
 import type { Database } from "../db/client";
 import type { Notifier } from "../notifications/notification";
 import {
@@ -59,16 +60,6 @@ export type DiscoveryError =
 export type DiscoveryResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: DiscoveryError };
-
-async function sha256(value: string) {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-}
 
 function minuteOf(now: Date) {
   return Math.floor(now.getTime() / 60_000);
