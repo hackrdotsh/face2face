@@ -17,7 +17,11 @@ final class TownUITests: XCTestCase {
                 XCTAssertFalse(button.frame.intersects(other.frame), "Building hit areas must not overlap")
             }
             button.tap()
-            XCTAssertTrue(app.staticTexts["Town preview"].waitForExistence(timeout: 4))
+            if identifiers[index] == "connections" {
+                XCTAssertTrue(app.staticTexts["chatsPreviewLabel"].waitForExistence(timeout: 4))
+            } else {
+                XCTAssertTrue(app.staticTexts["Town preview"].waitForExistence(timeout: 4))
+            }
             capture(identifiers[index])
             app.buttons["Done"].tap()
             XCTAssertTrue(button.waitForExistence(timeout: 4))

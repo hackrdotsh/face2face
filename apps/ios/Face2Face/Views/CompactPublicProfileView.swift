@@ -4,6 +4,7 @@ import SwiftUI
 struct CompactPublicProfileView: View {
     let model: TownFriendsModel
     let session: SessionModel
+    var onMessage: ((String) -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -96,6 +97,18 @@ struct CompactPublicProfileView: View {
                             .font(.caption).foregroundStyle(MeadowPalette.secondaryInk)
                     }
                 }
+            }
+            if let onMessage {
+                Button {
+                    onMessage(friend.id)
+                } label: {
+                    Label("Message", systemImage: "bubble.left.and.bubble.right.fill")
+                        .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .background(MeadowPalette.accent, in: Capsule())
+                        .foregroundStyle(MeadowPalette.accentInk)
+                }
+                .buttonStyle(MeadowPressStyle())
+                .accessibilityIdentifier("publicProfileMessage")
             }
             Text("A familiar face in your town—not a live location or online status.")
                 .font(.footnote).foregroundStyle(MeadowPalette.secondaryInk)

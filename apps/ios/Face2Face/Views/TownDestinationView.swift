@@ -12,6 +12,12 @@ struct TownDestinationView: View {
     @State private var error: String?
 
     var body: some View {
+        Group {
+            if destination == .connections { ChatsView(session: session) } else { readOnlyDestination }
+        }
+    }
+
+    private var readOnlyDestination: some View {
         NavigationStack {
             Group {
                 if session.isTownPreview {

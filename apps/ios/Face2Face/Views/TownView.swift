@@ -10,10 +10,13 @@ struct TownView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var friends: TownFriendsModel
     @State private var openedPreviewProfile = false
+    @State private var openedLaunchRoutes = false
     @State private var destination: TownDestination?
     @State private var showingAccount = false
     @State private var showingSettings = false
     @State private var showingNotifications = false
+    @State private var chatRoute: ChatRoute?
+    @State private var queuedChat: ChatRoute?
 
     init(account: Account, session: SessionModel, passkeys: PasskeyAuthorizer) {
         self.account = account
@@ -78,7 +81,7 @@ struct TownView: View {
                 TownScene(
                     isMoving: destination == nil && !showingAccount && !showingSettings
                         && !showingNotifications
-                        && friends.selectedID == nil,
+                        && friends.selectedID == nil && chatRoute == nil,
                     visitors: friends.visitors, session: session,
                     onSelect: { destination = $0 }, onSelectFriend: { friends.select($0) }
                 )
@@ -104,12 +107,26 @@ struct TownView: View {
         .fullScreenCover(isPresented: $showingNotifications) {
             NotificationsView(session: session)
         }
+        .fullScreenCover(item: $chatRoute) { route in
+            NavigationStack { ChatConversationView(chatID: route.id, session: session) }
+        }
         .sheet(
             isPresented: Binding(
                 get: { friends.selectedID != nil },
-                set: { if !$0 { friends.closeProfile() } })
+                set: { if !$0 { friends.closeProfile() } }),
+            onDismiss: {
+                if let queuedChat {
+                    chatRoute = queuedChat
+                    self.queuedChat = nil
+                }
+            }
         ) {
-            CompactPublicProfileView(model: friends, session: session)
+            CompactPublicProfileView(
+                model: friends, session: session,
+                onMessage: { id in
+                    queuedChat = ChatRoute(id: id)
+                    friends.closeProfile()
+                })
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else {
@@ -144,6 +161,13 @@ struct TownView: View {
         }
         #if DEBUG
             .onAppear {
+                guard !openedLaunchRoutes else { return }
+                openedLaunchRoutes = true
+                if let index = ProcessInfo.processInfo.arguments.firstIndex(of: "-town-chat"),
+                    ProcessInfo.processInfo.arguments.indices.contains(index + 1)
+                {
+                    chatRoute = ChatRoute(id: ProcessInfo.processInfo.arguments[index + 1])
+                }
                 if ProcessInfo.processInfo.arguments.contains("-town-notifications") {
                     showingNotifications = true
                 }
