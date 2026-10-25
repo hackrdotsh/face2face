@@ -237,20 +237,50 @@ Routes, all behind `requireOnboarded`:
 Each person's `UserCoordinator` Durable Object keeps their inbox, the latest
 200 notifications. The inbox is the record. A WebSocket only delivers new
 notifications while a client is open. An iPhone app in the background has no
-socket. Background delivery needs APNs later, sent from the same `notify` call.
+socket, so `notify` also sends an APNs alert for `encounter`, `connected`, and
+`public` to each of the person's registered phones.
 
 A client, web or iPhone:
 1. Loads `GET /api/notifications` on launch and when it returns to the foreground.
+   The response is `{ notifications, unreadCount }`.
 2. Gets a 60-second ticket from `POST /api/notifications/ticket` with its bearer token.
 3. Opens `/api/notifications/socket?ticket=…`. Browsers cannot set an
    `Authorization` header on a WebSocket, and a bearer token must not go in a URL.
-4. Receives `{"type":"ready"}`, then `{"type":"notification","notification":…}`
-   for each new one. Sending `ping` returns `{"type":"pong"}`.
+4. Receives `{"type":"ready"}`, then
+   `{"type":"notification","notification":…,"unreadCount":…}` for each new one.
+   Sending `ping` returns `{"type":"pong"}`.
 5. Reconnects with backoff when the socket closes and reloads the inbox.
+
+Inbox actions:
+- `POST /api/notifications/seen` marks everything in the inbox as seen.
+  `unreadCount` counts notifications created after that point.
+- `DELETE /api/notifications/:id` deletes one notification. `DELETE
+  /api/notifications` clears the inbox. Both delete on the server, so every
+  device agrees.
 
 Notification kinds are `encounter` (shared interests and expiry), `connected`,
 `public`, `post_updated`, `post_cancelled`, and `post_rsvp`. None identifies the
 other person. The post kinds hold only `postId` and `forumId`.
+
+### Push
+
+- The iPhone app asks for notification permission the first time it reaches the
+  town. It then sends its APNs token to `PUT /api/notifications/devices/:token`
+  with `{ "environment": "sandbox" | "production" }`. Debug builds use the
+  sandbox. Sign out calls `DELETE /api/notifications/devices/:token` first.
+- The coordinator keeps the newest 10 tokens for each person. It forgets a token
+  when APNs answers 410, `BadDeviceToken`, or `DeviceTokenNotForTopic`.
+- The alert holds the same text as the inbox card, the unread count as the app
+  badge, and `notificationId`, `kind`, and `connectionId`. It never names the
+  other person.
+- While the app is open it shows no banner. The bell's count updates instead.
+- Push is off until the Worker has `APNS_KEY_ID` and `APNS_PRIVATE_KEY` (the
+  .p8 contents) and `APPLE_APP_ID` is set. The team ID and topic come from
+  `APPLE_APP_ID`. The build also needs the `aps-environment` entitlement.
+- A token stays with the account that registered it until sign out. If a
+  session ends without sign out, for example when it expires, that phone keeps
+  getting the old account's alerts, even after a different account signs in.
+  Tokens are kept per account, so registering cannot find the old owner.
 
 ### Simulator
 
@@ -285,7 +315,7 @@ the connection ID. A block closes the chat for both people.
   that the Worker gives it. A client cannot call it directly.
 - **`UserCoordinator`** gets a `chat_activity` event when a message arrives for
   its person. It sends the event to that person's notification sockets. The
-  inbox does not keep it. APNs can be added at the same place.
+  inbox does not keep it.
 - **Images binding** re-encodes each upload. **R2** (`MEDIA`) keeps the result.
   The bucket is not public.
 
