@@ -1,6 +1,12 @@
 import Foundation
 
-extension APIClient {
+public protocol InterestRepository: Sendable {
+    func interests() async throws -> InterestCatalog
+    func replaceInterests(_ ids: [String]) async throws -> InterestCatalog
+    func addInterest(named name: String) async throws -> InterestCatalog
+}
+
+extension APIClient: InterestRepository {
     public func interests() async throws -> InterestCatalog {
         try decode(
             InterestCatalog.self, from: try await send(APIRequest(path: "api/interests", authenticated: true))
