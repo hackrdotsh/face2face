@@ -8,6 +8,8 @@ export type NotificationEvent =
     }
   | { kind: "connected"; connectionId: string }
   | { kind: "public"; connectionId: string }
+  /** One card per chat. The chat ID is the connection ID. */
+  | { kind: "message"; chatId: string }
   | {
       kind: "post_updated" | "post_cancelled" | "post_rsvp";
       postId: string;

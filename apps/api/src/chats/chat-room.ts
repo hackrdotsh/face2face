@@ -223,7 +223,9 @@ export class ChatRoom extends DurableObject<Env> {
       message: viewForSender,
     });
     if (!isNew) return;
-    this.markRead(state.side, row.seq);
+    if (this.markRead(state.side, row.seq)) {
+      await this.dismissNotices(state.side);
+    }
     if (state.isTyping) {
       this.setTyping(socket, state, false);
       this.announceTypingStopped(state.side, socket);
@@ -250,12 +252,16 @@ export class ChatRoom extends DurableObject<Env> {
     }
   }
 
-  private handleRead(socket: WebSocket, state: SocketState, messageId: string) {
+  private async handleRead(
+    socket: WebSocket,
+    state: SocketState,
+    messageId: string,
+  ) {
     const seq = this.findSeq(messageId);
     if (seq === null) {
       return sendFrame(socket, { type: "error", error: "message_not_found" });
     }
-    this.markRead(state.side, seq);
+    if (this.markRead(state.side, seq)) await this.dismissNotices(state.side);
   }
 
   /** Inserting the same client ID twice returns the first message. */
@@ -299,21 +305,47 @@ export class ChatRoom extends DurableObject<Env> {
     }
   }
 
-  /** Tells the recipient's other screens that the chat changed. Holds no content. */
+  /**
+   * Tells the recipient's other screens that the chat changed. When the
+   * recipient does not have this chat open, it also leaves an inbox card and
+   * sends a push with a short preview that never names the sender.
+   */
   private async announceActivity(recipient: ConnectionSide, row: MessageRow) {
     const userId = this.memberUserId(recipient);
     const connectionId = this.connectionId();
     if (!userId || !connectionId) return;
+    const coordinator = this.env.USER_COORDINATORS.getByName(userId);
     try {
-      await this.env.USER_COORDINATORS.getByName(userId).announceChatActivity({
+      await coordinator.announceChatActivity({
         chatId: connectionId,
         messageId: row.id,
         createdAt: new Date(row.created_at).toISOString(),
       });
+      if (this.ctx.getWebSockets(recipient).length === 0) {
+        await coordinator.notifyMessage(connectionId, messagePreview(row));
+      }
     } catch (error) {
       console.error(
         JSON.stringify({
           event: "chat_activity_failed",
+          name: error instanceof Error ? error.name : "unknown",
+        }),
+      );
+    }
+  }
+
+  private async dismissNotices(side: ConnectionSide) {
+    const userId = this.memberUserId(side);
+    const connectionId = this.connectionId();
+    if (!userId || !connectionId) return;
+    try {
+      await this.env.USER_COORDINATORS.getByName(userId).dismissChat(
+        connectionId,
+      );
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: "chat_notice_dismiss_failed",
           name: error instanceof Error ? error.name : "unknown",
         }),
       );
@@ -338,11 +370,15 @@ export class ChatRoom extends DurableObject<Env> {
     socket.serializeAttachment(state);
   }
 
-  private markRead(side: ConnectionSide, seq: number) {
-    this.ctx.storage.sql.exec(
-      "UPDATE member SET last_read_seq = MAX(last_read_seq, ?) WHERE side = ?",
-      seq,
-      side,
+  /** Returns true when this moved the side's read position forward. */
+  private markRead(side: ConnectionSide, seq: number): boolean {
+    return (
+      this.ctx.storage.sql.exec(
+        "UPDATE member SET last_read_seq = ? WHERE side = ? AND last_read_seq < ?",
+        seq,
+        side,
+        seq,
+      ).rowsWritten > 0
     );
   }
 
@@ -471,4 +507,15 @@ function parseJSON(message: string | ArrayBuffer): unknown {
   } catch {
     return undefined;
   }
+}
+
+const previewLength = 120;
+
+/** The first line of a message, shortened for a lock screen. */
+export function messagePreview(row: Pick<MessageRow, "text">): string {
+  const line = row.text?.trim().split("\n")[0]?.trim();
+  if (!line) return "Sent a photo";
+  return line.length > previewLength
+    ? `${line.slice(0, previewLength - 1).trimEnd()}…`
+    : line;
 }

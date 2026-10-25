@@ -112,7 +112,7 @@ final class Forest3DWorld {
         self.bottomInset = bottomInset
         if isDark != dark {
             isDark = dark
-            paint(root, dark: dark, foliage: foliageMaterials(dark: dark))
+            paint(root, dark: dark, foliage: Forest3DAssets.foliageMaterials(dark: dark))
             keyLight.light.color = dark ? UIColor(red: 0.7, green: 0.77, blue: 1, alpha: 1) : .white
             keyLight.light.intensity = dark ? 650 : 2_000
             fillLight.light.intensity = dark ? 140 : 650
@@ -176,24 +176,6 @@ final class Forest3DWorld {
             model.model?.materials = [SimpleMaterial(color: color, roughness: 1, isMetallic: false)]
         }
         for child in entity.children { paint(child, dark: dark, foliage: foliage) }
-    }
-
-    private func foliageMaterials(dark: Bool) -> [[any RealityKit.Material]] {
-        let palettes: [[UInt32]] =
-            dark
-            ? [
-                [0x204637, 0x305D46, 0x4E7D5E, 0x74A57A],
-                [0x274D35, 0x386544, 0x608B5E, 0x8BB47A],
-                [0x193F37, 0x295A4B, 0x467D67, 0x69A28A],
-            ]
-            : [
-                [0x376E42, 0x548B4A, 0x78AF5E, 0xA8CE78],
-                [0x44743C, 0x65924A, 0x8BBB61, 0xBDD982],
-                [0x2B6848, 0x468A57, 0x6AAD70, 0x9BCB8C],
-            ]
-        return palettes.map { colors in
-            colors.map { SimpleMaterial(color: hex($0), roughness: 1, isMetallic: false) }
-        }
     }
 
     private func hex(_ value: UInt32) -> UIColor {

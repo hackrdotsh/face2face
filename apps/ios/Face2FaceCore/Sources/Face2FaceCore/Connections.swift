@@ -21,6 +21,17 @@ extension APIClient: EncounterRepository {
         _ = try await post(try Self.connectionPath(id) + "/block", [String: String](), authenticated: true)
     }
 
+    /// Records only the authenticated person's consent. The server reveals neither profile
+    /// until both participants agree; repeating this request is idempotent.
+    public func agreeToPublicConnection(_ id: String) async throws -> TownConnection {
+        struct Result: Decodable { let connection: TownConnection }
+        return try decode(
+            Result.self,
+            from: try await post(
+                try Self.connectionPath(id) + "/public", [String: String](), authenticated: true)
+        ).connection
+    }
+
     private static func connectionPath(_ id: String) throws -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
         guard !id.isEmpty, id.utf8.count <= 256, id != ".", id != "..",

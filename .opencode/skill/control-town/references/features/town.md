@@ -2,7 +2,7 @@
 
 | Feature              | Entry                                         | Expected behavior                                                               |
 | -------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
-| Landing              | Finish onboarding, or Settings → Preview town | Three spaced destinations; shoreline below town                                 |
+| Landing              | Finish onboarding, or Settings → Preview town | Tree-lined 3D market plaza; 2D fallback with shoreline                          |
 | Recently encountered | Upper-left venue, `town-encounters`           | Pending `/api/connections` only; no hidden identity                             |
 | Connections          | Middle-right café, `town-connections`         | Private/public connections; identity only when server reveals it                |
 | Forums               | Lower-left board, `town-forums`               | `/api/forums` for the signed-in person's interests                              |
@@ -14,6 +14,23 @@
 | Preview              | `node scripts/control-town.mjs preview`       | No API requests; destination sheets identify preview mode                       |
 | Reduced motion       | iOS Accessibility → Motion                    | No resident, water or sign animation                                            |
 | Large text           | Accessibility text sizes                      | Scenery followed by full-size destination buttons                               |
+
+## 3D scenery
+
+On iOS 18+, **Settings → 3D scenery** enables the shared RealityKit forest and town.
+The town has market stalls, a fountain, planted beds, surrounding trees, and blob residents. Its
+SwiftUI hit targets retain the same map coordinates and identifiers. iOS 17, an
+explicit opt-out, or an asset-generation failure uses the 2D town.
+
+`Town3DTests.swift` checks scene structure, projection alignment and removal of
+public-friend meshes, plus perimeter trees and clear entrances. Town/PublicFriends UI tests exercise the 3D renderer; the
+Town suite also checks the 2D fallback. Capture light and dark previews. The 3D
+camera is fixed and never represents a real person's location.
+
+Stalls use curved striped canopies, exposed counters and timber frames. The fountain
+has a recessed water surface and four modeled streams. Native tests check canopy
+clearance from the camera and water below the basin rim; inspect both day and night
+previews for missing surfaces, clipping, and obscured destination labels.
 
 ## Evidence commands
 
@@ -38,7 +55,7 @@ onboarding, rather than deleting an existing person's data. UI coverage:
 UI tests: `apps/ios/Face2FaceUITests/TownUITests.swift`. They check tap targets,
 settings access, sheet dismissal, large text and preview states. Decorative NPCs never represent
 real nearby people. Water animation requires Reduce Motion off and app foreground.
-The waterfront continues below the fitted map through the bottom safe area; no
+In the 2D fallback, the waterfront continues below the fitted map through the bottom safe area; no
 grass band should appear above or behind the home indicator.
 
 Notifications UI tests: `apps/ios/Face2FaceUITests/NotificationsUITests.swift`.
@@ -49,14 +66,15 @@ opening marks it seen, rows swipe to delete, and Clear All removes the inbox.
 Connection APNs alerts and foreground arrivals are handled by `PushNotifications`;
 delivery requires suitable signing/entitlements and backend APNs configuration.
 Event notices open the corresponding event; connection notices open the
-corresponding town lists. Chat-message push delivery is not added here.
+corresponding town lists. Message inbox rows open the café; message pushes open their exact chat. Message pushes
+dismiss any existing town surface through the same queue as widget links.
 
 ## Public friend visitors
 
 - Only `status == "public"` with a disclosed `them` profile and public user ID can
   become `PublicTownFriend`. Private, pending, blocked, expired and unknown statuses
   never create NPCs, even if a response unexpectedly includes identity-shaped data.
-- Up to three visitors are expressive seeded blobs with a first-name tag.
+- Up to three visitors are expressive seeded blobs in 3D and 2D, with a first-name tag.
   Tap `town-friend-<connectionId>` for the compact profile. Large-text mode uses
   stationary friend buttons below the destinations.
 - Opening a profile fetches `/api/connections` again before showing identity. A
@@ -112,24 +130,39 @@ campfire/profile/settings surface. Authentication is still required before routi
   never bearer tokens in URLs. Sends keep their client IDs across retries.
 - Typing expires after eight seconds. Read positions clear server unread counts;
   they are not read receipts shown to the other person. The café reloads on return
-  and every 30 seconds while open. No APNs delivery is added.
+  and every 30 seconds while open. Message notifications and APNs alerts are sent
+  when the recipient's chat is closed, subject to backend push configuration.
 - Backgrounding closes the socket. Returning revalidates the original credential
   and chat access before reconnecting. Blocking closes and clears the conversation.
   The conversation options menu exposes the existing block action, with confirmation.
   Unconfirmed sends stay in memory only while the conversation is open; leaving
   warns before discarding them. Older messages load with the Earlier messages button.
+- `chatShareProfiles` asks for explicit consent in an anonymous chat. Cancel changes
+  nothing. Agree sends the viewer's consent to `/api/connections/:id/public`.
+  `chatSharingWaiting` keeps identity hidden and removes repeated consent controls.
+  Messaging and blocking remain available; acceptance alone never shares profiles.
+- The open chat checks connection status every five seconds. A failed consent reply
+  triggers a read, not another POST. Backgrounding invalidates in-flight results.
+  After mutual consent, `chatProfilesPublic` and `chatViewProfile` appear. The compact
+  profile revalidates the public-only list before showing identity. The town also
+  reloads that list and reserves one of its three visitor slots for the new friend.
+  Neither the profile nor the visitor implies online presence or physical proximity.
 
 `preview -town-chat preview-ava` opens a sample public conversation;
 `preview -town-chat preview-private` opens an anonymous one. Preview sends are local,
 explicitly labelled, and do not contact the API.
+Add `-chat-sharing-preview-state peer-agreed` to simulate a second consent, or
+`peer-later` to exercise the five-second refresh. Omit the flag for one-sided waiting.
 
 `node scripts/chat-smoke.mjs` provisions an isolated temporary local D1/R2/DO Worker,
 runs the real Swift HTTP/WebSocket clients in both directions (text and photos),
-checks retry deduplication, typing, signed image retrieval, unread clearing and block
-closure, then stops its own Worker. It never resets the shared dev database.
+checks retry deduplication, typing, signed image retrieval, unread clearing, mutual
+profile sharing, public-friend visibility and block closure, then stops its own
+Worker. It never resets the shared dev database.
 
 Tests: `ChatTests.swift`, opt-in `LiveChatTests.swift`, native `ChatModelTests.swift`,
-and `ChatUITests.swift`. The native photo test uses the API's EXIF/GPS fixture.
+`ProfileSharingTests.swift`, `ProfileSharingUITests.swift`, and `ChatUITests.swift`.
+The native photo test uses the API's EXIF/GPS fixture.
 The photo-picker UI test uses an existing simulator photo, or skips if the library
 is empty. Seed it with `xcrun simctl addmedia booted <test-image>` before running.
 

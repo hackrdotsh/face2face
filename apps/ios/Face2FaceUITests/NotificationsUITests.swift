@@ -59,6 +59,7 @@ final class NotificationsUITests: XCTestCase {
         let app = launch()
         let bell = app.buttons["townNotifications"]
         XCTAssertEqual(bell.value as? String, "2 new")
+        XCTAssertEqual(app.buttons["town-connections"].value as? String, "1 new")
         capture("bell-unread")
         bell.tap()
         let first = app.buttons["notification-preview-0"]

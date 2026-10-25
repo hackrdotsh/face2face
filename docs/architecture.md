@@ -23,12 +23,12 @@ Swift core tests run on Linux and Mac. Keychain and SwiftUI need Apple's SDKs;
 the macOS CI job builds the simulator target. Physical-device behavior still
 requires Xcode and an iPhone. Generated projects and local build output are ignored.
 
-## Decorative forest
+## 3D scenery
 
-`MeadowScene` chooses the RealityKit forest on iOS 18+ when the saved **3D forest**
+`MeadowScene` chooses the RealityKit forest on iOS 18+ when the saved **3D scenery**
 appearance preference is on. iOS 17, an explicit opt-out, or an asset-generation
-failure uses `MeadowCanvasScene`. Login, onboarding, and profile share this wrapper;
-the town and its real public-friend visitors are not part of this prototype.
+failure uses `MeadowCanvasScene`. Login, onboarding, and profile share this wrapper.
+The same preference controls the matching 3D town, with `TownCanvasScene` as its fallback.
 
 The camera is orthographic and virtual, not AR: there is no camera permission,
 tracking session, downloaded model, or new dependency. Pine meshes are generated
@@ -42,11 +42,24 @@ the path while walking and turns sideways only to greet. Fireflies belong to
 the scrolling terrain tiles, with only small local drift, rather than the camera.
 For deterministic Debug screenshots, `-forest-preview-time 4` freezes a greeting.
 
-A view-owned task updates transforms approximately 30 times per second while the
-screen is moving and active. It cancels on disappearance, backgrounding, or Reduce
-Motion; paused frames retain their pose. Light/dark changes repaint the scene
+A view-owned task updates forest transforms approximately 30 times per second;
+the town uses a matching SwiftUI animation timeline. Both pause when inactive or
+with Reduce Motion; paused frames retain their pose. Light/dark changes repaint the scene
 without rebuilding geometry. Long-running battery usage and frame pacing still
 need measurement on hardware. Decorative crossings never record encounters.
+
+`Town3DWorld` builds the market stalls, noticeboard, fountain, planted beds, surrounding
+trees, and blob residents as RealityKit geometry. `TownProjection` keeps the orthographic camera
+and the accessible 400 × 640 interaction map aligned. Camera gestures are disabled;
+stall and public-friend actions stay in SwiftUI, including large-text navigation.
+`TownPlazaLayout` shares destination and resident coordinates with those controls;
+the 2D fallback retains its original village layout.
+`Town3DGeometry` generates the curved canopy panels, scalloped trim, turned stone
+basin, and water streams; the stalls and fountain do not download external assets.
+Only the existing public-friend filter supplies identified visitors. Clearing that
+list replaces their 3D shapes with anonymous decorative residents; no scene data is
+stored or interpreted as real location. Profile revalidation, chats, notifications,
+and all authorization continue through the existing models and routes.
 
 ## Accounts and onboarding
 
@@ -245,8 +258,8 @@ Routes, all behind `requireOnboarded`:
 Each person's `UserCoordinator` Durable Object keeps their inbox, the latest
 200 notifications. The inbox is the record. A WebSocket only delivers new
 notifications while a client is open. An iPhone app in the background has no
-socket, so `notify` also sends an APNs alert for `encounter`, `connected`, and
-`public` to each of the person's registered phones.
+socket, so `notify` also sends an APNs alert for `encounter`, `connected`,
+`public`, and `message` to each of the person's registered phones.
 
 A client, web or iPhone:
 1. Loads `GET /api/notifications` on launch and when it returns to the foreground.
@@ -267,7 +280,7 @@ Inbox actions:
   device agrees.
 
 Notification kinds are `encounter` (shared interests and expiry), `connected`,
-`public`, `post_updated`, `post_cancelled`, and `post_rsvp`. None identifies the
+`public`, `message` (`chatId`), `post_updated`, `post_cancelled`, and `post_rsvp`. None identifies the
 other person. The post kinds hold only `postId` and `forumId`.
 
 ### Push
@@ -325,7 +338,11 @@ the connection ID. A block closes the chat for both people.
   that the Worker gives it. A client cannot call it directly.
 - **`UserCoordinator`** gets a `chat_activity` event when a message arrives for
   its person. It sends the event to that person's notification sockets. The
-  inbox does not keep it.
+  inbox does not keep it. When the recipient has no socket open in that chat,
+  `ChatRoom` also calls `notifyMessage`: the inbox keeps one `message` card per
+  chat, replacing the previous one, and a push carries the first line of text
+  (or "Sent a photo") with no sender name. Pushes for one chat share an APNs
+  collapse ID and thread. Reading the chat removes its card.
 - **Images binding** re-encodes each upload. **R2** (`MEDIA`) keeps the result.
   The bucket is not public.
 
@@ -413,8 +430,7 @@ is not tested locally.
 
 ### Not built
 
-Message editing and deletion, read receipts for the other person, push
-notifications, and cleanup of images that were uploaded but not sent. There is
+Message editing and deletion, read receipts for the other person, and cleanup of images that were uploaded but not sent. There is
 no account deletion yet. When it exists, it must delete each chat's
 `ChatRoom` storage and its R2 prefix. It must also delete the profile photo
 files in R2.
@@ -562,8 +578,9 @@ Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required
   A phone that reports
   first sees the match when it returns to the foreground.
 - The iPhone's Recently Encountered page shows pending chances and accept/decline
-  controls. Mutual acceptance opens private chat; public-profile consent remains
-  a separate action and still needs native controls.
+  controls. Mutual acceptance opens private chat. The chat's Share profiles action
+  separately records public-profile consent, with confirmation and anonymous waiting.
+  Both consents are required before profiles or town visitors become visible.
 
 `pnpm test:streetpass` runs the contract over real HTTP against a local API with
 `DEV_TOOLS` set to `"true"`. It signs in as two seed people who are not connected
@@ -603,9 +620,7 @@ or blocked and expires their earlier pending chance first. It tests no Bluetooth
 ## Suggested next slice
 
 The native client has the inbox, chat with photos, public-friend visitors, forums,
-event editing/RSVP, and interest selection. Remaining demo gates:
-- Add mutual go-public controls to the native connection flow. Accept/decline and
-  the handoff into private messaging are implemented.
+event editing/RSVP, interest selection, and mutual profile sharing. Remaining demo gates:
 - Rehearse real sign-in and image delivery against production. Local chat tests do
   not verify email delivery or production R2/Images configuration.
 - Onboarding interest selection depends on the matching Worker deployment; optional

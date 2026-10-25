@@ -71,7 +71,7 @@ final class PublicFriendsUITests: XCTestCase {
 
     private func launch(state: String? = nil, extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-town-preview", "-appearance", "light"] + extra
+        app.launchArguments = ["-town-preview", "-appearance", "light", "-forest3DEnabled", "YES"] + extra
         if let state { app.launchArguments += ["-town-friends-preview-state", state] }
         app.launch()
         return app

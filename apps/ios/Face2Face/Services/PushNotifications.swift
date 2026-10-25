@@ -15,6 +15,8 @@ final class PushNotifications {
     private(set) var foregroundArrivals = 0
     /// Set when a notification is tapped. The town opens the inbox and clears it.
     var inboxRequested = false
+    /// Set when a message notification is tapped. The town opens that chat and clears it.
+    var requestedChatID: String?
 
     private var session: SessionModel?
     private var deviceToken: Data?
@@ -115,6 +117,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
     ) async {
-        await MainActor.run { PushNotifications.shared.inboxRequested = true }
+        let info = response.notification.request.content.userInfo
+        let chatID = info["kind"] as? String == "message" ? info["chatId"] as? String : nil
+        await MainActor.run {
+            if let chatID {
+                PushNotifications.shared.requestedChatID = chatID
+            } else {
+                PushNotifications.shared.inboxRequested = true
+            }
+        }
     }
 }

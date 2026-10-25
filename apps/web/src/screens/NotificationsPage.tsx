@@ -73,6 +73,8 @@ function destinationOf(notification: AppNotification): Route {
     case "post_cancelled":
     case "post_rsvp":
       return { page: "post", postId: notification.postId };
+    case "message":
+      return { page: "chats", chatId: notification.chatId };
     default:
       return { page: "chats", chatId: notification.connectionId };
   }
@@ -94,5 +96,7 @@ function describeNotification(notification: AppNotification): string {
       return "An event you're going to was cancelled.";
     case "post_rsvp":
       return "Someone is going to your event.";
+    case "message":
+      return "You have a new message.";
   }
 }

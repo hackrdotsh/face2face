@@ -24,7 +24,7 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("appearancePicker")
                     if #available(iOS 18.0, *) {
-                        Toggle("3D forest", isOn: $forest3DEnabled)
+                        Toggle("3D scenery", isOn: $forest3DEnabled)
                             .accessibilityIdentifier("forest3DToggle")
                     }
                 }

@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import type { ChatActivity } from "./chats/chat-types";
 import {
   apnsSender,
+  type PushAlert,
   type PushEnvironment,
   type PushSender,
 } from "./notifications/apns";
@@ -10,6 +11,8 @@ import {
   type NotificationEvent,
   pushTextFor,
 } from "./notifications/notification";
+
+type PushText = Pick<PushAlert, "title" | "body" | "group">;
 
 const inboxPageSize = 50;
 const inboxRetained = 200;
@@ -65,6 +68,31 @@ export class UserCoordinator extends DurableObject<Env> {
   }
 
   async notify(event: NotificationEvent): Promise<Notification> {
+    return this.record(event, pushTextFor(event));
+  }
+
+  /**
+   * Keeps one card for each chat, so a newer message replaces the earlier one.
+   * The preview goes only to the push, never into the inbox.
+   */
+  async notifyMessage(chatId: string, preview: string): Promise<Notification> {
+    this.deleteChatNotices(chatId);
+    return this.record(
+      { kind: "message", chatId },
+      { title: "New message", body: preview, group: chatId },
+    );
+  }
+
+  /** Removes a chat's card once its messages are read. */
+  async dismissChat(chatId: string): Promise<{ unreadCount: number }> {
+    this.deleteChatNotices(chatId);
+    return { unreadCount: this.unreadCount() };
+  }
+
+  private async record(
+    event: NotificationEvent,
+    push: PushText | null,
+  ): Promise<Notification> {
     const notification: Notification = {
       ...event,
       id: crypto.randomUUID(),
@@ -87,7 +115,7 @@ export class UserCoordinator extends DurableObject<Env> {
       unreadCount,
     });
     for (const socket of this.ctx.getWebSockets()) socket.send(message);
-    await this.push(notification, unreadCount);
+    if (push) await this.push(notification, unreadCount, push);
     return notification;
   }
 
@@ -213,11 +241,21 @@ export class UserCoordinator extends DurableObject<Env> {
       .one().count;
   }
 
+  private deleteChatNotices(chatId: string) {
+    this.ctx.storage.sql.exec(
+      "DELETE FROM notification WHERE json_extract(event, '$.kind') = 'message' AND json_extract(event, '$.chatId') = ?",
+      chatId,
+    );
+  }
+
   /** A failed push never fails the event. The inbox already holds it. */
-  private async push(notification: Notification, unreadCount: number) {
-    const text = pushTextFor(notification);
+  private async push(
+    notification: Notification,
+    unreadCount: number,
+    text: PushText,
+  ) {
     const sender = this.pushSender;
-    if (!text || !sender) return;
+    if (!sender) return;
     const data: Record<string, string> = {
       notificationId: notification.id,
       kind: notification.kind,
@@ -225,6 +263,7 @@ export class UserCoordinator extends DurableObject<Env> {
     if ("connectionId" in notification) {
       data.connectionId = notification.connectionId;
     }
+    if ("chatId" in notification) data.chatId = notification.chatId;
     const devices = this.ctx.storage.sql
       .exec<DeviceRow>("SELECT token, environment FROM push_device")
       .toArray();

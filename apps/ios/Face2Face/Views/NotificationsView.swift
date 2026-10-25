@@ -272,6 +272,7 @@ extension InboxNotification {
         case .encounter: "A new hello"
         case .connected: "It's a connection"
         case .publicConnection: "A little more face to face"
+        case .message: "New message"
         case .postUpdated: "A change of plans"
         case .postCancelled: "An event was cancelled"
         case .postRSVP: "One more at the table"
@@ -287,6 +288,7 @@ extension InboxNotification {
                 : "A new chance to connect over \(sharedInterests.joined(separator: " and "))."
         case .connected: "You both said yes. Find your new connection at the café."
         case .publicConnection: "You both chose to share your profiles. Say hello again."
+        case .message: "Someone wrote to you. Find the chat at the café."
         case .postUpdated: "An event you're attending has been updated. Check your forums for the latest."
         case .postCancelled: "An event you were attending is no longer happening."
         case .postRSVP: "Someone joined your event. Find the details in your forums."
@@ -299,6 +301,7 @@ extension InboxNotification {
         case .encounter: "hand.wave.fill"
         case .connected: "cup.and.saucer.fill"
         case .publicConnection: "person.2.fill"
+        case .message: "bubble.left.fill"
         case .postUpdated: "calendar"
         case .postCancelled: "calendar.badge.minus"
         case .postRSVP: "heart.fill"
@@ -308,7 +311,7 @@ extension InboxNotification {
 
     fileprivate var symbolInk: Color {
         switch kind {
-        case .connected, .postUpdated: MeadowPalette.ink
+        case .connected, .postUpdated, .message: MeadowPalette.ink
         default: MeadowPalette.accentInk
         }
     }
@@ -316,7 +319,7 @@ extension InboxNotification {
     fileprivate var tint: Color {
         switch kind {
         case .encounter, .publicConnection, .unknown: MeadowPalette.accent
-        case .connected, .postUpdated: MeadowPalette.treeLight
+        case .connected, .postUpdated, .message: MeadowPalette.treeLight
         case .postCancelled, .postRSVP: MeadowPalette.flower
         }
     }
@@ -325,6 +328,7 @@ extension InboxNotification {
         switch kind {
         case .encounter: connectionId == nil ? nil : .encounters
         case .connected, .publicConnection: connectionId == nil ? nil : .connections
+        case .message: chatId == nil ? nil : .connections
         case .postUpdated, .postCancelled, .postRSVP: forumId == nil ? nil : .forums
         case .unknown: nil
         }
