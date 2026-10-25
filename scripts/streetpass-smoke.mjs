@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-const address = new URL(process.argv[2] ?? "http://127.0.0.1:8787");
+const address = new URL(process.argv[2] ?? "http://127.0.0.1:8080");
 if (
   !["localhost", "127.0.0.1", "[::1]"].includes(address.hostname) ||
   !["http:", "https:"].includes(address.protocol) ||
@@ -11,248 +11,181 @@ if (
   address.pathname !== "/"
 ) {
   throw new Error(
-    "Use a loopback API base URL. This test creates two local throwaway accounts.",
+    "Use a loopback API base URL. This test signs in as two local seed people.",
   );
 }
 const base = address.origin;
+const seedEmail = (id) => `${id.replace("seed-", "")}@seed.face2face.test`;
+
 function check(condition, message) {
   if (!condition) throw new Error(message);
 }
-async function post(path, value, credential) {
+function request(path, init = {}, credential) {
   return fetch(base + "/api/" + path, {
-    method: "POST",
+    ...init,
     headers: {
       "Content-Type": "application/json",
       Origin: "face2face://",
       ...(credential ? { Authorization: "Bearer " + credential } : {}),
     },
-    body: JSON.stringify(value),
     signal: AbortSignal.timeout(10_000),
   });
+}
+function post(path, value, credential) {
+  return request(
+    path,
+    { method: "POST", body: JSON.stringify(value) },
+    credential,
+  );
 }
 async function json(response, message) {
   check(response.status === 200, message + " (HTTP " + response.status + ")");
   return response.json();
 }
-async function account(name) {
-  const response = await post("auth/sign-up/email", {
-    name,
-    email: randomUUID() + "@streetpass-smoke.test",
-    password: randomUUID() + randomUUID(),
+async function signIn(id, password) {
+  const response = await post("auth/sign-in/email", {
+    email: seedEmail(id),
+    password,
   });
   const credential = response.headers.get("set-auth-token");
-  const payload = await json(response, "Could not create a local test account");
-  check(credential && payload.user?.id, "Missing signed account credential");
-  return { credential, id: payload.user.id };
+  await json(response, `Could not sign in as ${id}`);
+  check(credential, "Missing signed account credential");
+  return { id, credential };
 }
-async function history(client) {
-  const response = await fetch(base + "/api/encounters", {
-    headers: { Authorization: "Bearer " + client.credential },
-    signal: AbortSignal.timeout(10_000),
-  });
-  return (await json(response, "History request failed")).encounters;
+async function pendingChances(client) {
+  const { connections } = await json(
+    await request("connections", {}, client.credential),
+    "Connections request failed",
+  );
+  return connections.filter((row) => row.status === "pending");
+}
+function observe(client, own, peer, observationId = randomUUID()) {
+  return post(
+    "discovery/observe",
+    { sessionId: own.sessionId, peerToken: peer.token, observationId },
+    client.credential,
+  );
+}
+function assertAnonymous(body, names) {
+  for (const value of names) {
+    check(!body.includes(value), `A receipt disclosed ${value}`);
+  }
+}
+
+const { password } = await json(
+  await post("dev/seed", {}),
+  "Seeding failed. Is DEV_TOOLS true?",
+);
+const people = ["seed-ava", "seed-ben"];
+const { connections: rows } = await json(
+  await request("dev/connections"),
+  "Dev connections request failed",
+);
+for (const row of rows) {
+  const pair = [row.userLowId, row.userHighId];
+  if (!people.every((id) => pair.includes(id))) continue;
+  check(
+    row.status === "pending" ||
+      row.status === "expired" ||
+      row.status === "blocked",
+    "Ava and Ben are already connected. Run POST /api/dev/reset first.",
+  );
+  if (row.status === "pending") {
+    await json(
+      await post(`dev/connections/${row.id}/expire`, {}),
+      "Could not expire an earlier chance",
+    );
+  }
 }
 
 const clients = [];
 const leases = [];
 try {
-  const alice = await account("Local smoke Alice");
-  clients.push(alice);
-  const bob = await account("Local smoke Bob");
-  clients.push(bob);
-  const a = await json(
-    await post("discovery/start", {}, alice.credential),
-    "Alice start failed",
-  );
-  leases.push([alice, a]);
-  const b = await json(
-    await post("discovery/start", {}, bob.credential),
-    "Bob start failed",
-  );
-  leases.push([bob, b]);
-  const observationId = randomUUID();
-  const observeA = {
-    sessionId: a.sessionId,
-    peerToken: b.token,
-    observationId,
-  };
-  const oneSided = await json(
-    await post("encounters/observe", observeA, alice.credential),
-    "First observation failed",
-  );
-  check(
-    oneSided.status === "pending" && oneSided.encounter === null,
-    "One-sided identity was disclosed",
-  );
-  check((await history(alice)).length === 0, "Unexpected one-sided history");
+  const ava = await signIn("seed-ava", password);
+  clients.push(ava);
+  const ben = await signIn("seed-ben", password);
+  clients.push(ben);
+  const avaBefore = (await pendingChances(ava)).length;
+  const names = [ava.id, ben.id, "Ava", "Ben"];
 
-  const reciprocal = await json(
-    await post(
-      "encounters/observe",
-      {
-        sessionId: b.sessionId,
-        peerToken: a.token,
-        observationId: randomUUID(),
-      },
-      bob.credential,
-    ),
-    "Reciprocal observation failed",
+  const a = await json(
+    await post("discovery/start", {}, ava.credential),
+    "Ava start failed",
   );
+  leases.push([ava, a]);
+  const b = await json(
+    await post("discovery/start", {}, ben.credential),
+    "Ben start failed",
+  );
+  leases.push([ben, b]);
+
+  const observationId = randomUUID();
+  const oneSided = await observe(ava, a, b, observationId);
+  const oneSidedBody = await oneSided.text();
+  check(oneSided.status === 200, "First observation failed");
+  check(JSON.parse(oneSidedBody).status === "pending", "One-sided match");
+  assertAnonymous(oneSidedBody, names);
   check(
-    reciprocal.status === "recorded",
-    "Reciprocal encounter was not created",
+    (await pendingChances(ava)).length === avaBefore,
+    "A one-sided report opened a chance",
   );
-  const before = await history(alice);
+
+  const reciprocal = await observe(ben, b, a);
+  const reciprocalBody = await reciprocal.text();
+  check(reciprocal.status === 200, "Reciprocal observation failed");
   check(
-    before.length === 1 && before[0].peer.id === bob.id,
-    "Incorrect peer or duplicate encounter",
+    JSON.parse(reciprocalBody).status === "recorded",
+    "Reciprocal reports were not recorded",
   );
+  assertAnonymous(reciprocalBody, names);
+  const avaChances = await pendingChances(ava);
+  const benChances = await pendingChances(ben);
+  check(avaChances.length === avaBefore + 1, "No pending chance for Ava");
+  const chance = avaChances[0];
   check(
-    before[0].source === "client_reported_bluetooth",
-    "Incorrect observation source",
+    benChances.some((row) => row.id === chance.id),
+    "Ben did not get the same chance",
   );
+  check(chance.them === null, "A pending chance named the other person");
+
   const retry = await json(
-    await post("encounters/observe", observeA, alice.credential),
+    await observe(ava, a, b, observationId),
     "Retry failed",
   );
-  check(
-    retry.encounter?.id === before[0].id,
-    "Retry created a different encounter",
-  );
+  check(retry.status === "recorded", "Retry did not see the match");
 
   const rotated = await json(
-    await post(
-      "discovery/rotate",
-      { sessionId: a.sessionId },
-      alice.credential,
-    ),
+    await post("discovery/rotate", { sessionId: a.sessionId }, ava.credential),
     "Rotation failed",
   );
   check(
     rotated.token !== a.token && rotated.sessionId === a.sessionId,
     "Rotation contract mismatch",
   );
-  const afterRotation = await json(
-    await post(
-      "encounters/observe",
-      {
-        sessionId: b.sessionId,
-        peerToken: rotated.token,
-        observationId: randomUUID(),
-      },
-      bob.credential,
-    ),
-    "Rotated-token observation failed",
-  );
+  await json(await observe(ben, b, rotated), "Rotated-token report failed");
   check(
-    afterRotation.encounter?.id === before[0].id,
-    "Rotation duplicated the encounter",
+    (await pendingChances(ava)).length === avaBefore + 1,
+    "Rotation opened a second chance",
   );
 
   await json(
-    await post("discovery/stop", { sessionId: a.sessionId }, alice.credential),
+    await post("discovery/stop", { sessionId: a.sessionId }, ava.credential),
     "Stop failed",
   );
-  const revoked = await post(
-    "encounters/observe",
-    {
-      sessionId: b.sessionId,
-      peerToken: rotated.token,
-      observationId: randomUUID(),
-    },
-    bob.credential,
-  );
+  const revoked = await observe(ben, b, rotated);
   check(revoked.status === 410, "A revoked token was accepted");
 
-  // Rehearse a second walk with the same accounts. The previous encounter remains
-  // in history, but cannot become a fresh reciprocal record after just one report.
-  const previousHistory = await history(alice);
-  check(
-    previousHistory.length === 1,
-    "Stop unexpectedly removed encounter history",
+  const signedOut = await post("auth/sign-out", {}, ben.credential);
+  check(signedOut.status === 200, "Ben sign-out failed");
+  const afterSignOut = await post(
+    "discovery/rotate",
+    { sessionId: b.sessionId },
+    ben.credential,
   );
-  const previous = previousHistory[0];
-  const nextA = await json(
-    await post("discovery/start", {}, alice.credential),
-    "Second Alice start failed",
-  );
-  leases.push([alice, nextA]);
-  const nextB = await json(
-    await post("discovery/start", {}, bob.credential),
-    "Second Bob start failed",
-  );
-  leases.push([bob, nextB]);
-  check(
-    nextA.sessionId !== a.sessionId && nextB.sessionId !== b.sessionId,
-    "Restart reused a previous discovery session",
-  );
-  const secondObservation = {
-    sessionId: nextA.sessionId,
-    peerToken: nextB.token,
-    observationId: randomUUID(),
-  };
-  const oldReceipt = await json(
-    await post("encounters/observe", secondObservation, alice.credential),
-    "Second-walk first observation failed",
-  );
-  check(
-    oldReceipt.encounter?.id === previous.id &&
-      oldReceipt.encounter.lastSeenAt === previous.lastSeenAt,
-    "One-sided restart changed the old encounter",
-  );
-  const stillOld = await history(alice);
-  check(
-    stillOld.length === 1 && stillOld[0].lastSeenAt === previous.lastSeenAt,
-    "Old reciprocal reports authorized a fresh second-walk encounter",
-  );
-  await json(
-    await post(
-      "encounters/observe",
-      {
-        sessionId: nextB.sessionId,
-        peerToken: nextA.token,
-        observationId: randomUUID(),
-      },
-      bob.credential,
-    ),
-    "Second-walk reciprocal observation failed",
-  );
-  const updated = await history(alice);
-  check(
-    updated.length === 1 &&
-      updated[0].id === previous.id &&
-      updated[0].lastSeenAt > previous.lastSeenAt &&
-      updated[0].lastSeenAt >= Math.max(nextA.serverTime, nextB.serverTime),
-    "Second walk did not refresh the existing pair after new reciprocal reports",
-  );
-  const duplicate = await json(
-    await post("encounters/observe", secondObservation, alice.credential),
-    "Second-walk retry failed",
-  );
-  check(
-    duplicate.encounter?.lastSeenAt === updated[0].lastSeenAt,
-    "Retry advanced the encounter timestamp",
-  );
-  const signedOut = await post("auth/sign-out", {}, alice.credential);
-  check(signedOut.status === 200, "Alice sign-out failed");
-  const signedOutToken = await post(
-    "encounters/observe",
-    {
-      sessionId: nextB.sessionId,
-      peerToken: nextA.token,
-      observationId: randomUUID(),
-    },
-    bob.credential,
-  );
-  check(
-    signedOutToken.status === 410,
-    "Sign-out left a discovery token active",
-  );
+  check(afterSignOut.status === 401, "A signed-out credential still worked");
+
   console.log(
-    "PASS: real HTTP auth, one-sided privacy, reciprocity, retry, rotation, and revocation.",
-  );
-  console.log(
-    "PASS: second-walk history baseline, fresh reciprocity, stable retry timestamps, and sign-out revocation.",
+    "PASS: real HTTP auth, anonymous receipts, one pending chance per reciprocal pair, retry, rotation, and revocation.",
   );
   console.log(
     "These were synthetic API reports. No Bluetooth or physical proximity was tested.",
