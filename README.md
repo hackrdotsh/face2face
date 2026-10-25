@@ -1,5 +1,7 @@
 # face2face
 
+## THERE IS ANOTHER GIT REPO AT https://github.com/hackrdotsh/face2face IN CASE GIT FORGE THIS DOESN'T WORK, LOOK AT GITHUB THANKS <3
+
 An iPhone app for meeting people with shared interests as you pass them in real life.
 The current build has sign-in with an emailed code, a verified password, or a
 passkey, password reset, and profile onboarding. The login screen uses the animated
