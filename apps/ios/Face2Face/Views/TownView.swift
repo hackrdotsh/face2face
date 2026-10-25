@@ -9,6 +9,7 @@ struct TownView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var destination: TownDestination?
     @State private var showingAccount = false
+    @State private var showingNotifications = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,7 +32,9 @@ struct TownView: View {
                     }.padding(.horizontal, 20)
                 }
             } else {
-                TownScene(isMoving: destination == nil && !showingAccount) { place in destination = place }
+                TownScene(isMoving: destination == nil && !showingAccount && !showingNotifications) { place in
+                    destination = place
+                }
             }
         }
         .background(MeadowPalette.grass.ignoresSafeArea())
@@ -69,8 +72,14 @@ struct TownView: View {
                     }
             }
         }
+        .fullScreenCover(isPresented: $showingNotifications) {
+            NotificationsView(session: session)
+        }
         #if DEBUG
             .onAppear {
+                if ProcessInfo.processInfo.arguments.contains("-town-notifications") {
+                    showingNotifications = true
+                }
                 if let index = ProcessInfo.processInfo.arguments.firstIndex(of: "-town-destination"),
                     ProcessInfo.processInfo.arguments.indices.contains(index + 1)
                 {
@@ -81,7 +90,7 @@ struct TownView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 16) {
+        HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("FACE2FACE")
                     .font(.system(size: 10, weight: .heavy, design: .rounded))
@@ -89,9 +98,23 @@ struct TownView: View {
                     .foregroundStyle(MeadowPalette.secondaryInk)
                 Text("Your little town")
                     .font(.system(.title, design: .rounded, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .accessibilityAddTraits(.isHeader)
             }
             Spacer(minLength: 0)
+            Button {
+                showingNotifications = true
+            } label: {
+                Image(systemName: "bell")
+                    .font(.system(size: 19, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .background(MeadowPalette.paper.opacity(0.85), in: Circle())
+                    .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
+            }
+            .buttonStyle(MeadowPressStyle())
+            .accessibilityLabel("Notifications")
+            .accessibilityIdentifier("townNotifications")
             Button {
                 showingAccount = true
             } label: {
