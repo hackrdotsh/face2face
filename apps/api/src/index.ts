@@ -63,6 +63,12 @@ app.use("/api/*", (context, next) =>
 app.get("/health", (context) =>
   context.json({ status: "ok", service: "face2face-api" }),
 );
+// Lets the iOS app use passkeys for this domain.
+app.get("/.well-known/apple-app-site-association", (context) =>
+  context.json({
+    webcredentials: { apps: ["GFQG7YBAYY.systems.rocky.face2face"] },
+  }),
+);
 app.on(["GET", "POST"], "/api/auth/*", (context) =>
   createAuth(context.env, context.executionCtx).handler(context.req.raw),
 );
