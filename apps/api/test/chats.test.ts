@@ -1,6 +1,6 @@
 import { runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { messagePreview } from "../src/chats/chat-room";
 import type { PushAlert } from "../src/notifications/apns";
 import { photoWithExif } from "./fixtures/photo-with-exif";
@@ -17,6 +17,8 @@ const ben = "seed-ben";
 const noor = "seed-noor";
 
 type Headers = Record<string, string>;
+const testRooms = new Set<string>();
+const testSockets = new Set<TestSocket>();
 
 interface Variant {
   path: string;
@@ -59,6 +61,19 @@ beforeEach(async () => {
   await postJSON("/api/dev/seed", {});
 });
 
+afterEach(async () => {
+  // Durable notice alarms outlive a socket. Finish each room before the next
+  // test installs a new recipient push recorder.
+  for (const id of testRooms) {
+    await runInDurableObject(env.CHAT_ROOMS.getByName(id), (room) =>
+      room.close(),
+    );
+  }
+  for (const socket of testSockets) socket.close();
+  testRooms.clear();
+  testSockets.clear();
+});
+
 async function signInAs(userId: string): Promise<Headers> {
   const response = await postJSON("/api/auth/sign-in/email", {
     email: `${userId.replace("seed-", "")}@seed.face2face.test`,
@@ -73,11 +88,12 @@ async function encounter(firstUserId: string, secondUserId: string) {
     secondUserId,
   });
   const body = await response.json<{ connection: { id: string } }>();
+  testRooms.add(body.connection.id);
   return body.connection.id;
 }
 
 /** Two people who met and both accepted, with a chat between them. */
-async function connectedPair() {
+async function connectedPair(status: "private" | "public" = "private") {
   const [avaHeaders, benHeaders] = await Promise.all([
     signInAs(ava),
     signInAs(ben),
@@ -91,6 +107,14 @@ async function connectedPair() {
     );
     expect(response.status).toBe(200);
   }
+  if (status === "public") {
+    for (const headers of [avaHeaders, benHeaders]) {
+      expect(
+        (await postJSON(`/api/connections/${chatId}/public`, {}, headers))
+          .status,
+      ).toBe(200);
+    }
+  }
   return { chatId, avaHeaders, benHeaders };
 }
 
@@ -99,6 +123,7 @@ class TestSocket {
   closeCode: number | null = null;
 
   constructor(private readonly socket: WebSocket) {
+    testSockets.add(this);
     socket.addEventListener("message", (event) => {
       this.frames.push(JSON.parse(String(event.data)) as Frame);
     });
@@ -512,6 +537,16 @@ describe("message notifications", () => {
     return (await socket.waitFor("ack", acks + 1)).message as ChatMessage;
   }
 
+  async function fireNotices(chatId: string) {
+    await runInDurableObject(
+      env.CHAT_ROOMS.getByName(chatId),
+      async (room, state) => {
+        state.storage.sql.exec("UPDATE message_notice SET due_at = 0");
+        await room.alarm();
+      },
+    );
+  }
+
   it("leaves one card per chat and pushes a preview when the chat is closed", async () => {
     const { chatId, avaHeaders, benHeaders } = await connectedPair();
     await postJSON("/api/notifications/seen", {}, benHeaders);
@@ -550,6 +585,12 @@ describe("message notifications", () => {
 
     await send(avaSocket, "m1", "Hi there");
     await benSocket.waitFor("message");
+    const message = avaSocket.ofType("ack")[0]?.message;
+    benSocket.send({ type: "read", messageId: message?.id });
+    await expect
+      .poll(async () => (await listChats(benHeaders))[0]?.unreadCount)
+      .toBe(0);
+    await fireNotices(chatId);
     expect(alerts).toEqual([]);
     expect(
       (await inbox(benHeaders)).notifications.some((n) => n.kind === "message"),
@@ -582,6 +623,198 @@ describe("message notifications", () => {
       .toBe(false);
     benSocket.close();
     avaSocket.close();
+  });
+
+  it.each(["private", "public"] as const)(
+    "notifies an unread %s message after the recipient disconnects",
+    async (status) => {
+      const { chatId, avaHeaders, benHeaders } = await connectedPair(status);
+      const alerts = await freshCoordinator(ben);
+      const benSocket = await openChatSocket(benHeaders, chatId);
+      const avaSocket = await openChatSocket(avaHeaders, chatId);
+      await send(avaSocket, "unread-before-close", "Don't lose this hello");
+      await benSocket.waitFor("message");
+      expect(alerts).toEqual([]);
+      benSocket.close();
+      await expect.poll(() => alerts.length, { timeout: 3000 }).toBe(1);
+      expect(alerts[0]).toMatchObject({ data: { kind: "message", chatId } });
+      avaSocket.close();
+    },
+  );
+
+  it("keeps the notice for a newer unread message when an older message is read", async () => {
+    const { chatId, avaHeaders, benHeaders } = await connectedPair("public");
+    const alerts = await freshCoordinator(ben);
+    const avaSocket = await openChatSocket(avaHeaders, chatId);
+    const first = await send(avaSocket, "first-unread", "First");
+    await send(avaSocket, "second-unread", "Second");
+    await expect.poll(() => alerts.length).toBe(2);
+    const benSocket = await openChatSocket(benHeaders, chatId);
+    benSocket.send({ type: "read", messageId: first.id });
+    await expect
+      .poll(async () => (await listChats(benHeaders))[0]?.unreadCount)
+      .toBe(1);
+    expect(
+      (await inbox(benHeaders)).notifications.some((n) => n.kind === "message"),
+    ).toBe(true);
+    benSocket.close();
+    avaSocket.close();
+  });
+
+  it.each(["private", "public"] as const)(
+    "does not treat a connected but non-reading %s recipient as read",
+    async (status) => {
+      const { chatId, avaHeaders, benHeaders } = await connectedPair(status);
+      const alerts = await freshCoordinator(ben);
+      const benSocket = await openChatSocket(benHeaders, chatId);
+      const avaSocket = await openChatSocket(avaHeaders, chatId);
+      await send(avaSocket, "unread-open-socket", "Still unread");
+      await benSocket.waitFor("message");
+      expect(alerts).toEqual([]);
+      await fireNotices(chatId);
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]?.body).toBe("Still unread");
+    },
+  );
+
+  it("pushes a public message even when the recipient has the notification socket open", async () => {
+    const { chatId, avaHeaders, benHeaders } = await connectedPair("public");
+    const alerts = await freshCoordinator(ben);
+    const notices = await openNotificationSocket(benHeaders);
+    const avaSocket = await openChatSocket(avaHeaders, chatId);
+    await send(avaSocket, "public-offline", "A public friend's message");
+    await notices.waitFor("chat_activity");
+    await expect.poll(() => alerts.length).toBe(1);
+    expect(alerts[0]).toMatchObject({
+      title: "New message",
+      data: { chatId, kind: "message" },
+    });
+    expect(JSON.stringify(alerts)).not.toMatch(/seed-|\bAva\b|\bBen\b/);
+  });
+
+  it("does not resurrect a read notice when the same delivery is retried", async () => {
+    const { chatId, avaHeaders, benHeaders } = await connectedPair("public");
+    const alerts = await freshCoordinator(ben);
+    const avaSocket = await openChatSocket(avaHeaders, chatId);
+    const message = await send(avaSocket, "retry-notice", "Only once");
+    await expect.poll(() => alerts.length).toBe(1);
+    const benSocket = await openChatSocket(benHeaders, chatId);
+    benSocket.send({ type: "read", messageId: message.id });
+    await expect
+      .poll(async () => (await listChats(benHeaders))[0]?.unreadCount)
+      .toBe(0);
+    await runInDurableObject(
+      env.USER_COORDINATORS.getByName(ben),
+      async (coordinator) => {
+        await coordinator.notifyMessage(chatId, "Only once", 1);
+      },
+    );
+    expect(alerts).toHaveLength(1);
+    expect(
+      (await inbox(benHeaders)).notifications.some((n) => n.kind === "message"),
+    ).toBe(false);
+  });
+
+  it("cancels queued notices when the connection is blocked", async () => {
+    const { chatId, avaHeaders, benHeaders } = await connectedPair("public");
+    const alerts = await freshCoordinator(ben);
+    const benSocket = await openChatSocket(benHeaders, chatId);
+    const avaSocket = await openChatSocket(avaHeaders, chatId);
+    await send(avaSocket, "blocked-notice", "Queued before block");
+    await benSocket.waitFor("message");
+    await postJSON(`/api/connections/${chatId}/block`, {}, avaHeaders);
+    await fireNotices(chatId);
+    expect(alerts).toEqual([]);
+  });
+
+  it("does not let a delayed older read acknowledgement erase a newer notice", async () => {
+    await freshCoordinator(ben);
+    await runInDurableObject(
+      env.USER_COORDINATORS.getByName(ben),
+      async (coordinator) => {
+        const chatId = crypto.randomUUID();
+        await coordinator.notifyMessage(chatId, "Newer unread", 2);
+        await coordinator.dismissChat(chatId, 1);
+        expect((await coordinator.inbox()).notifications).toEqual([
+          expect.objectContaining({ kind: "message", chatId }),
+        ]);
+        await coordinator.dismissChat(chatId, 2);
+        expect((await coordinator.inbox()).notifications).toEqual([]);
+      },
+    );
+  });
+
+  it("does not let a broken notification socket skip healthy sockets or APNs", async () => {
+    const alerts = await freshCoordinator(ben);
+    const frames: string[] = [];
+    await runInDurableObject(
+      env.USER_COORDINATORS.getByName(ben),
+      async (coordinator, state) => {
+        const original = state.getWebSockets.bind(state);
+        state.getWebSockets = () =>
+          [
+            {
+              send() {
+                throw new Error("Disconnected");
+              },
+              close() {
+                throw new Error("Already closed");
+              },
+            },
+            {
+              send(message: string) {
+                frames.push(message);
+              },
+            },
+          ] as unknown as WebSocket[];
+        try {
+          const chatId = crypto.randomUUID();
+          await coordinator.announceChatActivity({
+            chatId,
+            messageId: "message",
+            createdAt: new Date().toISOString(),
+          });
+          await coordinator.notifyMessage(
+            chatId,
+            "Socket failure must not hide this",
+            1,
+          );
+        } finally {
+          state.getWebSockets = original;
+        }
+      },
+    );
+    expect(frames.map((frame) => JSON.parse(frame).type)).toEqual([
+      "chat_activity",
+      "notification",
+    ]);
+    expect(alerts).toHaveLength(1);
+  });
+
+  it("does not let a failed sender acknowledgement prevent the recipient notification", async () => {
+    const { chatId, avaHeaders, benHeaders } = await connectedPair("public");
+    const alerts = await freshCoordinator(ben);
+    await openChatSocket(avaHeaders, chatId);
+    await runInDurableObject(
+      env.CHAT_ROOMS.getByName(chatId),
+      async (room, state) => {
+        const sender = state.getWebSockets("low")[0];
+        if (!sender) throw new Error("Missing sender");
+        sender.send = () => {
+          throw new Error("Disconnected before ack");
+        };
+        await room.webSocketMessage(
+          sender,
+          JSON.stringify({
+            type: "send",
+            clientId: "lost-ack",
+            text: "Persisted hello",
+          }),
+        );
+      },
+    );
+    await expect.poll(() => alerts.length).toBe(1);
+    expect((await listMessages(benHeaders, chatId)).messages).toHaveLength(1);
   });
 
   it("previews the first line, shortens long text, and names photos", () => {

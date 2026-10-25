@@ -57,6 +57,10 @@ export class UserCoordinator extends DurableObject<Env> {
         key TEXT PRIMARY KEY,
         value INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS message_delivery (
+        chat_id TEXT PRIMARY KEY,
+        last_seq INTEGER NOT NULL
+      );
     `);
   }
 
@@ -75,17 +79,56 @@ export class UserCoordinator extends DurableObject<Env> {
    * Keeps one card for each chat, so a newer message replaces the earlier one.
    * The preview goes only to the push, never into the inbox.
    */
-  async notifyMessage(chatId: string, preview: string): Promise<Notification> {
-    this.deleteChatNotices(chatId);
-    return this.record(
-      { kind: "message", chatId },
-      { title: "New message", body: preview, group: chatId },
-    );
+  async notifyMessage(
+    chatId: string,
+    preview: string,
+    seq?: number,
+  ): Promise<Notification | null> {
+    const notification = this.ctx.storage.transactionSync(() => {
+      // Older room instances may omit seq during a rolling deployment.
+      if (seq !== undefined) {
+        const previous = this.ctx.storage.sql
+          .exec<{ last_seq: number }>(
+            "SELECT last_seq FROM message_delivery WHERE chat_id = ?",
+            chatId,
+          )
+          .toArray()[0];
+        if (previous && previous.last_seq >= seq) return null;
+        this.ctx.storage.sql.exec(
+          "INSERT INTO message_delivery (chat_id, last_seq) VALUES (?, ?) ON CONFLICT (chat_id) DO UPDATE SET last_seq = excluded.last_seq",
+          chatId,
+          seq,
+        );
+      }
+      this.deleteChatNotices(chatId);
+      return this.save({ kind: "message", chatId });
+    });
+    if (!notification) return null;
+    return this.announce(notification, {
+      title: "New message",
+      body: preview,
+      group: chatId,
+    });
   }
 
   /** Removes a chat's card once its messages are read. */
-  async dismissChat(chatId: string): Promise<{ unreadCount: number }> {
-    this.deleteChatNotices(chatId);
+  async dismissChat(
+    chatId: string,
+    throughSeq?: number,
+  ): Promise<{ unreadCount: number }> {
+    const delivered = this.ctx.storage.sql
+      .exec<{ last_seq: number }>(
+        "SELECT last_seq FROM message_delivery WHERE chat_id = ?",
+        chatId,
+      )
+      .toArray()[0];
+    if (
+      throughSeq === undefined ||
+      !delivered ||
+      delivered.last_seq <= throughSeq
+    ) {
+      this.deleteChatNotices(chatId);
+    }
     return { unreadCount: this.unreadCount() };
   }
 
@@ -93,6 +136,10 @@ export class UserCoordinator extends DurableObject<Env> {
     event: NotificationEvent,
     push: PushText | null,
   ): Promise<Notification> {
+    return this.announce(this.save(event), push);
+  }
+
+  private save(event: NotificationEvent): Notification {
     const notification: Notification = {
       ...event,
       id: crypto.randomUUID(),
@@ -108,13 +155,20 @@ export class UserCoordinator extends DurableObject<Env> {
       "DELETE FROM notification WHERE id NOT IN (SELECT id FROM notification ORDER BY created_at DESC LIMIT ?)",
       inboxRetained,
     );
+    return notification;
+  }
+
+  private async announce(
+    notification: Notification,
+    push: PushText | null,
+  ): Promise<Notification> {
     const unreadCount = this.unreadCount();
     const message = JSON.stringify({
       type: "notification",
       notification,
       unreadCount,
     });
-    for (const socket of this.ctx.getWebSockets()) socket.send(message);
+    this.broadcast(message);
     if (push) await this.push(notification, unreadCount, push);
     return notification;
   }
@@ -122,7 +176,33 @@ export class UserCoordinator extends DurableObject<Env> {
   /** Pushes a live chat update to open sockets. Not kept in the inbox. */
   async announceChatActivity(activity: ChatActivity) {
     const message = JSON.stringify({ type: "chat_activity", activity });
-    for (const socket of this.ctx.getWebSockets()) socket.send(message);
+    this.broadcast(message);
+  }
+
+  private broadcast(message: string) {
+    for (const socket of this.ctx.getWebSockets()) {
+      try {
+        socket.send(message);
+      } catch {
+        try {
+          socket.close(1011, "delivery_failed");
+        } catch {
+          /* Already disconnected. */
+        }
+      }
+    }
+  }
+
+  async pushStatus() {
+    const devices = this.ctx.storage.sql
+      .exec<{ count: number }>("SELECT COUNT(*) AS count FROM push_device")
+      .one();
+    const topic = this.env.APPLE_APP_ID.split(".").slice(1).join(".") || null;
+    return {
+      providerConfigured: this.pushSender !== null,
+      registeredDeviceCount: devices.count,
+      topic,
+    };
   }
 
   async listNotifications(): Promise<Notification[]> {
@@ -280,7 +360,10 @@ export class UserCoordinator extends DurableObject<Env> {
           }
         } catch (error) {
           console.warn(
-            JSON.stringify({ event: "apns_error", message: String(error) }),
+            JSON.stringify({
+              event: "apns_error",
+              name: error instanceof Error ? error.name : "unknown",
+            }),
           );
         }
       }),

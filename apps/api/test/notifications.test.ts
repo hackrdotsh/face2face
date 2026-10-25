@@ -173,6 +173,32 @@ describe("dismissing notifications", () => {
 });
 
 describe("push devices", () => {
+  it("reports setup only for the signed-in person's devices, without tokens or provider secrets", async () => {
+    expect((await callAPI("/api/notifications/push-status")).status).toBe(401);
+    const headers = await signInAs(ava);
+    await registerDevice(await signInAs(ben), staleToken, "production");
+    const before = await callAPI(
+      `/api/notifications/push-status?userId=${ben}`,
+      { headers },
+    );
+    expect(await before.json()).toMatchObject({
+      providerConfigured: false,
+      registeredDeviceCount: 0,
+    });
+    await registerDevice(headers, avaToken, "sandbox");
+    await capturePushes(ava);
+    const response = await callAPI("/api/notifications/push-status", {
+      headers,
+    });
+    const text = await response.text();
+    expect(JSON.parse(text)).toMatchObject({
+      providerConfigured: true,
+      registeredDeviceCount: 1,
+    });
+    expect(text).not.toContain(avaToken);
+    expect(text).not.toContain(staleToken);
+    expect(text).not.toMatch(/privateKey|APNS_PRIVATE_KEY/);
+  });
   it("sends a new pending connection to registered phones", async () => {
     const headers = await signInAs(ava);
     expect((await registerDevice(headers, avaToken, "sandbox")).status).toBe(

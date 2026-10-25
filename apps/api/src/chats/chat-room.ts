@@ -22,6 +22,8 @@ export const defaultPageSize = 50;
 export const maxPageSize = 100;
 const chatClosedCode = 4000;
 const reservedCloseCodes = new Set([1005, 1006, 1015]);
+const messageReadGraceMs = 2000;
+const noticeRetryMs = 5000;
 
 interface SocketState {
   side: ConnectionSide;
@@ -78,6 +80,11 @@ export class ChatRoom extends DurableObject<Env> {
         image_id TEXT REFERENCES image(id),
         created_at INTEGER NOT NULL,
         UNIQUE (sender_side, client_id)
+      );
+      CREATE TABLE IF NOT EXISTS message_notice (
+        side TEXT PRIMARY KEY,
+        message_seq INTEGER NOT NULL,
+        due_at INTEGER NOT NULL
       );
     `);
   }
@@ -152,9 +159,15 @@ export class ChatRoom extends DurableObject<Env> {
       "UPDATE room SET closed_at = COALESCE(closed_at, ?)",
       Date.now(),
     );
+    this.ctx.storage.sql.exec("DELETE FROM message_notice");
+    await this.ctx.storage.deleteAlarm();
+    await Promise.all([
+      this.dismissNotices("low"),
+      this.dismissNotices("high"),
+    ]);
     for (const socket of this.ctx.getWebSockets()) {
       sendFrame(socket, { type: "closed" });
-      socket.close(chatClosedCode, "chat_closed");
+      closeSocket(socket, chatClosedCode, "chat_closed");
     }
   }
 
@@ -199,9 +212,27 @@ export class ChatRoom extends DurableObject<Env> {
   }
 
   async webSocketClose(socket: WebSocket, code: number) {
-    socket.close(reservedCloseCodes.has(code) ? 1000 : code);
+    closeSocket(socket, reservedCloseCodes.has(code) ? 1000 : code);
     const state = socketState(socket);
     if (state.isTyping) this.announceTypingStopped(state.side, socket);
+    if (
+      !this.ctx
+        .getWebSockets(state.side)
+        .some(
+          (other) => other !== socket && other.readyState === WebSocket.OPEN,
+        )
+    ) {
+      this.ctx.storage.sql.exec(
+        "UPDATE message_notice SET due_at = MIN(due_at, ?) WHERE side = ?",
+        Date.now(),
+        state.side,
+      );
+      await this.deliverDueNotices();
+    }
+  }
+
+  async alarm() {
+    await this.deliverDueNotices();
   }
 
   private async handleSend(
@@ -216,6 +247,14 @@ export class ChatRoom extends DurableObject<Env> {
       return fail("image_not_found");
     }
     const { row, isNew } = this.insertMessage(state.side, frame);
+    // Persist a fallback before awaiting transport work; a stale socket must not
+    // make an unread message disappear when this object hibernates.
+    if (isNew)
+      await this.queueNotice(
+        otherSide(state.side),
+        row.seq,
+        messageReadGraceMs,
+      );
     const viewForSender = await this.viewMessage(row, state.side);
     sendFrame(socket, {
       type: "ack",
@@ -307,8 +346,8 @@ export class ChatRoom extends DurableObject<Env> {
 
   /**
    * Tells the recipient's other screens that the chat changed. When the
-   * recipient does not have this chat open, it also leaves an inbox card and
-   * sends a push with a short preview that never names the sender.
+   * recipient has no socket, notify immediately. Otherwise the durable notice
+   * alarm allows a short read-ack grace period, never unlimited socket suppression.
    */
   private async announceActivity(recipient: ConnectionSide, row: MessageRow) {
     const userId = this.memberUserId(recipient);
@@ -321,9 +360,6 @@ export class ChatRoom extends DurableObject<Env> {
         messageId: row.id,
         createdAt: new Date(row.created_at).toISOString(),
       });
-      if (this.ctx.getWebSockets(recipient).length === 0) {
-        await coordinator.notifyMessage(connectionId, messagePreview(row));
-      }
     } catch (error) {
       console.error(
         JSON.stringify({
@@ -332,15 +368,136 @@ export class ChatRoom extends DurableObject<Env> {
         }),
       );
     }
+    if (
+      !this.ctx
+        .getWebSockets(recipient)
+        .some((socket) => socket.readyState === WebSocket.OPEN)
+    ) {
+      this.ctx.storage.sql.exec(
+        "DELETE FROM message_notice WHERE side = ? AND message_seq <= ?",
+        recipient,
+        row.seq,
+      );
+      await this.deliverNotice(recipient, row);
+      await this.scheduleNotices();
+    }
+  }
+
+  private isUnread(side: ConnectionSide, seq: number): boolean {
+    const read = this.readPosition(side);
+    return !this.isClosed() && read !== null && read < seq;
+  }
+
+  private readPosition(side: ConnectionSide): number | null {
+    const member = this.ctx.storage.sql
+      .exec<{ last_read_seq: number }>(
+        "SELECT last_read_seq FROM member WHERE side = ?",
+        side,
+      )
+      .toArray()[0];
+    return member?.last_read_seq ?? null;
+  }
+
+  private hasUnread(side: ConnectionSide): boolean {
+    return (
+      this.ctx.storage.sql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM message WHERE sender_side <> ? AND seq > (SELECT last_read_seq FROM member WHERE side = ?)",
+          side,
+          side,
+        )
+        .one().count > 0
+    );
+  }
+
+  private async queueNotice(side: ConnectionSide, seq: number, delay: number) {
+    this.ctx.storage.sql.exec(
+      `INSERT INTO message_notice (side, message_seq, due_at) VALUES (?, ?, ?)
+       ON CONFLICT (side) DO UPDATE SET message_seq = MAX(message_seq, excluded.message_seq), due_at = MIN(due_at, excluded.due_at)`,
+      side,
+      seq,
+      Date.now() + delay,
+    );
+    await this.scheduleNotices();
+  }
+
+  private async scheduleNotices() {
+    const { due } = this.ctx.storage.sql
+      .exec<{ due: number | null }>(
+        "SELECT MIN(due_at) AS due FROM message_notice",
+      )
+      .one();
+    if (due === null) await this.ctx.storage.deleteAlarm();
+    else await this.ctx.storage.setAlarm(due);
+  }
+
+  private async deliverDueNotices() {
+    const due = this.ctx.storage.sql
+      .exec<{ side: ConnectionSide; message_seq: number }>(
+        "SELECT side, message_seq FROM message_notice WHERE due_at <= ?",
+        Date.now(),
+      )
+      .toArray();
+    for (const notice of due) {
+      const claimed = this.ctx.storage.sql.exec(
+        "DELETE FROM message_notice WHERE side = ? AND message_seq = ?",
+        notice.side,
+        notice.message_seq,
+      );
+      if (claimed.rowsWritten === 0) continue;
+      const row = this.ctx.storage.sql
+        .exec<MessageRow>(
+          `${selectMessages} WHERE message.seq = ?`,
+          notice.message_seq,
+        )
+        .toArray()[0];
+      if (row) await this.deliverNotice(notice.side, row);
+    }
+    await this.scheduleNotices();
+  }
+
+  private async deliverNotice(side: ConnectionSide, row: MessageRow) {
+    if (!this.isUnread(side, row.seq)) return;
+    const userId = this.memberUserId(side);
+    const connectionId = this.connectionId();
+    if (!userId || !connectionId) return;
+    try {
+      await this.env.USER_COORDINATORS.getByName(userId).notifyMessage(
+        connectionId,
+        messagePreview(row),
+        row.seq,
+      );
+      // A read can race an RPC. Do not leave a late card for a fully read/closed chat.
+      if (this.isClosed() || !this.hasUnread(side))
+        await this.dismissNotices(side);
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: "chat_notice_failed",
+          name: error instanceof Error ? error.name : "unknown",
+        }),
+      );
+      if (this.isUnread(side, row.seq))
+        await this.queueNotice(side, row.seq, noticeRetryMs);
+    }
   }
 
   private async dismissNotices(side: ConnectionSide) {
+    const closed = this.isClosed();
+    if (!closed && this.hasUnread(side)) return;
+    const throughSeq = closed ? undefined : (this.readPosition(side) ?? 0);
+    this.ctx.storage.sql.exec(
+      "DELETE FROM message_notice WHERE side = ?",
+      side,
+    );
+    await this.scheduleNotices();
     const userId = this.memberUserId(side);
     const connectionId = this.connectionId();
     if (!userId || !connectionId) return;
     try {
       await this.env.USER_COORDINATORS.getByName(userId).dismissChat(
         connectionId,
+        throughSeq,
       );
     } catch (error) {
       console.error(
@@ -497,7 +654,19 @@ function socketState(socket: WebSocket): SocketState {
 }
 
 function sendFrame(socket: WebSocket, frame: ServerFrame) {
-  socket.send(JSON.stringify(frame));
+  try {
+    socket.send(JSON.stringify(frame));
+  } catch {
+    closeSocket(socket, 1011, "delivery_failed");
+  }
+}
+
+function closeSocket(socket: WebSocket, code: number, reason?: string) {
+  try {
+    socket.close(code, reason);
+  } catch {
+    /* Already disconnected. */
+  }
 }
 
 function parseJSON(message: string | ArrayBuffer): unknown {

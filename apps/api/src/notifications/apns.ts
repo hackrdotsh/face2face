@@ -93,13 +93,13 @@ class ApnsSender implements PushSender {
     });
     if (response.ok) return "sent";
     const reason = await readReason(response);
+    console.warn(
+      JSON.stringify({ event: "apns_failed", status: response.status, reason }),
+    );
     if (response.status === 410 || unregisteredReasons.has(reason)) {
       return "unregistered";
     }
     if (reason === "ExpiredProviderToken") this.providerToken = null;
-    console.warn(
-      JSON.stringify({ event: "apns_failed", status: response.status, reason }),
-    );
     return "failed";
   }
 

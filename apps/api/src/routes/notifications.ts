@@ -21,6 +21,13 @@ const deviceToken = z
 const deviceBody = z.object({ environment: z.enum(["sandbox", "production"]) });
 
 export const notificationRoutes = new Hono<AppEnv>()
+  .get("/push-status", requireSession, requireOnboarded, async (context) =>
+    context.json(
+      await context.env.USER_COORDINATORS.getByName(
+        context.var.user.id,
+      ).pushStatus(),
+    ),
+  )
   .get("/", requireSession, requireOnboarded, async (context) =>
     context.json(
       await context.env.USER_COORDINATORS.getByName(
