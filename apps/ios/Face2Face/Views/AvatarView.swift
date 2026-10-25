@@ -42,7 +42,7 @@ struct BlobAvatarView: View {
     }
 
     private func draw(in context: inout GraphicsContext, side: CGFloat, pose: BlobIdleMotion.Pose?) {
-        let shape = pose.map { blob.outline(breath: $0.breath) } ?? (blob.start, blob.curves)
+        let shape = pose.map { blob.outline(breath: $0.breath) } ?? (start: blob.start, curves: blob.curves)
         let point = { (point: BlobAvatar.Point) in CGPoint(x: point.x * side, y: point.y * side) }
         var outline = Path()
         outline.move(to: point(shape.start))
