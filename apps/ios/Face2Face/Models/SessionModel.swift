@@ -13,7 +13,7 @@ final class SessionModel {
 
     private static var defaultAddress: String {
         #if DEBUG
-            "http://localhost:8080"
+            "https://f2f.rocky.systems"
         #else
             ""
         #endif
