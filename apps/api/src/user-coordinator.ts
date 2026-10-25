@@ -1,12 +1,19 @@
 import { DurableObject } from "cloudflare:workers";
 import type { ChatActivity } from "./chats/chat-types";
-import type {
-  Notification,
-  NotificationEvent,
+import {
+  apnsSender,
+  type PushEnvironment,
+  type PushSender,
+} from "./notifications/apns";
+import {
+  type Notification,
+  type NotificationEvent,
+  pushTextFor,
 } from "./notifications/notification";
 
 const inboxPageSize = 50;
 const inboxRetained = 200;
+const devicesRetained = 10;
 const reservedCloseCodes = new Set([1005, 1006, 1015]);
 
 interface NotificationRow extends Record<string, SqlStorageValue> {
@@ -15,20 +22,38 @@ interface NotificationRow extends Record<string, SqlStorageValue> {
   created_at: number;
 }
 
+interface DeviceRow extends Record<string, SqlStorageValue> {
+  token: string;
+  environment: PushEnvironment;
+}
+
 /**
- * One per person. Keeps their notification inbox and pushes new notifications
- * to their open sockets. The inbox is the record; a socket only delivers live
- * updates while a client is in the foreground.
+ * One per person. Keeps their notification inbox, pushes new notifications to
+ * their open sockets, and sends connection events to their phones through
+ * APNs. The inbox is the record; a socket or a push only announces it.
  */
 export class UserCoordinator extends DurableObject<Env> {
+  /** Null while the APNs secrets are not set. Tests replace it. */
+  pushSender: PushSender | null;
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    this.pushSender = apnsSender(env);
     ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS notification (
         id TEXT PRIMARY KEY,
         event TEXT NOT NULL,
         created_at INTEGER NOT NULL
-      )
+      );
+      CREATE TABLE IF NOT EXISTS push_device (
+        token TEXT PRIMARY KEY,
+        environment TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS inbox_state (
+        key TEXT PRIMARY KEY,
+        value INTEGER NOT NULL
+      );
     `);
   }
 
@@ -55,8 +80,14 @@ export class UserCoordinator extends DurableObject<Env> {
       "DELETE FROM notification WHERE id NOT IN (SELECT id FROM notification ORDER BY created_at DESC LIMIT ?)",
       inboxRetained,
     );
-    const message = JSON.stringify({ type: "notification", notification });
+    const unreadCount = this.unreadCount();
+    const message = JSON.stringify({
+      type: "notification",
+      notification,
+      unreadCount,
+    });
     for (const socket of this.ctx.getWebSockets()) socket.send(message);
+    await this.push(notification, unreadCount);
     return notification;
   }
 
@@ -80,6 +111,74 @@ export class UserCoordinator extends DurableObject<Env> {
       }));
   }
 
+  async inbox(): Promise<{
+    notifications: Notification[];
+    unreadCount: number;
+  }> {
+    return {
+      notifications: await this.listNotifications(),
+      unreadCount: this.unreadCount(),
+    };
+  }
+
+  /** Everything in the inbox now counts as seen. */
+  async markSeen(): Promise<{ unreadCount: number }> {
+    const latest = this.ctx.storage.sql
+      .exec<{ latest: number | null }>(
+        "SELECT MAX(created_at) AS latest FROM notification",
+      )
+      .one().latest;
+    this.ctx.storage.sql.exec(
+      "INSERT INTO inbox_state (key, value) VALUES ('seen_through', ?) ON CONFLICT (key) DO UPDATE SET value = MAX(value, excluded.value)",
+      latest ?? 0,
+    );
+    return { unreadCount: this.unreadCount() };
+  }
+
+  /** Returns false when no notification has that ID. */
+  async deleteNotification(
+    id: string,
+  ): Promise<{ deleted: boolean; unreadCount: number }> {
+    const cursor = this.ctx.storage.sql.exec(
+      "DELETE FROM notification WHERE id = ?",
+      id,
+    );
+    return {
+      deleted: cursor.rowsWritten > 0,
+      unreadCount: this.unreadCount(),
+    };
+  }
+
+  async clearNotifications(): Promise<{ unreadCount: number }> {
+    this.ctx.storage.sql.exec("DELETE FROM notification");
+    return { unreadCount: 0 };
+  }
+
+  /** Keeps the newest few devices, so a person's old phones age out. */
+  async registerDevice(token: string, environment: PushEnvironment) {
+    this.ctx.storage.sql.exec(
+      "INSERT INTO push_device (token, environment, updated_at) VALUES (?, ?, ?) ON CONFLICT (token) DO UPDATE SET environment = excluded.environment, updated_at = excluded.updated_at",
+      token,
+      environment,
+      Date.now(),
+    );
+    this.ctx.storage.sql.exec(
+      "DELETE FROM push_device WHERE token NOT IN (SELECT token FROM push_device ORDER BY updated_at DESC LIMIT ?)",
+      devicesRetained,
+    );
+  }
+
+  async unregisterDevice(token: string) {
+    this.ctx.storage.sql.exec("DELETE FROM push_device WHERE token = ?", token);
+  }
+
+  async listDevices(): Promise<{ token: string; environment: string }[]> {
+    return this.ctx.storage.sql
+      .exec<DeviceRow>("SELECT token, environment FROM push_device")
+      .toArray()
+      .map(({ token, environment }) => ({ token, environment }));
+  }
+
   /** Accepts a notification socket. The Worker checks the ticket before forwarding. */
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
@@ -97,5 +196,55 @@ export class UserCoordinator extends DurableObject<Env> {
 
   async webSocketClose(socket: WebSocket, code: number) {
     socket.close(reservedCloseCodes.has(code) ? 1000 : code);
+  }
+
+  private unreadCount(): number {
+    const seenThrough =
+      this.ctx.storage.sql
+        .exec<{ value: number }>(
+          "SELECT value FROM inbox_state WHERE key = 'seen_through'",
+        )
+        .toArray()[0]?.value ?? 0;
+    return this.ctx.storage.sql
+      .exec<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM notification WHERE created_at > ?",
+        seenThrough,
+      )
+      .one().count;
+  }
+
+  /** A failed push never fails the event. The inbox already holds it. */
+  private async push(notification: Notification, unreadCount: number) {
+    const text = pushTextFor(notification);
+    const sender = this.pushSender;
+    if (!text || !sender) return;
+    const data: Record<string, string> = {
+      notificationId: notification.id,
+      kind: notification.kind,
+    };
+    if ("connectionId" in notification) {
+      data.connectionId = notification.connectionId;
+    }
+    const devices = this.ctx.storage.sql
+      .exec<DeviceRow>("SELECT token, environment FROM push_device")
+      .toArray();
+    await Promise.all(
+      devices.map(async (device) => {
+        try {
+          const result = await sender.send(device.token, device.environment, {
+            ...text,
+            badge: unreadCount,
+            data,
+          });
+          if (result === "unregistered") {
+            await this.unregisterDevice(device.token);
+          }
+        } catch (error) {
+          console.warn(
+            JSON.stringify({ event: "apns_error", message: String(error) }),
+          );
+        }
+      }),
+    );
   }
 }

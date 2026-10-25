@@ -30,3 +30,34 @@ export function coordinatorNotifier(env: Env): Notifier {
     },
   };
 }
+
+/**
+ * The lock-screen text for events that reach a phone outside the app. Other
+ * events stay in the inbox only. The text never names the other person.
+ */
+export function pushTextFor(
+  event: NotificationEvent,
+): { title: string; body: string } | null {
+  switch (event.kind) {
+    case "encounter":
+      return {
+        title: "A new hello",
+        body:
+          event.sharedInterests.length === 0
+            ? "There's a new chance to connect."
+            : `A new chance to connect over ${event.sharedInterests.join(" and ")}.`,
+      };
+    case "connected":
+      return {
+        title: "It's a connection",
+        body: "You both said yes. Find your new connection at the café.",
+      };
+    case "public":
+      return {
+        title: "A little more face to face",
+        body: "You both chose to share your profiles. Say hello again.",
+      };
+    default:
+      return null;
+  }
+}
