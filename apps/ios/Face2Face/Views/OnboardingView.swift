@@ -133,7 +133,9 @@ struct OnboardingView: View {
     @ViewBuilder private func footer(for field: OnboardingField) -> some View {
         let skippable = !field.required && !hasValue(for: field)
         MeadowPrimaryButton(
-            title: skippable ? "Skip for Now" : (model.isLastStep ? "Finish" : "Next"),
+            title: field.type == .image
+                ? "Continue with my blob"
+                : (skippable ? "Skip for Now" : (model.isLastStep ? "Finish" : "Next")),
             symbol: model.isLastStep ? "checkmark" : "arrow.right",
             isBusy: model.activity.isBusy,
             action: advance

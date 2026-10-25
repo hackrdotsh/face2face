@@ -50,7 +50,7 @@ struct OnboardingStepView: View {
                 "What are you into?",
                 "Pick up to 10. Shared interests open chances to meet. You can change them later."
             )
-        case "photo": ("Add a profile photo", "Optional. Without one, you get a blob.")
+        case "photo": ("Meet your little alter ego", "Uniquely yours. No profile photo needed.")
         default: (field.label, nil)
         }
     }
@@ -99,7 +99,7 @@ struct OnboardingStepView: View {
                     .accessibilityLabel("Description")
             }
         case .image:
-            ProfilePhotoEditor(avatar: avatar, session: session, prominent: true)
+            BlobPortrait(seed: avatar.seed, prominent: true)
                 .frame(maxWidth: .infinity)
         case .interests:
             InterestsSection(model: interests, showsHeader: false)

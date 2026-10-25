@@ -37,21 +37,18 @@ struct TownFriendNPC: View {
     let time: TimeInterval
 
     var body: some View {
-        let style = friend.userId.utf8.reduce(0) { ($0 + Int($1)) % 12 }
         ZStack(alignment: .topLeading) {
-            Canvas { context, _ in
-                MeadowIllustrations.walker(
-                    context: context, at: CGPoint(x: 36, y: 24), time: time,
-                    facingForward: pose.facingForward,
-                    coat: MeadowPalette.passerCoats[style % MeadowPalette.passerCoats.count],
-                    skin: MeadowPalette.walkerSkins[style % MeadowPalette.walkerSkins.count],
-                    scale: 0.42, standing: pose.standing)
-            }
-            AvatarView(avatar: friend.avatar, session: session, side: 18)
-                .padding(2)
-                .background(MeadowPalette.paper, in: Circle())
-                .overlay(Circle().strokeBorder(MeadowPalette.accentShadow, lineWidth: 1))
-                .position(x: 53, y: 10)
+            Ellipse().fill(MeadowPalette.ink.opacity(0.1)).frame(width: 28, height: 6)
+                .position(x: 36, y: 39)
+            let play = BlobPlayMotion(seed: friend.avatar.seed).pose(at: time)
+            BlobGlyph(
+                seed: friend.avatar.seed, pose: BlobIdleMotion(seed: friend.avatar.seed)?.pose(at: time)
+            )
+            .frame(width: 44, height: 44)
+            .scaleEffect(x: play.xScale, y: play.yScale)
+            .rotationEffect(.degrees(play.tilt))
+            .offset(y: -play.lift * 44)
+            .position(x: 36, y: 21)
             Text(friend.name.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? friend.name)
                 .font(.system(size: 10, weight: .bold, design: .rounded))
                 .foregroundStyle(MeadowPalette.ink)

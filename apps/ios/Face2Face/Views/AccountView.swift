@@ -27,14 +27,15 @@ struct AccountView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         MeadowCard { profile }
-                        MeadowCard { InterestsSection(model: interests) }
+                        MeadowCard { InterestsSection(model: interests) }.disabled(session.isTownPreview)
                         MeadowCard {
                             DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk, account: account)
                         }
-                        MeadowCard { passkeySection }
+                        .disabled(session.isTownPreview)
+                        MeadowCard { passkeySection }.disabled(session.isTownPreview)
                     }
                     .disabled(
-                        session.activity.isBusy || passkeyEnrollment.activity.isBusy || session.isTownPreview
+                        session.activity.isBusy || passkeyEnrollment.activity.isBusy
                     )
                     .frame(maxWidth: 440)
                     .frame(maxWidth: .infinity)
@@ -61,7 +62,7 @@ struct AccountView: View {
 
     private var profile: some View {
         VStack(spacing: 18) {
-            ProfilePhotoEditor(avatar: account.user.avatar, session: session)
+            BlobPortrait(seed: account.user.avatar.seed)
             VStack(spacing: 6) {
                 Text("Hey, \(account.user.name).")
                     .font(.system(.title, design: .rounded, weight: .heavy))
@@ -74,6 +75,7 @@ struct AccountView: View {
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
             signOutButton
+                .disabled(session.isTownPreview)
         }
         .frame(maxWidth: .infinity)
     }
