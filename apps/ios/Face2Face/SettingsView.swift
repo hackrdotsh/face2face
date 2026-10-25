@@ -14,10 +14,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if let account {
-                    DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk, account: account)
-                        .disabled(session.isTownPreview)
-                }
                 Section("Appearance") {
                     Picker("Theme", selection: $appearance) {
                         ForEach(AppAppearance.allCases) { appearance in

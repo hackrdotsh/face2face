@@ -470,7 +470,7 @@ Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required
 
 ### iPhone
 
-- Settings, opened from the town's top button, contains the **Discover people nearby** toggle. It
+- The profile page, opened from the town's avatar or discovery badge, contains the **Discover people nearby** toggle. It
   saves an opt-in for that account and API, and shows the current status and match count.
   There is no fixed consent timeout. Turning it off, signing out, changing the API,
   or losing Bluetooth permission clears the opt-in and stops the radio immediately.

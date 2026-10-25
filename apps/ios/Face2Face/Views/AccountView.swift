@@ -38,6 +38,8 @@ struct AccountView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                         Divider()
+                        DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk, account: account)
+                        Divider()
                         passkeySection
 
                         Button {

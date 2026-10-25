@@ -6,9 +6,9 @@
 | Recently encountered | Upper-left venue, `town-encounters`           | Pending `/api/connections` only; no hidden identity                             |
 | Connections          | Middle-right café, `town-connections`         | Private/public connections; identity only when server reveals it                |
 | Forums               | Lower-left board, `town-forums`               | `/api/forums` for the signed-in person's interests                              |
-| Account              | Top-right avatar, `townAccount`               | Separate profile/photo, passkey and sign-out page                               |
-| Settings             | Left of account, `appSettings`                | Discovery, appearance, API and developer tools                                  |
-| Discovery status     | Header badge, `townDiscovery`                 | Status indicator; opens discovery controls in Settings                          |
+| Account              | Top-right avatar, `townAccount`               | Profile/photo, discovery, passkey and sign-out page                             |
+| Settings             | Left of account, `appSettings`                | Appearance, API and developer tools                                             |
+| Discovery status     | Header beacon, `townDiscovery`                | Quick on/off toggle for the same discovery preference on the profile page       |
 | Notifications        | Header bell, `townNotifications`              | Themed `/api/notifications` inbox; refresh on opening, foreground and pull-down |
 | Preview              | `node scripts/control-town.mjs preview`       | No API requests; destination sheets identify preview mode                       |
 | Reduced motion       | iOS Accessibility → Motion                    | No resident, water or sign animation                                            |
