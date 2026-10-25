@@ -27,12 +27,16 @@
   ],
   "durable_objects": {
     "bindings": [
-      { "name": "USER_COORDINATORS", "class_name": "UserCoordinator" }
+      { "name": "USER_COORDINATORS", "class_name": "UserCoordinator" },
+      { "name": "CHAT_ROOMS", "class_name": "ChatRoom" }
     ]
   },
   "exports": {
-    "UserCoordinator": { "type": "durable-object", "storage": "sqlite" }
+    "UserCoordinator": { "type": "durable-object", "storage": "sqlite" },
+    "ChatRoom": { "type": "durable-object", "storage": "sqlite" }
   },
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "face2face-media" }],
+  "images": { "binding": "IMAGES" },
   "env": {
     "production": {
       "routes": [{ "pattern": "f2f.rocky.systems", "custom_domain": true }],
@@ -56,9 +60,12 @@
       ],
       "durable_objects": {
         "bindings": [
-          { "name": "USER_COORDINATORS", "class_name": "UserCoordinator" }
+          { "name": "USER_COORDINATORS", "class_name": "UserCoordinator" },
+          { "name": "CHAT_ROOMS", "class_name": "ChatRoom" }
         ]
-      }
+      },
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "face2face-media" }],
+      "images": { "binding": "IMAGES" }
     }
   }
 }

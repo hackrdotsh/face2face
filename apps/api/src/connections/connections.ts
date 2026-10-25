@@ -223,7 +223,10 @@ async function viewFor(
   return view;
 }
 
-function publicCounterparts(rows: Connection[], userId: string): string[] {
+export function publicCounterparts(
+  rows: Connection[],
+  userId: string,
+): string[] {
   return rows.flatMap((row) => {
     const side = sideOf(row, userId);
     if (row.status !== "public" || !side) return [];

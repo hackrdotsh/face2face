@@ -56,18 +56,19 @@ export const connectionRoutes = new Hono<AppEnv>()
       ),
     ),
   )
-  .post("/:id/block", async (context) =>
-    respond(
-      context,
-      await blockConnection(
-        createDatabase(context.env),
-        coordinatorNotifier(context.env),
-        context.var.user.id,
-        context.req.param("id"),
-        new Date(),
-      ),
-    ),
-  );
+  .post("/:id/block", async (context) => {
+    const result = await blockConnection(
+      createDatabase(context.env),
+      coordinatorNotifier(context.env),
+      context.var.user.id,
+      context.req.param("id"),
+      new Date(),
+    );
+    if (result.ok) {
+      await context.env.CHAT_ROOMS.getByName(result.connection.id).close();
+    }
+    return respond(context, result);
+  });
 
 function respond(context: Context<AppEnv>, result: ConnectionActionResult) {
   if (result.ok) return context.json({ connection: result.connection });

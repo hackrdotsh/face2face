@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import type { ChatActivity } from "./chats/chat-types";
 import type {
   Notification,
   NotificationEvent,
@@ -57,6 +58,12 @@ export class UserCoordinator extends DurableObject<Env> {
     const message = JSON.stringify({ type: "notification", notification });
     for (const socket of this.ctx.getWebSockets()) socket.send(message);
     return notification;
+  }
+
+  /** Pushes a live chat update to open sockets. Not kept in the inbox. */
+  async announceChatActivity(activity: ChatActivity) {
+    const message = JSON.stringify({ type: "chat_activity", activity });
+    for (const socket of this.ctx.getWebSockets()) socket.send(message);
   }
 
   async listNotifications(): Promise<Notification[]> {

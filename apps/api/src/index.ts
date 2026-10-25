@@ -10,17 +10,31 @@ import { requireOnboarded, requireSession } from "./middleware/session";
 import { onboardingFields } from "./onboarding/fields";
 import { getOnboardingState } from "./onboarding/onboarding";
 import { webOrigins } from "./origins";
+import { chatRoutes } from "./routes/chats";
 import { connectionRoutes } from "./routes/connections";
 import { devRoutes } from "./routes/dev";
 import { interestRoutes } from "./routes/interests";
+import { mediaRoutes } from "./routes/media";
 import { notificationRoutes } from "./routes/notifications";
 import { onboardingRoutes } from "./routes/onboarding";
 
+export { ChatRoom } from "./chats/chat-room";
 export { UserCoordinator } from "./user-coordinator";
 
 const app = new Hono<AppEnv>();
 
-app.use("*", secureHeaders());
+const pageHeaders = secureHeaders();
+const mediaHeaders = secureHeaders({
+  crossOriginResourcePolicy: "cross-origin",
+});
+const jsonBodyLimit = bodyLimit({ maxSize: 16 * 1024 });
+const imageUploadPath = /^\/api\/chats\/[^/]+\/images$/;
+
+app.use("*", (context, next) =>
+  context.req.path.startsWith("/media/")
+    ? mediaHeaders(context, next)
+    : pageHeaders(context, next),
+);
 app.use("/api/*", async (context, next) => {
   context.header("Cache-Control", "no-store");
   await next();
@@ -34,7 +48,11 @@ app.use("*", (context, next) =>
     allowMethods: ["GET", "POST", "PATCH", "PUT", "OPTIONS"],
   })(context, next),
 );
-app.use("/api/*", bodyLimit({ maxSize: 16 * 1024 }));
+app.use("/api/*", (context, next) =>
+  imageUploadPath.test(context.req.path)
+    ? next()
+    : jsonBodyLimit(context, next),
+);
 
 app.get("/health", (context) =>
   context.json({ status: "ok", service: "face2face-api" }),
@@ -59,6 +77,8 @@ app.route("/api/onboarding", onboardingRoutes);
 app.route("/api/interests", interestRoutes);
 app.route("/api/connections", connectionRoutes);
 app.route("/api/notifications", notificationRoutes);
+app.route("/api/chats", chatRoutes);
+app.route("/media", mediaRoutes);
 app.route("/api/dev", devRoutes);
 app.get(
   "/api/coordinator",
