@@ -36,12 +36,13 @@
   "env": {
     "production": {
       "routes": [{ "pattern": "f2f.rocky.systems", "custom_domain": true }],
+      "secrets": { "required": ["BETTER_AUTH_SECRET", "RESEND_API_KEY"] },
       "vars": {
         "DEV_TOOLS": "false",
         "DEV_WEB_ORIGIN": "",
         "BETTER_AUTH_URL": "https://f2f.rocky.systems",
         "WEB_ORIGINS": [],
-        "EMAIL_TRANSPORT": "console",
+        "EMAIL_TRANSPORT": "resend",
         "EMAIL_FROM": "face2face <no-reply@f2f.rocky.systems>",
         "PASSKEY_RP_ID": "f2f.rocky.systems",
         "PASSKEY_ORIGINS": ["https://f2f.rocky.systems"]

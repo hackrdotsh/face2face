@@ -145,11 +145,10 @@ from the `face2face` D1 database. To update it:
 2. Run `pnpm --filter @face2face/api exec wrangler d1 migrations apply face2face --remote --env production`.
 3. Run `pnpm --filter @face2face/api exec wrangler deploy --env production`.
 
-`BETTER_AUTH_SECRET` is already set. Production uses `EMAIL_TRANSPORT` `console` for now, so
-sign-in codes appear in the Worker log (`wrangler tail --env production`). To send real email,
-verify `f2f.rocky.systems` in Resend, run
-`pnpm --filter @face2face/api exec wrangler secret put RESEND_API_KEY --env production`,
-and set `EMAIL_TRANSPORT` to `resend` in the production environment.
+Production uses Resend to send sign-in and verification codes from
+`face2face <no-reply@f2f.rocky.systems>`. The sending domain is verified in Resend.
+Both `BETTER_AUTH_SECRET` and `RESEND_API_KEY` are required Cloudflare secrets.
+Local development still uses the console transport, so codes appear in the local API log.
 Configure passkeys as described in [architecture](docs/architecture.md#passkeys).
 
 Before inviting users, decide the registration policy and review abuse controls. Do not treat the hackathon
