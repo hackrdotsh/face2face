@@ -67,6 +67,7 @@ public actor APIClient {
     private let configuration: APIConfiguration
     private let tokens: any TokenStore
     private let transport: any HTTPTransport
+    var configurationURL: URL { configuration.baseURL }
 
     public init(
         configuration: APIConfiguration, tokens: any TokenStore,
