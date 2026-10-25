@@ -54,6 +54,8 @@ and the accessible 400 × 640 interaction map aligned. Camera gestures are disab
 stall and public-friend actions stay in SwiftUI, including large-text navigation.
 `TownPlazaLayout` shares destination and resident coordinates with those controls;
 the 2D fallback retains its original village layout.
+`Town3DGeometry` generates the curved canopy panels, scalloped trim, turned stone
+basin, and water streams; the stalls and fountain do not download external assets.
 Only the existing public-friend filter supplies identified visitors. Clearing that
 list replaces their 3D shapes with anonymous decorative residents; no scene data is
 stored or interpreted as real location. Profile revalidation, chats, notifications,

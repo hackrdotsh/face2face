@@ -57,6 +57,10 @@ final class Town3DWorld {
             (Town3DAssets.bench(), CGPoint(x: 300, y: 532)),
         ] {
             entity.position = Self.world(point)
+            if entity.name == "town-venue" || entity.name == "town-cafe" {
+                let angle: Float = entity.name == "town-cafe" ? -0.1 : 0.1
+                entity.orientation = simd_quatf(angle: angle, axis: [0, 1, 0])
+            }
             root.addChild(entity)
         }
         let fountain = try Town3DAssets.fountain()
@@ -211,6 +215,17 @@ final class Town3DWorld {
             case "bank": (0xCFB992, 0x665E53)
             case "water": (0x7FBFD6, 0x1E3646)
             case "stone": (0xE9DEC8, 0x4B5665)
+            case "stone-cut": (0xDAD0BA, 0x697481)
+            case "timber": (0xA57550, 0x70533E)
+            case "timber-light": (0xCAA476, 0x9C7A56)
+            case "iron": (0x42484B, 0x303942)
+            case "canvas-mint": (0x6CA995, 0x426B63)
+            case "canvas-lilac": (0xAD83B7, 0x765B82)
+            case "canvas-cream": (0xFFF1D9, 0xC4BDAF)
+            case "apple": (0xD76859, 0x9A514A)
+            case "orange": (0xE9AB51, 0xB38443)
+            case "coffee": (0x563A27, 0x3A2B25)
+            case "water-stream": (0xB4E8EE, 0x75AFBF)
             case "stem": (0x6C985F, 0x325C4C)
             case "wall": (0xFFFDF8, 0x354354)
             case "roof-cafe": (0x85ADA2, 0x527D77)
@@ -229,7 +244,8 @@ final class Town3DWorld {
                 ? [UnlitMaterial(color: color)]
                 : [
                     SimpleMaterial(
-                        color: color, roughness: entity.name == "water" ? 0.25 : 1, isMetallic: false)
+                        color: color, roughness: entity.name.hasPrefix("water") ? 0.16 : 0.9,
+                        isMetallic: false)
                 ]
         } else if entity.name == "water-foam", let model = entity as? ModelEntity {
             var material = UnlitMaterial(color: Forest3DAssets.color(hex: dark ? 0xB2D8DF : 0xFFFDF8))
@@ -273,22 +289,4 @@ final class Town3DWorld {
         return try MeshResource.generate(from: [descriptor])
     }
 
-    private func waveMesh() throws -> MeshResource {
-        var points: [SIMD3<Float>] = []
-        var indices: [UInt32] = []
-        for index in 0...40 {
-            let x = Float(index) * 0.3 - 6
-            let z = sin(x * 2) * 0.05
-            points += [[x, 0, z], [x, 0, z + 0.022]]
-            if index < 40 {
-                let i = UInt32(index * 2)
-                indices += [i, i + 1, i + 2, i + 1, i + 3, i + 2]
-            }
-        }
-        var descriptor = MeshDescriptor(name: "town-wave")
-        descriptor.positions = MeshBuffers.Positions(points)
-        descriptor.normals = MeshBuffers.Normals(Array(repeating: [0, 1, 0], count: points.count))
-        descriptor.primitives = .triangles(indices)
-        return try MeshResource.generate(from: [descriptor])
-    }
 }

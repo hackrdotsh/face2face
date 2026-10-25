@@ -26,6 +26,11 @@ public-friend meshes, plus perimeter trees and clear entrances. Town/PublicFrien
 Town suite also checks the 2D fallback. Capture light and dark previews. The 3D
 camera is fixed and never represents a real person's location.
 
+Stalls use curved striped canopies, exposed counters and timber frames. The fountain
+has a recessed water surface and four modeled streams. Native tests check canopy
+clearance from the camera and water below the basin rim; inspect both day and night
+previews for missing surfaces, clipping, and obscured destination labels.
+
 ## Evidence commands
 
 ```sh

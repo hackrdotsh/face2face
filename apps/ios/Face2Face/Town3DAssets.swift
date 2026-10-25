@@ -21,64 +21,6 @@ enum Town3DAssets {
             name: name, at: position)
     }
 
-    static func building(cafe: Bool) throws -> Entity {
-        let root = Entity()
-        root.name = cafe ? "town-cafe" : "town-venue"
-        root.addChild(box([3.1, 0.22, 2.35], name: "stone", at: [0, 0.11, 0]))
-        root.addChild(box([2.65, 1.6, 2.0], name: "wall", at: [0, 1.02, 0]))
-        let roof = model(
-            try pitchedRoof(width: 3.1, depth: 2.45, height: 0.95), name: cafe ? "roof-cafe" : "roof-venue",
-            at: [0, 1.81, 0])
-        root.addChild(roof)
-        root.addChild(box([0.24, 0.7, 0.28], name: "stone", at: [0.8, 2.55, -0.45]))
-        root.addChild(box([0.33, 0.08, 0.37], name: "wood", at: [0.8, 2.94, -0.45]))
-        for x: Float in [-0.87, 0.87] {
-            root.addChild(box([0.66, 0.83, 0.09], name: "wood", at: [x, 0.98, 1.03]))
-            root.addChild(box([0.55, 0.7, 0.06], name: "window", at: [x, 0.98, 1.09]))
-            root.addChild(box([0.035, 0.7, 0.04], name: "wood", at: [x, 0.98, 1.14]))
-            root.addChild(box([0.55, 0.035, 0.04], name: "wood", at: [x, 0.98, 1.14]))
-            root.addChild(box([0.7, 0.14, 0.24], name: "wood", at: [x, 0.52, 1.14]))
-            for petal in 0..<3 {
-                root.addChild(
-                    model(
-                        .generateSphere(radius: 0.075), name: "flower",
-                        at: [x - 0.21 + Float(petal) * 0.21, 0.63, 1.17]))
-            }
-        }
-        root.addChild(box([0.59, 1.12, 0.09], name: "wood", at: [0, 0.79, 1.04]))
-        root.addChild(box([0.43, 0.61, 0.04], name: "window", at: [0, 0.99, 1.1]))
-        root.addChild(model(.generateSphere(radius: 0.045), name: "gold", at: [0.17, 0.65, 1.12]))
-        root.addChild(box([0.84, 0.12, 0.42], name: "stone", at: [0, 0.18, 1.18]))
-
-        if cafe {
-            for stripe in 0..<8 {
-                let awning = box(
-                    [0.39, 0.12, 0.57], name: stripe.isMultiple(of: 2) ? "roof-cafe" : "wall",
-                    at: [-1.36 + Float(stripe) * 0.39, 1.65, 1.25])
-                awning.orientation = simd_quatf(angle: 0.18, axis: [1, 0, 0])
-                root.addChild(awning)
-            }
-            root.addChild(box([0.08, 0.8, 0.08], name: "wood", at: [-1.12, 2.45, 1.2]))
-            root.addChild(box([0.55, 0.08, 0.08], name: "wood", at: [-0.89, 2.83, 1.2]))
-            root.addChild(
-                try sign("cup.and.saucer.fill", width: 0.62, height: 0.55, at: [-0.65, 2.52, 1.24]))
-            for x: Float in [-0.83, 0.83] { root.addChild(table(at: [x, 0, 1.94])) }
-        } else {
-            root.addChild(box([2.95, 0.34, 0.17], name: "roof-venue", at: [0, 1.7, 1.11]))
-            for index in 0..<9 {
-                root.addChild(
-                    model(
-                        .generateSphere(radius: 0.045), name: "window",
-                        at: [-1.28 + Float(index) * 0.32, 1.61, 1.22]))
-            }
-            root.addChild(try sign("sparkles", width: 0.44, height: 0.3, at: [0, 1.74, 1.21]))
-        }
-        let shadow = try Forest3DAssets.contactShadow(width: 3.8, depth: 3.3)
-        shadow.position = [0.12, 0.025, 0.15]
-        root.addChild(shadow)
-        return root
-    }
-
     static func noticeBoard() throws -> Entity {
         let root = Entity()
         root.name = "town-board"
@@ -106,47 +48,87 @@ enum Town3DAssets {
     static func marketStall(cafe: Bool) throws -> Entity {
         let root = Entity()
         root.name = cafe ? "town-cafe" : "town-venue"
-        root.addChild(box([2.8, 0.13, 2.15], name: "stone", at: [0, 0.065, 0]))
-        for x: Float in [-1.13, 1.13] {
-            for z: Float in [-0.8, 0.8] {
-                root.addChild(box([0.09, 1.8, 0.09], name: "wood", at: [x, 0.96, z]))
+        root.addChild(box([2.65, 0.08, 2.05], name: "stone", at: [0, 0.04, 0.05]))
+        let shadow = try Forest3DAssets.contactShadow(width: 3.1, depth: 2.5)
+        shadow.position.y = 0.006
+        root.addChild(shadow)
+
+        let canvas = Entity()
+        canvas.name = "stall-canopy"
+        let stripeWidth: Float = 2.7 / 12
+        let stripeMesh = try Town3DGeometry.canopyStripe(width: stripeWidth)
+        let scallopMesh = try Town3DGeometry.scallop(width: stripeWidth)
+        for stripe in 0..<12 {
+            let name = stripe.isMultiple(of: 2) ? (cafe ? "canvas-mint" : "canvas-lilac") : "canvas-cream"
+            let x = -1.35 + stripeWidth * (Float(stripe) + 0.5)
+            canvas.addChild(model(stripeMesh, name: name, at: [x, 0, 0]))
+            canvas.addChild(model(scallopMesh, name: name, at: [x, 1.7, 0.525]))
+        }
+        root.addChild(canvas)
+
+        for x: Float in [-1.16, 1.16] {
+            root.addChild(beam(from: [x, 0.08, -0.79], to: [x, 2.07, -0.79]))
+            root.addChild(beam(from: [x, 0.08, 0.37], to: [x, 1.71, 0.37]))
+            root.addChild(beam(from: [x, 2.03, -0.79], to: [x, 1.68, 0.37]))
+            root.addChild(beam(from: [x, 1.3, 0.37], to: [x * 0.75, 1.68, 0.37]))
+            for z: Float in [-0.79, 0.37] {
+                root.addChild(box([0.11, 0.12, 0.11], name: "iron", at: [x, 0.14, z]))
             }
         }
-        let roofName = cafe ? "roof-cafe" : "roof-venue"
-        root.addChild(
-            model(try pitchedRoof(width: 2.85, depth: 2.3, height: 0.43), name: roofName, at: [0, 1.84, 0]))
-        for stripe in 0..<10 {
-            let fabric = box(
-                [0.285, 0.26, 0.12], name: stripe.isMultiple(of: 2) ? roofName : "wall",
-                at: [-1.28 + Float(stripe) * 0.285, 1.78, 1.15])
-            root.addChild(fabric)
+        root.addChild(beam(from: [-1.18, 1.66, 0.37], to: [1.18, 1.66, 0.37]))
+        root.addChild(beam(from: [-1.18, 2.02, -0.79], to: [1.18, 2.02, -0.79]))
+
+        let counter = Entity()
+        counter.name = "stall-counter"
+        counter.addChild(box([2.2, 0.64, 0.58], name: "wood", at: [0, 0.41, 0.73]))
+        for plank in 0..<11 {
+            counter.addChild(
+                box(
+                    [0.19, 0.57, 0.055], name: plank.isMultiple(of: 2) ? "timber" : "timber-light",
+                    at: [-1 + Float(plank) * 0.2, 0.42, 1.04]))
         }
-        root.addChild(box([2.25, 0.69, 0.55], name: "wood", at: [0, 0.49, 0.54]))
-        root.addChild(box([2.45, 0.09, 0.68], name: "wall", at: [0, 0.89, 0.55]))
+        counter.addChild(box([2.3, 0.085, 0.76], name: "timber-light", at: [0, 0.79, 0.73]))
+        counter.addChild(box([2.24, 0.065, 0.06], name: "timber", at: [0, 0.16, 1.075]))
+        root.addChild(counter)
+
+        for x: Float in [-0.24, 0.24] {
+            root.addChild(beam(from: [x, 1.67, 0.57], to: [x, 1.4, 0.57], width: 0.025, name: "iron"))
+        }
+        root.addChild(box([0.65, 0.39, 0.065], name: "timber", at: [0, 1.36, 0.57]))
         root.addChild(
             try sign(
-                cafe ? "cup.and.saucer.fill" : "sparkles", width: 0.7, height: 0.39, at: [0, 1.84, 1.23]))
+                cafe ? "cup.and.saucer.fill" : "sparkles", width: 0.32, height: 0.32, at: [0, 1.36, 0.61]))
+
         if cafe {
-            root.addChild(box([2.12, 0.78, 0.12], name: "wall", at: [0, 0.82, -0.75]))
-            root.addChild(box([0.72, 0.53, 0.18], name: "roof-cafe", at: [0.5, 1.26, -0.55]))
-            for x: Float in [-0.65, 0, 0.65] {
+            root.addChild(box([0.65, 0.36, 0.37], name: "canvas-mint", at: [0.51, 1.01, 0.53]))
+            root.addChild(box([0.57, 0.045, 0.42], name: "iron", at: [0.51, 0.855, 0.58]))
+            root.addChild(box([0.56, 0.08, 0.07], name: "iron", at: [0.51, 1.12, 0.745]))
+            for x: Float in [0.36, 0.66] {
                 root.addChild(
-                    model(.generateCylinder(height: 0.13, radius: 0.07), name: "roof-cafe", at: [x, 1, 0.6]))
+                    model(
+                        .generateCylinder(height: 0.055, radius: 0.023), name: "gold", at: [x, 1.02, 0.745]))
             }
-            for x: Float in [-0.72, 0.72] { root.addChild(table(at: [x, 0, 1.75])) }
+            for x: Float in [-0.72, -0.38] { root.addChild(try cup(at: [x, 0.84, 0.8])) }
+            root.addChild(table(at: [0.72, 0, 1.62]))
+            let menu = box([0.39, 0.59, 0.075], name: "timber", at: [-0.77, 0.39, 1.55])
+            menu.orientation = simd_quatf(angle: -0.14, axis: [1, 0, 0])
+            root.addChild(menu)
+            root.addChild(box([0.3, 0.45, 0.025], name: "iron", at: [-0.77, 0.41, 1.63]))
+            for row in 0..<3 {
+                root.addChild(
+                    box(
+                        [0.2 - Float(row) * 0.025, 0.015, 0.008], name: "canvas-cream",
+                        at: [-0.77, 0.51 - Float(row) * 0.09, 1.65]))
+            }
         } else {
-            for x: Float in [-0.72, 0, 0.72] {
-                root.addChild(box([0.55, 0.2, 0.46], name: "cork", at: [x, 1, 0.52]))
-                for fruit in 0..<3 {
-                    root.addChild(
-                        model(
-                            .generateSphere(radius: 0.09), name: fruit.isMultiple(of: 2) ? "gold" : "flower",
-                            at: [x - 0.14 + Float(fruit) * 0.14, 1.16, 0.52]))
-                }
+            for (index, x) in [Float(-0.72), 0, 0.72].enumerated() {
+                let crate = produceCrate(kind: index)
+                crate.position = [x, 0.84, 0.76]
+                root.addChild(crate)
             }
         }
-        for x: Float in [-1.1, 1.1] {
-            root.addChild(model(.generateSphere(radius: 0.07), name: "window", at: [x, 1.72, 1.12]))
+        for x: Float in [-1.02, 1.02] {
+            root.addChild(model(.generateSphere(radius: 0.065), name: "window", at: [x, 1.5, 0.48]))
         }
         return root
     }
@@ -154,17 +136,74 @@ enum Town3DAssets {
     static func fountain() throws -> Entity {
         let root = Entity()
         root.name = "town-fountain"
-        root.addChild(model(.generateCylinder(height: 0.22, radius: 1.02), name: "stone", at: [0, 0.11, 0]))
-        root.addChild(model(.generateCylinder(height: 0.1, radius: 0.94), name: "wall", at: [0, 0.27, 0]))
+        let basin: [SIMD2<Float>] = [
+            [1.03, 0.035], [1.1, 0.1], [1.1, 0.24], [1.04, 0.32],
+            [0.88, 0.32], [0.82, 0.25], [0.82, 0.1], [1.03, 0.035],
+        ]
+        root.addChild(model(try Town3DGeometry.lathe(basin), name: "stone-cut"))
+        root.addChild(model(.generateCylinder(height: 0.06, radius: 0.84), name: "stone", at: [0, 0.09, 0]))
         root.addChild(
-            model(.generateCylinder(height: 0.025, radius: 0.79), name: "water", at: [0, 0.327, 0]))
-        root.addChild(model(.generateCylinder(height: 0.36, radius: 0.17), name: "stone", at: [0, 0.49, 0]))
-        root.addChild(model(.generateSphere(radius: 0.15), name: "water", at: [0, 0.72, 0]))
+            model(.generateCylinder(height: 0.015, radius: 0.845), name: "water", at: [0, 0.205, 0]))
+        let column: [SIMD2<Float>] = [
+            [0.23, 0.1], [0.23, 0.21], [0.15, 0.26], [0.11, 0.48],
+            [0.18, 0.54], [0.22, 0.6], [0.18, 0.66], [0.09, 0.69],
+        ]
+        root.addChild(model(try Town3DGeometry.lathe(column), name: "stone-cut"))
+        root.addChild(model(.generateSphere(radius: 0.085), name: "gold", at: [0, 0.73, 0]))
+        for stream in 0..<4 {
+            root.addChild(
+                model(
+                    try Town3DGeometry.waterArc(angle: Float(stream) * .pi / 2 + .pi / 4),
+                    name: "water-stream"))
+        }
         for index in 0..<3 {
-            let ripple = model(try ring(), name: "water-foam", at: [0, 0.345, 0])
+            let ripple = model(try ring(), name: "water-foam", at: [0, 0.217, 0])
             ripple.scale = SIMD3(repeating: 0.3 + Float(index) * 0.25)
             root.addChild(ripple)
         }
+        return root
+    }
+
+    private static func beam(
+        from start: SIMD3<Float>, to end: SIMD3<Float>, width: Float = 0.085, name: String = "timber"
+    ) -> ModelEntity {
+        let direction = end - start
+        let beam = box([width, simd_length(direction), width], name: name, at: (start + end) / 2)
+        beam.orientation = simd_quatf(from: [0, 1, 0], to: simd_normalize(direction))
+        return beam
+    }
+
+    private static func produceCrate(kind: Int) -> Entity {
+        let root = Entity()
+        root.addChild(box([0.6, 0.045, 0.47], name: "timber", at: [0, 0.023, 0]))
+        for y: Float in [0.07, 0.16] {
+            for z: Float in [-0.22, 0.22] {
+                root.addChild(box([0.6, 0.065, 0.035], name: "timber-light", at: [0, y, z]))
+            }
+            for x: Float in [-0.28, 0.28] {
+                root.addChild(box([0.035, 0.065, 0.42], name: "timber-light", at: [x, y, 0]))
+            }
+        }
+        for row in 0..<2 {
+            for column in 0..<3 {
+                let fruit = model(
+                    .generateSphere(radius: 0.082), name: ["apple", "orange", "shrub"][kind],
+                    at: [-0.17 + Float(column) * 0.17, 0.14, -0.095 + Float(row) * 0.19])
+                fruit.scale.y = kind == 2 ? 1.15 : 0.92
+                root.addChild(fruit)
+            }
+        }
+        return root
+    }
+
+    private static func cup(at position: SIMD3<Float>) throws -> Entity {
+        let root = Entity()
+        root.position = position
+        root.addChild(model(.generateCylinder(height: 0.02, radius: 0.13), name: "canvas-cream"))
+        let profile: [SIMD2<Float>] = [[0.055, 0.02], [0.085, 0.17], [0.068, 0.17], [0.05, 0.035]]
+        root.addChild(model(try Town3DGeometry.lathe(profile, segments: 24), name: "canvas-cream"))
+        root.addChild(
+            model(.generateCylinder(height: 0.008, radius: 0.067), name: "coffee", at: [0, 0.151, 0]))
         return root
     }
 
@@ -235,6 +274,11 @@ enum Town3DAssets {
         for x: Float in [-0.53, 0.53] {
             root.addChild(box([0.3, 0.08, 0.3], name: "wood", at: [x, 0.37, 0]))
             root.addChild(box([0.3, 0.34, 0.06], name: "wood", at: [x, 0.55, -0.15]))
+            for offset: Float in [-0.11, 0.11] {
+                for z: Float in [-0.11, 0.11] {
+                    root.addChild(box([0.035, 0.33, 0.035], name: "timber", at: [x + offset, 0.165, z]))
+                }
+            }
         }
         root.addChild(
             model(.generateCylinder(height: 0.12, radius: 0.065), name: "roof-cafe", at: [0, 0.76, 0]))

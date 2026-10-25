@@ -7,6 +7,39 @@ import XCTest
 @available(iOS 18.0, *)
 @MainActor
 final class Town3DTests: XCTestCase {
+    func testStripedCanopiesLeaveTheCountersVisible() throws {
+        for cafe in [false, true] {
+            let stall = try Town3DAssets.marketStall(cafe: cafe)
+            let canopy = try XCTUnwrap(stall.children.first { $0.name == "stall-canopy" })
+            let counter = try XCTUnwrap(stall.children.first { $0.name == "stall-counter" })
+            XCTAssertEqual(canopy.children.count, 24)
+            XCTAssertEqual(canopy.children.filter { $0.name == "canvas-cream" }.count, 12)
+            let roofBounds = canopy.visualBounds(relativeTo: stall)
+            let counterBounds = counter.visualBounds(relativeTo: stall)
+            let roofEdge = TownProjection.screen([0, roofBounds.min.y, roofBounds.max.z])
+            let counterEdge = TownProjection.screen([0, counterBounds.max.y, counterBounds.max.z])
+            XCTAssertGreaterThan(counterEdge.y - roofEdge.y, 25)
+        }
+    }
+
+    func testFountainWaterSitsInsideTheRim() throws {
+        let fountain = try Town3DAssets.fountain()
+        let basin = try XCTUnwrap(fountain.children.first { $0.name == "stone-cut" })
+        let water = try XCTUnwrap(fountain.children.first { $0.name == "water" })
+        let rim = basin.visualBounds(relativeTo: fountain)
+        let surface = water.visualBounds(relativeTo: fountain)
+        XCTAssertLessThan(surface.max.y, rim.max.y)
+        XCTAssertLessThan(surface.extents.x, rim.extents.x)
+        XCTAssertEqual(fountain.children.filter { $0.name == "water-stream" }.count, 4)
+        for child in fountain.children {
+            let bounds = child.visualBounds(relativeTo: fountain)
+            for axis in 0..<3 {
+                XCTAssertTrue(bounds.min[axis].isFinite)
+                XCTAssertTrue(bounds.max[axis].isFinite)
+            }
+        }
+    }
+
     func testTownHasThreePlacesAndUsesTheMapCamera() throws {
         let world = try Town3DWorld()
         let names = world.root.children.map(\.name)
