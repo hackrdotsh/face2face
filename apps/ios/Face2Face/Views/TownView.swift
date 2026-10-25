@@ -84,6 +84,11 @@ struct TownView: View {
                 .ignoresSafeArea(.container, edges: .bottom)
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if !typeSize.isAccessibilitySize {
+                headerControls.padding(.trailing, 24).padding(.top, 12)
+            }
+        }
         .background(MeadowPalette.grass.ignoresSafeArea())
         .foregroundStyle(MeadowPalette.ink)
         .fontDesign(.rounded)
@@ -239,13 +244,17 @@ struct TownView: View {
         chatRoute = ChatRoute(id: chatID)
     }
 
+    /// The controls run down the trailing edge. Over the scene they float, so the town keeps its height;
+    /// at accessibility sizes they sit beside the title instead of covering the list.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            headerControls
+        HStack(alignment: .top, spacing: 12) {
             Text("Your Little Town")
                 .font(.system(.title, design: .rounded, weight: .bold))
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
+                .padding(.top, 8)
+            Spacer(minLength: 64)
+            if typeSize.isAccessibilitySize { headerControls }
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)
@@ -253,11 +262,30 @@ struct TownView: View {
     }
 
     private var headerControls: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Spacer(minLength: 0)
-            DiscoveryButton(model: ConnectedDiscoveryModel.backgroundWalk, account: account) {
+        VStack(spacing: 10) {
+            Button {
                 showingAccount = true
+            } label: {
+                AvatarView(avatar: account.user.avatar, session: session, side: 42)
+                    .padding(5)
+                    .background(MeadowPalette.paper.opacity(0.85), in: Circle())
+                    .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
             }
+            .buttonStyle(MeadowPressStyle())
+            .accessibilityLabel("Account")
+            .accessibilityIdentifier("townAccount")
+            Button {
+                showingSettings = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(.headline, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .background(MeadowPalette.paper.opacity(0.85), in: Circle())
+                    .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
+            }
+            .buttonStyle(MeadowPressStyle())
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier("appSettings")
             Button {
                 showingNotifications = true
             } label: {
@@ -276,29 +304,9 @@ struct TownView: View {
             .accessibilityLabel("Notifications")
             .accessibilityValue(TownUnreadCount.spoken(inbox.unreadCount))
             .accessibilityIdentifier("townNotifications")
-            Button {
-                showingSettings = true
-            } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(.headline, weight: .semibold))
-                    .frame(width: 52, height: 52)
-                    .background(MeadowPalette.paper.opacity(0.85), in: Circle())
-                    .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
-            }
-            .buttonStyle(MeadowPressStyle())
-            .accessibilityLabel("Settings")
-            .accessibilityIdentifier("appSettings")
-            Button {
+            DiscoveryButton(model: ConnectedDiscoveryModel.backgroundWalk, account: account) {
                 showingAccount = true
-            } label: {
-                AvatarView(avatar: account.user.avatar, session: session, side: 42)
-                    .padding(5)
-                    .background(MeadowPalette.paper.opacity(0.85), in: Circle())
-                    .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
             }
-            .buttonStyle(MeadowPressStyle())
-            .accessibilityLabel("Account")
-            .accessibilityIdentifier("townAccount")
         }
     }
 }

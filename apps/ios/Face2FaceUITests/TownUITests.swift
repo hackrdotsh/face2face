@@ -67,8 +67,16 @@ final class TownUITests: XCTestCase {
         XCTAssertTrue(settings.waitForExistence(timeout: 8))
         XCTAssertFalse(app.staticTexts["FACE2FACE"].exists)
         XCTAssertTrue(account.exists)
-        XCTAssertLessThan(settings.frame.maxX, account.frame.minX)
-        XCTAssertEqual(settings.frame.midY, account.frame.midY, accuracy: 4)
+        let bell = app.buttons["townNotifications"]
+        let discovery = app.descendants(matching: .any).matching(identifier: "townDiscovery").firstMatch
+        XCTAssertLessThan(account.frame.maxY, settings.frame.minY)
+        XCTAssertLessThan(settings.frame.maxY, bell.frame.minY)
+        XCTAssertLessThan(bell.frame.maxY, discovery.frame.minY)
+        for control in [settings, bell, discovery] {
+            XCTAssertEqual(control.frame.midX, account.frame.midX, accuracy: 2)
+        }
+        XCTAssertGreaterThan(account.frame.midX, app.windows.firstMatch.frame.midX)
+        capture("town-header-column")
         XCTAssertTrue(app.tabBars.allElementsBoundByIndex.isEmpty)
         account.tap()
         XCTAssertTrue(app.otherElements["accountHome"].waitForExistence(timeout: 4))
