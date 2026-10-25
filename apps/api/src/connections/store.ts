@@ -187,6 +187,7 @@ export async function loadPublicProfiles(
         name: user.name,
         photoId: profile.photoId,
         birthDate: profile.birthDate,
+        statusMessage: profile.statusMessage,
       })
       .from(user)
       .leftJoin(profile, eq(profile.userId, user.id))
@@ -198,6 +199,7 @@ export async function loadPublicProfiles(
       ...(await viewPerson(person)),
       age: person.birthDate ? ageOn(person.birthDate, today) : null,
       interests: interestsByUser.get(person.userId) ?? [],
+      statusMessage: person.statusMessage ?? null,
     })),
   );
   return new Map(profiles.map((profile) => [profile.userId, profile]));

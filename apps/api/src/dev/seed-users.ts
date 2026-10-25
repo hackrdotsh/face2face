@@ -13,6 +13,7 @@ interface SeedUser {
   birthDate: string;
   genderId: string;
   interestIds: string[];
+  statusMessage: string | null;
 }
 
 /** Overlapping interests, so every pair shares a different set. */
@@ -23,6 +24,7 @@ const seedUsers: SeedUser[] = [
     birthDate: "1996-03-14",
     genderId: "female",
     interestIds: ["climbing", "coffee", "film", "hiking", "photography"],
+    statusMessage: "Looking for a bouldering partner this weekend",
   },
   {
     id: "seed-ben",
@@ -30,6 +32,7 @@ const seedUsers: SeedUser[] = [
     birthDate: "1993-11-02",
     genderId: "male",
     interestIds: ["board-games", "coffee", "cooking", "hiking", "video-games"],
+    statusMessage: "Hosting board game night on Friday",
   },
   {
     id: "seed-cleo",
@@ -37,6 +40,7 @@ const seedUsers: SeedUser[] = [
     birthDate: "1999-07-21",
     genderId: "female",
     interestIds: ["jazz", "live-music", "photography", "reading", "travel"],
+    statusMessage: "Anyone going to the jazz show downtown?",
   },
   {
     id: "seed-dev",
@@ -44,6 +48,7 @@ const seedUsers: SeedUser[] = [
     birthDate: "1990-01-30",
     genderId: "other",
     interestIds: ["cycling", "film", "running", "travel", "yoga"],
+    statusMessage: null,
   },
   {
     id: "seed-eli",
@@ -51,6 +56,7 @@ const seedUsers: SeedUser[] = [
     birthDate: "2001-09-09",
     genderId: "male",
     interestIds: ["board-games", "film", "jazz", "reading", "video-games"],
+    statusMessage: "Just finished a great book, ask me about it",
   },
   {
     id: "seed-noor",
@@ -58,6 +64,7 @@ const seedUsers: SeedUser[] = [
     birthDate: "1995-05-05",
     genderId: "female",
     interestIds: [],
+    statusMessage: null,
   },
 ];
 
@@ -96,6 +103,7 @@ async function upsertSeedUser(
     genderId: seed.genderId,
     genderDescription: seed.genderId === "other" ? "Non-binary" : null,
     photoId: null,
+    statusMessage: seed.statusMessage,
     createdAt: now,
     updatedAt: now,
   };

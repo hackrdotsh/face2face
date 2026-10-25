@@ -15,6 +15,7 @@ import { otherSide, sideOf, userOnSide } from "./pair";
 export interface PublicProfile extends Person {
   age: number | null;
   interests: string[];
+  statusMessage: string | null;
 }
 
 /**
