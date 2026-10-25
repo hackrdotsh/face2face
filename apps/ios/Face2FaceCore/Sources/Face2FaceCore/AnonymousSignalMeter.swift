@@ -23,7 +23,7 @@ public struct AnonymousSignalMeter: Sendable {
 
     public mutating func observe(rssi: Int, uptime: TimeInterval, date: Date) -> Sample? {
         // 127 means unavailable. Reject implausible values, not merely weak valid readings.
-        guard (-100 ... -20).contains(rssi), uptime.isFinite, uptime >= 0 else { return nil }
+        guard (-127...20).contains(rssi), uptime.isFinite, uptime >= 0 else { return nil }
         if let lastSeen, uptime < lastSeen || uptime - lastSeen >= Self.freshness {
             self = Self()
         }

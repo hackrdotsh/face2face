@@ -32,38 +32,37 @@ struct BlobCompanionLiveActivity: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     IslandBlob(seed: context.attributes.seed, pulse: context.state.pulse)
-                        .frame(width: 58, height: 58)
+                        .frame(width: 48, height: 48)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     if context.state.signal.mode == .off {
-                        Image(systemName: "sparkles").font(.title2).foregroundStyle(.mint).padding(12)
+                        Image(systemName: "sparkles").font(.title2).foregroundStyle(.mint).padding(8)
                     } else {
-                        SignalBars(levels: levels(context)).frame(height: 40).padding(.top, 10)
+                        SignalBars(levels: levels(context)).frame(height: 34).padding(.top, 6)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack {
-                            Text(title(context)).font(.headline)
-                            Spacer(minLength: 6)
-                            if context.state.endsAt > Date() { waveButton }
-                            if !context.isStale {
-                                Text(
-                                    timerInterval: context.state.endsAt.addingTimeInterval(
-                                        -BlobSurface.sessionDuration)...context.state.endsAt, countsDown: true
-                                )
-                                .font(.caption.monospacedDigit()).frame(width: 52)
-                                .accessibilityLabel("Companion time remaining")
-                            }
+                    HStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(title(context)).font(.subheadline.bold()).lineLimit(2)
+                            Text(
+                                context.state.signal.mode == .off
+                                    ? "Open your town ↗" : "Signal, not distance"
+                            )
+                            .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
                         }
-                        Text(
-                            context.state.signal.mode == .off
-                                ? "Open your little town ↗"
-                                : "Anonymous signal · not distance or verified proximity"
-                        )
-                        .font(.caption2).foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                        if context.state.endsAt > Date() { waveButton }
+                        if !context.isStale {
+                            Text(
+                                timerInterval: context.state.endsAt.addingTimeInterval(
+                                    -BlobSurface.sessionDuration)...context.state.endsAt, countsDown: true
+                            )
+                            .font(.caption2.monospacedDigit()).frame(width: 46)
+                            .accessibilityLabel("Companion time remaining")
+                        }
                     }
-                    .fontDesign(.rounded).padding(.bottom, 8)
+                    .fontDesign(.rounded).padding(.bottom, 2)
                 }
             } compactLeading: {
                 IslandBlob(seed: context.attributes.seed, pulse: context.state.pulse).frame(

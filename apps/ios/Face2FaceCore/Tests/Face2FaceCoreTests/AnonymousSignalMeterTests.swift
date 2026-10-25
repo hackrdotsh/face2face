@@ -5,10 +5,18 @@ import Testing
 
 @Test func signalRejectsUnavailableAndImplausibleRSSI() {
     var meter = AnonymousSignalMeter()
-    for rssi in [127, 0, -101, -19, 500] {
+    for rssi in [127, 128, -128, 21, 500] {
         #expect(meter.observe(rssi: rssi, uptime: 1, date: .now) == nil)
     }
     #expect(meter.observe(rssi: -60, uptime: .nan, date: .now) == nil)
+}
+
+@Test func signalAcceptsVeryWeakAndVeryStrongValidReadings() {
+    for rssi in [-127, -110, 0, 20] {
+        var meter = AnonymousSignalMeter()
+        let sample = meter.observe(rssi: rssi, uptime: 1, date: .now)
+        #expect(sample?.levels == [rssi >= -60 ? 4 : 1])
+    }
 }
 
 @Test func signalQuantizesAndCoalescesWithoutKeepingRawRSSI() {
