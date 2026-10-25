@@ -77,6 +77,7 @@ public struct DiscoveryOutbox: Sendable {
     public static let matchRecheckInterval: TimeInterval = 5
     public private(set) var pending: [PendingDiscoveryObservation] = []
     private var seen: Set<DiscoveryToken> = []
+    public var isFull: Bool { seen.count >= Self.limit }
 
     public init() {}
 

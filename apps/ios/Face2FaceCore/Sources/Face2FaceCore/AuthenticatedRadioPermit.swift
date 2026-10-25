@@ -6,6 +6,7 @@ public struct DiscoveryTokenValidity: Sendable, Equatable {
     private let requestStartedAt: Date
     private let requestStartedUptime: TimeInterval
     private let lifetime: TimeInterval
+    private let sessionLifetime: TimeInterval
 
     public init(lease: DiscoveryLease, requestStartedAt: Date, requestStartedUptime: TimeInterval) throws {
         token = try lease.validatedToken()
@@ -15,9 +16,18 @@ public struct DiscoveryTokenValidity: Sendable, Equatable {
         self.requestStartedAt = requestStartedAt
         self.requestStartedUptime = requestStartedUptime
         lifetime = max(0, (Double(lease.expiresAt) - Double(lease.serverTime)) / 1_000 - 10)
+        sessionLifetime = max(0, (Double(lease.sessionExpiresAt) - Double(lease.serverTime)) / 1_000 - 10)
     }
 
     public func remaining(at date: Date = Date(), uptime: TimeInterval) -> TimeInterval {
+        remaining(lifetime: lifetime, at: date, uptime: uptime)
+    }
+
+    public func sessionRemaining(at date: Date = Date(), uptime: TimeInterval) -> TimeInterval {
+        remaining(lifetime: sessionLifetime, at: date, uptime: uptime)
+    }
+
+    private func remaining(lifetime: TimeInterval, at date: Date, uptime: TimeInterval) -> TimeInterval {
         let wallAge = date.timeIntervalSince(requestStartedAt)
         let uptimeAge = uptime - requestStartedUptime
         guard wallAge.isFinite, uptimeAge.isFinite, uptime.isFinite, wallAge >= 0, uptimeAge >= 0 else {
@@ -30,10 +40,14 @@ public struct DiscoveryTokenValidity: Sendable, Equatable {
 /// Not Codable: an authenticated walk is never restored from a plain preferences checkpoint.
 public struct AuthenticatedRadioPermit: Sendable, Equatable {
     public let validity: DiscoveryTokenValidity
-    public let consent: PocketTestWindow
+    public let consent: DiscoveryConsent
     public var token: DiscoveryToken { validity.token }
 
     public init(validity: DiscoveryTokenValidity, consent: PocketTestWindow) {
+        self.init(validity: validity, consent: DiscoveryConsent(window: consent))
+    }
+
+    public init(validity: DiscoveryTokenValidity, consent: DiscoveryConsent) {
         self.validity = validity
         self.consent = consent
     }
@@ -42,7 +56,7 @@ public struct AuthenticatedRadioPermit: Sendable, Equatable {
         min(validity.remaining(at: date, uptime: uptime), consent.remaining(at: date, uptime: uptime))
     }
 
-    /// Rotation replaces the locator, never extends the original five-minute consent.
+    /// Rotation replaces the locator, never the user's consent.
     public func rotating(to validity: DiscoveryTokenValidity) -> Self {
         Self(validity: validity, consent: consent)
     }
