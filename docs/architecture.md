@@ -253,8 +253,8 @@ Routes, all behind `requireOnboarded`:
 Each person's `UserCoordinator` Durable Object keeps their inbox, the latest
 200 notifications. The inbox is the record. A WebSocket only delivers new
 notifications while a client is open. An iPhone app in the background has no
-socket, so `notify` also sends an APNs alert for `encounter`, `connected`, and
-`public` to each of the person's registered phones.
+socket, so `notify` also sends an APNs alert for `encounter`, `connected`,
+`public`, and `message` to each of the person's registered phones.
 
 A client, web or iPhone:
 1. Loads `GET /api/notifications` on launch and when it returns to the foreground.
@@ -275,7 +275,7 @@ Inbox actions:
   device agrees.
 
 Notification kinds are `encounter` (shared interests and expiry), `connected`,
-`public`, `post_updated`, `post_cancelled`, and `post_rsvp`. None identifies the
+`public`, `message` (`chatId`), `post_updated`, `post_cancelled`, and `post_rsvp`. None identifies the
 other person. The post kinds hold only `postId` and `forumId`.
 
 ### Push
@@ -333,7 +333,11 @@ the connection ID. A block closes the chat for both people.
   that the Worker gives it. A client cannot call it directly.
 - **`UserCoordinator`** gets a `chat_activity` event when a message arrives for
   its person. It sends the event to that person's notification sockets. The
-  inbox does not keep it.
+  inbox does not keep it. When the recipient has no socket open in that chat,
+  `ChatRoom` also calls `notifyMessage`: the inbox keeps one `message` card per
+  chat, replacing the previous one, and a push carries the first line of text
+  (or "Sent a photo") with no sender name. Pushes for one chat share an APNs
+  collapse ID and thread. Reading the chat removes its card.
 - **Images binding** re-encodes each upload. **R2** (`MEDIA`) keeps the result.
   The bucket is not public.
 
@@ -421,8 +425,7 @@ is not tested locally.
 
 ### Not built
 
-Message editing and deletion, read receipts for the other person, push
-notifications, and cleanup of images that were uploaded but not sent. There is
+Message editing and deletion, read receipts for the other person, and cleanup of images that were uploaded but not sent. There is
 no account deletion yet. When it exists, it must delete each chat's
 `ChatRoom` storage and its R2 prefix. It must also delete the profile photo
 files in R2.
