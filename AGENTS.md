@@ -10,6 +10,7 @@ This is a personal-account repository. No organization-specific skill library ap
 - Run `pnpm fmt` and `nix fmt` before verification.
 - After every requested app change, redeploy to the connected target iPhone and
   launch it. Report connection, signing, or lock-screen blockers explicitly.
+- Prefer Minun for iPhone deployments; use other connected phones when requested.
 - Biome, nixfmt, and swift-format are approved formatters for this repository.
 - Do not commit secrets, local D1 state, or generated native projects.
 
