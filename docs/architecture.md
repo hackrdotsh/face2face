@@ -277,10 +277,12 @@ other person. The post kinds hold only `postId` and `forumId`.
 - Push is off until the Worker has `APNS_KEY_ID` and `APNS_PRIVATE_KEY` (the
   .p8 contents) and `APPLE_APP_ID` is set. The team ID and topic come from
   `APPLE_APP_ID`. The build also needs the `aps-environment` entitlement.
-- A token stays with the account that registered it until sign out. If a
-  session ends without sign out, for example when it expires, that phone keeps
-  getting the old account's alerts, even after a different account signs in.
-  Tokens are kept per account, so registering cannot find the old owner.
+- A phone belongs to the account that registered it last. D1's `push_device`
+  table maps the SHA-256 hash of each token to its owner. Registering removes the
+  token from the previous owner's coordinator, so a phone stops getting an
+  account's alerts as soon as someone else signs in on it, even when the old
+  session expired without sign out. Unregistering only removes the caller's own
+  ownership.
 
 ### Simulator
 
