@@ -1,28 +1,28 @@
 # Town feature map
 
-| Feature              | Entry                                         | Expected behavior                                                               |
-| -------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
-| Landing              | Finish onboarding, or Settings → Preview town | Three spaced destinations; shoreline below town                                 |
-| Recently encountered | Upper-left venue, `town-encounters`           | Pending `/api/connections` only; no hidden identity                             |
-| Connections          | Middle-right café, `town-connections`         | Private/public connections; identity only when server reveals it                |
-| Forums               | Lower-left board, `town-forums`               | `/api/forums` for the signed-in person's interests                              |
-| Account              | Top-right avatar, `townAccount`               | Profile/photo, discovery, passkey and sign-out page                             |
-| Settings             | Left of account, `appSettings`                | Appearance, API and developer tools                                             |
-| Discovery status     | Header beacon, `townDiscovery`                | Quick on/off toggle for the same discovery preference on the profile page       |
-| Notifications        | Header bell, `townNotifications`              | Themed `/api/notifications` inbox; refresh on opening, foreground and pull-down |
-| Preview              | `node scripts/control-town.mjs preview`       | No API requests; destination sheets identify preview mode                       |
-| Reduced motion       | iOS Accessibility → Motion                    | No resident, water or sign animation                                            |
-| Large text           | Accessibility text sizes                      | Scenery followed by full-size destination buttons                               |
+| Feature              | Entry                                         | Expected behavior                                                                |
+| -------------------- | --------------------------------------------- | -------------------------------------------------------------------------------- |
+| Landing              | Finish onboarding, or Settings → Preview town | Three destinations around a tree-lined market plaza; 2D fallback has a shoreline |
+| Recently encountered | Upper-left venue, `town-encounters`           | Pending `/api/connections` only; no hidden identity                              |
+| Connections          | Middle-right café, `town-connections`         | Private/public connections; identity only when server reveals it                 |
+| Forums               | Lower-left board, `town-forums`               | `/api/forums` for the signed-in person's interests                               |
+| Account              | Top-right avatar, `townAccount`               | Profile/photo, discovery, passkey and sign-out page                              |
+| Settings             | Left of account, `appSettings`                | Appearance, API and developer tools                                              |
+| Discovery status     | Header beacon, `townDiscovery`                | Quick on/off toggle for the same discovery preference on the profile page        |
+| Notifications        | Header bell, `townNotifications`              | Themed `/api/notifications` inbox; refresh on opening, foreground and pull-down  |
+| Preview              | `node scripts/control-town.mjs preview`       | No API requests; destination sheets identify preview mode                        |
+| Reduced motion       | iOS Accessibility → Motion                    | No resident, water or sign animation                                             |
+| Large text           | Accessibility text sizes                      | Scenery followed by full-size destination buttons                                |
 
 ## 3D scenery
 
 On iOS 18+, **Settings → 3D scenery** enables the shared RealityKit forest and town.
-The town has modeled buildings, paths, shoreline, trees, and blob residents. Its
+The town has market stalls, a fountain, planted beds, surrounding trees, and blob residents. Its
 SwiftUI hit targets retain the same map coordinates and identifiers. iOS 17, an
 explicit opt-out, or an asset-generation failure uses the 2D town.
 
 `Town3DTests.swift` checks scene structure, projection alignment and removal of
-public-friend meshes. Town/PublicFriends UI tests exercise the 3D renderer; the
+public-friend meshes, plus perimeter trees and clear entrances. Town/PublicFriends UI tests exercise the 3D renderer; the
 Town suite also checks the 2D fallback. Capture light and dark previews. The 3D
 camera is fixed and never represents a real person's location.
 
@@ -49,7 +49,7 @@ onboarding, rather than deleting an existing person's data. UI coverage:
 UI tests: `apps/ios/Face2FaceUITests/TownUITests.swift`. They check tap targets,
 settings access, sheet dismissal, large text and preview states. Decorative NPCs never represent
 real nearby people. Water animation requires Reduce Motion off and app foreground.
-The waterfront continues below the fitted map through the bottom safe area; no
+In the 2D fallback, the waterfront continues below the fitted map through the bottom safe area; no
 grass band should appear above or behind the home indicator.
 
 Notifications UI tests: `apps/ios/Face2FaceUITests/NotificationsUITests.swift`.

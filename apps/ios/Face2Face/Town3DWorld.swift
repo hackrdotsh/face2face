@@ -34,22 +34,16 @@ final class Town3DWorld {
         root.addChild(sun)
         root.addChild(fill)
 
-        let coast: [CGPoint] = [
-            CGPoint(x: -100, y: -150), CGPoint(x: 500, y: -150), CGPoint(x: 500, y: 576),
-            CGPoint(x: 340, y: 583), CGPoint(x: 270, y: 594), CGPoint(x: 180, y: 580), CGPoint(x: 90, y: 592),
-            CGPoint(x: -100, y: 577),
-        ]
-        root.addChild(Town3DAssets.model(try surface(coast), name: "grass"))
-        let bank = Town3DAssets.model(try surface(coast), name: "bank", at: [0, -0.12, 0.09])
-        bank.scale = [1.012, 1, 1.012]
-        root.addChild(bank)
         root.addChild(
-            Town3DAssets.model(.generatePlane(width: 80, depth: 100), name: "water", at: [0, -0.18, 0]))
+            Town3DAssets.model(.generatePlane(width: 80, depth: 100), name: "grass", at: [0, -0.04, 0]))
+        let square = [
+            CGPoint(x: 48, y: 135), CGPoint(x: 351, y: 135), CGPoint(x: 375, y: 160),
+            CGPoint(x: 375, y: 521), CGPoint(x: 348, y: 548), CGPoint(x: 49, y: 548),
+            CGPoint(x: 25, y: 522), CGPoint(x: 25, y: 160),
+        ]
+        root.addChild(Town3DAssets.model(try surface(square), name: "plaza", at: [0, 0.005, 0]))
         let paths: [CGRect] = [
-            CGRect(x: 185, y: 67, width: 28, height: 488), CGRect(x: 43, y: 207, width: 155, height: 28),
-            CGRect(x: 199, y: 249, width: 177, height: 28), CGRect(x: 348, y: 263, width: 28, height: 142),
-            CGRect(x: 199, y: 391, width: 163, height: 28), CGRect(x: 43, y: 399, width: 156, height: 28),
-            CGRect(x: 43, y: 413, width: 28, height: 128), CGRect(x: 57, y: 527, width: 142, height: 28),
+            CGRect(x: 181, y: 548, width: 38, height: 180), CGRect(x: 185, y: 62, width: 30, height: 80),
         ]
         root.addChild(
             Town3DAssets.model(
@@ -57,29 +51,72 @@ final class Town3DWorld {
         root.addChild(Town3DAssets.model(try pathSurface(paths), name: "path", at: [0, 0.018, 0]))
 
         for (entity, point) in [
-            (try Town3DAssets.building(cafe: false), CGPoint(x: 112, y: 195)),
-            (try Town3DAssets.building(cafe: true), CGPoint(x: 291, y: 329)),
-            (try Town3DAssets.noticeBoard(), CGPoint(x: 124, y: 518)),
-            (Town3DAssets.bench(), CGPoint(x: 294, y: 512)),
+            (try Town3DAssets.marketStall(cafe: false), TownPlazaLayout.position(for: .encounters)),
+            (try Town3DAssets.marketStall(cafe: true), TownPlazaLayout.position(for: .connections)),
+            (try Town3DAssets.noticeBoard(), TownPlazaLayout.position(for: .forums)),
+            (Town3DAssets.bench(), CGPoint(x: 300, y: 532)),
         ] {
             entity.position = Self.world(point)
             root.addChild(entity)
         }
+        let fountain = try Town3DAssets.fountain()
+        fountain.position = Self.world(CGPoint(x: 208, y: 363))
+        waves = fountain.children.filter { $0.name == "water-foam" }.map { $0 }
+        root.addChild(fountain)
+
+        for frame in [
+            CGRect(x: 30, y: 290, width: 50, height: 105), CGRect(x: 322, y: 294, width: 48, height: 120),
+            CGRect(x: 277, y: 444, width: 87, height: 72),
+        ] {
+            let garden = Town3DAssets.garden(
+                width: Float(frame.width / 40), depth: Float(frame.height / (40 * TownProjection.sinePitch)))
+            garden.position = Self.world(CGPoint(x: frame.midX, y: frame.midY))
+            root.addChild(garden)
+        }
+        for point in [
+            CGPoint(x: 50, y: 277), CGPoint(x: 350, y: 277), CGPoint(x: 162, y: 128), CGPoint(x: 238, y: 128),
+        ] {
+            let pot = Town3DAssets.flowerpot()
+            pot.position = Self.world(point)
+            root.addChild(pot)
+        }
+        for (index, point) in [
+            CGPoint(x: 54, y: 323), CGPoint(x: 54, y: 380), CGPoint(x: 345, y: 329),
+            CGPoint(x: 346, y: 402), CGPoint(x: 296, y: 478), CGPoint(x: 342, y: 488),
+        ].enumerated() {
+            let tree = try Forest3DAssets.pine(variant: index % 3)
+            tree.position = Self.world(point) + [0, 0.16, 0]
+            tree.scale = SIMD3(repeating: index > 3 ? 0.32 : 0.27)
+            root.addChild(tree)
+        }
 
         let treePoints = [
-            CGPoint(x: 26, y: 55), CGPoint(x: 108, y: 53), CGPoint(x: 282, y: 53), CGPoint(x: 374, y: 55),
-            CGPoint(x: 5, y: 166), CGPoint(x: 6, y: 320), CGPoint(x: 394, y: 164), CGPoint(x: 397, y: 492),
-            CGPoint(x: 295, y: 479),
+            CGPoint(x: -5, y: 94), CGPoint(x: 39, y: 110), CGPoint(x: 79, y: 87),
+            CGPoint(x: 118, y: 112), CGPoint(x: 155, y: 89),
+            CGPoint(x: 245, y: 93), CGPoint(x: 284, y: 113), CGPoint(x: 325, y: 86),
+            CGPoint(x: 364, y: 112), CGPoint(x: 405, y: 91),
+            CGPoint(x: 8, y: 170), CGPoint(x: -15, y: 222), CGPoint(x: 12, y: 272),
+            CGPoint(x: -12, y: 325), CGPoint(x: 7, y: 378), CGPoint(x: -13, y: 431),
+            CGPoint(x: 10, y: 484), CGPoint(x: -8, y: 540),
+            CGPoint(x: 395, y: 173), CGPoint(x: 416, y: 224), CGPoint(x: 392, y: 276),
+            CGPoint(x: 414, y: 329), CGPoint(x: 395, y: 381), CGPoint(x: 418, y: 434),
+            CGPoint(x: 392, y: 488), CGPoint(x: 411, y: 540),
+            CGPoint(x: 22, y: 589), CGPoint(x: 61, y: 619), CGPoint(x: 100, y: 590),
+            CGPoint(x: 142, y: 616), CGPoint(x: 258, y: 614), CGPoint(x: 298, y: 588),
+            CGPoint(x: 341, y: 619), CGPoint(x: 381, y: 587),
         ]
         for (index, point) in treePoints.enumerated() {
             let tree = try Forest3DAssets.pine(variant: index % 3)
             tree.position = Self.world(point)
-            tree.scale = SIMD3(repeating: index < 4 || index == 8 ? 0.5 : 0.35)
+            tree.scale = SIMD3(repeating: [Float(0.42), 0.5, 0.38, 0.46][index % 4])
             root.addChild(tree)
         }
         for index in 0..<15 {
             let x = CGFloat((index * 73 + 81) % 330 + 35)
             let y = CGFloat((index * 41 + 44) % 440 + 75)
+            guard !CGRect(x: 25, y: 135, width: 350, height: 413).contains(CGPoint(x: x, y: y)) else {
+                continue
+            }
             guard !paths.contains(where: { $0.insetBy(dx: -12, dy: -12).contains(CGPoint(x: x, y: y)) })
             else { continue }
             let point = Self.world(CGPoint(x: x, y: y))
@@ -90,21 +127,6 @@ final class Town3DWorld {
                 .generateSphere(radius: 0.065), name: "flower",
                 at: point + [0, 0.17, 0])
             root.addChild(flowers)
-        }
-        for x in stride(from: 14.0, through: 388, by: 23) {
-            let post = Town3DAssets.box(
-                [0.06, 0.43, 0.06], name: "wood", at: Self.world(CGPoint(x: x, y: 575)) + [0, 0.215, 0])
-            root.addChild(post)
-        }
-        let railPoint = Self.world(CGPoint(x: 200, y: 575))
-        for height: Float in [0.2, 0.4] {
-            root.addChild(Town3DAssets.box([9.5, 0.05, 0.05], name: "wood", at: railPoint + [0, height, 0]))
-        }
-        for row in 0..<8 {
-            let wave = Town3DAssets.model(
-                try waveMesh(), name: "water-foam", at: [0, -0.15, 9.2 + Float(row) * 1.3])
-            waves.append(wave)
-            root.addChild(wave)
         }
         try updateVisitors([])
         configure(dark: false, viewport: CGSize(width: 400, height: 640))
@@ -155,13 +177,14 @@ final class Town3DWorld {
     func update(time: Double) {
         let time = time.isFinite ? max(0, time) : 0
         for (index, resident) in residents.enumerated() {
-            let pose = TownResidentMotion.pose(slot: index, time: time)
+            let pose = TownPlazaLayout.resident(slot: index, time: time)
             resident.root.position = Self.world(pose.point)
             resident.pose(at: pose.standing ? 0 : time + Double(index), walkingAway: !pose.facingForward)
         }
         for (index, wave) in waves.enumerated() {
-            wave.position.x = Float(sin(time * 0.65 + Double(index))) * 0.18
-            wave.position.z = 9.2 + Float(index) * 1.3 + Float(sin(time * 0.8 + Double(index))) * 0.09
+            let phase = (Float(time * 0.3) + Float(index) / 3).truncatingRemainder(dividingBy: 1)
+            wave.scale = SIMD3(repeating: 0.15 + phase * 0.62)
+            wave.components.set(OpacityComponent(opacity: 1 - phase))
         }
     }
 
@@ -181,6 +204,10 @@ final class Town3DWorld {
             switch entity.name {
             case "grass": (0xDCECDD, 0x101E28)
             case "path": (0xFCF1D9, 0x34424E)
+            case "plaza": (0xEFE3CD, 0x3B4651)
+            case "garden-edge": (0xB4AD91, 0x53604E)
+            case "garden-grass": (0xA6C58A, 0x254838)
+            case "shrub": (0x5B955A, 0x35664F)
             case "bank": (0xCFB992, 0x665E53)
             case "water": (0x7FBFD6, 0x1E3646)
             case "stone": (0xE9DEC8, 0x4B5665)

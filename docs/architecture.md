@@ -48,10 +48,12 @@ with Reduce Motion; paused frames retain their pose. Light/dark changes repaint 
 without rebuilding geometry. Long-running battery usage and frame pacing still
 need measurement on hardware. Decorative crossings never record encounters.
 
-`Town3DWorld` builds the venue, café, noticeboard, paths, shoreline, trees, and blob
-residents as RealityKit geometry. `TownProjection` keeps the orthographic camera
+`Town3DWorld` builds the market stalls, noticeboard, fountain, planted beds, surrounding
+trees, and blob residents as RealityKit geometry. `TownProjection` keeps the orthographic camera
 and the accessible 400 × 640 interaction map aligned. Camera gestures are disabled;
-building and public-friend actions stay in SwiftUI, including large-text navigation.
+stall and public-friend actions stay in SwiftUI, including large-text navigation.
+`TownPlazaLayout` shares destination and resident coordinates with those controls;
+the 2D fallback retains its original village layout.
 Only the existing public-friend filter supplies identified visitors. Clearing that
 list replaces their 3D shapes with anonymous decorative residents; no scene data is
 stored or interpreted as real location. Profile revalidation, chats, notifications,

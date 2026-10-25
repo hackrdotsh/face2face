@@ -23,12 +23,29 @@ final class Town3DTests: XCTestCase {
             world.update(time: time)
             for slot in 0..<3 {
                 let entity = try XCTUnwrap(world.root.children.first { $0.name == "town-blob-\(slot)" })
-                let expected = TownResidentMotion.pose(slot: slot, time: time).point
+                let expected = TownPlazaLayout.resident(slot: slot, time: time).point
                 let actual = TownProjection.screen(entity.position)
                 XCTAssertEqual(actual.x, expected.x, accuracy: 0.001)
                 XCTAssertEqual(actual.y, expected.y, accuracy: 0.001)
             }
         }
+    }
+
+    func testTreesSurroundThePlazaWithoutBlockingItsEntrances() throws {
+        let world = try Town3DWorld()
+        let trees = world.root.children.filter { $0.name == "forest-pine" }
+        let points: [TownProjection.Point] = trees.map { TownProjection.screen($0.position) }
+        let perimeter = points.filter { point in
+            let outsideSides = point.x < 25 || point.x > 375
+            let outsideEnds = point.y < 135 || point.y > 548
+            return outsideSides || outsideEnds
+        }
+        XCTAssertGreaterThanOrEqual(perimeter.count, 30)
+        XCTAssertTrue(perimeter.contains { $0.x < 25 && $0.y > 200 && $0.y < 500 })
+        XCTAssertTrue(perimeter.contains { $0.x > 375 && $0.y > 200 && $0.y < 500 })
+        XCTAssertTrue(perimeter.contains { $0.y < 135 })
+        XCTAssertTrue(perimeter.contains { $0.y > 548 })
+        XCTAssertFalse(perimeter.contains { $0.x > 170 && $0.x < 230 })
     }
 
     func testClearingPublicVisitorsRemovesTheirMeshes() throws {

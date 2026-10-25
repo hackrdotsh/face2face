@@ -94,6 +94,7 @@ private struct TownRealityScene: View {
                         }
                         if let onSelect {
                             ForEach(TownDestination.allCases) { place in
+                                let frame = TownPlazaLayout.frame(for: place)
                                 Button {
                                     onSelect(place)
                                 } label: {
@@ -112,10 +113,10 @@ private struct TownRealityScene: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(MeadowPressStyle())
-                                .frame(width: place.frame.width * scale, height: place.frame.height * scale)
+                                .frame(width: frame.width * scale, height: frame.height * scale)
                                 .position(
-                                    x: origin.x + place.frame.midX * scale,
-                                    y: origin.y + place.frame.midY * scale
+                                    x: origin.x + frame.midX * scale,
+                                    y: origin.y + frame.midY * scale
                                 )
                                 .accessibilityLabel(place.title)
                                 .accessibilityHint("Opens \(place.title.lowercased())")
@@ -125,7 +126,7 @@ private struct TownRealityScene: View {
                         if let session, let onSelectFriend {
                             ForEach(Array(visitors.prefix(3).enumerated()), id: \.element.id) {
                                 index, friend in
-                                let pose = TownResidentMotion.pose(slot: index, time: time)
+                                let pose = TownPlazaLayout.resident(slot: index, time: time)
                                 Button {
                                     onSelectFriend(friend)
                                 } label: {

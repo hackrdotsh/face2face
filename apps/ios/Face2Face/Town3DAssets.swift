@@ -10,7 +10,7 @@ enum Town3DAssets {
         let entity = ModelEntity(mesh: mesh, materials: [SimpleMaterial()])
         entity.name = name
         entity.position = position
-        let flat = ["grass", "bank", "water", "path", "stone", "water-foam"].contains(name)
+        let flat = ["grass", "bank", "water", "path", "stone", "water-foam", "plaza"].contains(name)
         entity.components.set(DynamicLightShadowComponent(castsShadow: !flat))
         return entity
     }
@@ -101,6 +101,116 @@ enum Town3DAssets {
                     at: [-0.68 + Float(index) * 0.68, 1.71, 0.24]))
         }
         return root
+    }
+
+    static func marketStall(cafe: Bool) throws -> Entity {
+        let root = Entity()
+        root.name = cafe ? "town-cafe" : "town-venue"
+        root.addChild(box([2.8, 0.13, 2.15], name: "stone", at: [0, 0.065, 0]))
+        for x: Float in [-1.13, 1.13] {
+            for z: Float in [-0.8, 0.8] {
+                root.addChild(box([0.09, 1.8, 0.09], name: "wood", at: [x, 0.96, z]))
+            }
+        }
+        let roofName = cafe ? "roof-cafe" : "roof-venue"
+        root.addChild(
+            model(try pitchedRoof(width: 2.85, depth: 2.3, height: 0.43), name: roofName, at: [0, 1.84, 0]))
+        for stripe in 0..<10 {
+            let fabric = box(
+                [0.285, 0.26, 0.12], name: stripe.isMultiple(of: 2) ? roofName : "wall",
+                at: [-1.28 + Float(stripe) * 0.285, 1.78, 1.15])
+            root.addChild(fabric)
+        }
+        root.addChild(box([2.25, 0.69, 0.55], name: "wood", at: [0, 0.49, 0.54]))
+        root.addChild(box([2.45, 0.09, 0.68], name: "wall", at: [0, 0.89, 0.55]))
+        root.addChild(
+            try sign(
+                cafe ? "cup.and.saucer.fill" : "sparkles", width: 0.7, height: 0.39, at: [0, 1.84, 1.23]))
+        if cafe {
+            root.addChild(box([2.12, 0.78, 0.12], name: "wall", at: [0, 0.82, -0.75]))
+            root.addChild(box([0.72, 0.53, 0.18], name: "roof-cafe", at: [0.5, 1.26, -0.55]))
+            for x: Float in [-0.65, 0, 0.65] {
+                root.addChild(
+                    model(.generateCylinder(height: 0.13, radius: 0.07), name: "roof-cafe", at: [x, 1, 0.6]))
+            }
+            for x: Float in [-0.72, 0.72] { root.addChild(table(at: [x, 0, 1.75])) }
+        } else {
+            for x: Float in [-0.72, 0, 0.72] {
+                root.addChild(box([0.55, 0.2, 0.46], name: "cork", at: [x, 1, 0.52]))
+                for fruit in 0..<3 {
+                    root.addChild(
+                        model(
+                            .generateSphere(radius: 0.09), name: fruit.isMultiple(of: 2) ? "gold" : "flower",
+                            at: [x - 0.14 + Float(fruit) * 0.14, 1.16, 0.52]))
+                }
+            }
+        }
+        for x: Float in [-1.1, 1.1] {
+            root.addChild(model(.generateSphere(radius: 0.07), name: "window", at: [x, 1.72, 1.12]))
+        }
+        return root
+    }
+
+    static func fountain() throws -> Entity {
+        let root = Entity()
+        root.name = "town-fountain"
+        root.addChild(model(.generateCylinder(height: 0.22, radius: 1.02), name: "stone", at: [0, 0.11, 0]))
+        root.addChild(model(.generateCylinder(height: 0.1, radius: 0.94), name: "wall", at: [0, 0.27, 0]))
+        root.addChild(
+            model(.generateCylinder(height: 0.025, radius: 0.79), name: "water", at: [0, 0.327, 0]))
+        root.addChild(model(.generateCylinder(height: 0.36, radius: 0.17), name: "stone", at: [0, 0.49, 0]))
+        root.addChild(model(.generateSphere(radius: 0.15), name: "water", at: [0, 0.72, 0]))
+        for index in 0..<3 {
+            let ripple = model(try ring(), name: "water-foam", at: [0, 0.345, 0])
+            ripple.scale = SIMD3(repeating: 0.3 + Float(index) * 0.25)
+            root.addChild(ripple)
+        }
+        return root
+    }
+
+    static func garden(width: Float, depth: Float) -> Entity {
+        let root = Entity()
+        root.name = "plaza-garden"
+        root.addChild(box([width, 0.12, depth], name: "garden-edge", at: [0, 0.06, 0]))
+        root.addChild(box([width - 0.12, 0.04, depth - 0.12], name: "garden-grass", at: [0, 0.14, 0]))
+        for index in 0..<4 {
+            let z = -depth / 2 + 0.35 + Float(index) * (depth - 0.7) / 3
+            let shrub = model(
+                .generateSphere(radius: 0.2), name: "shrub",
+                at: [index.isMultiple(of: 2) ? -width * 0.2 : width * 0.2, 0.29, z])
+            shrub.scale = [1.2, 0.8, 1]
+            root.addChild(shrub)
+            root.addChild(
+                model(.generateSphere(radius: 0.045), name: "flower", at: shrub.position + [0.06, 0.14, 0]))
+        }
+        return root
+    }
+
+    static func flowerpot() -> Entity {
+        let root = Entity()
+        root.addChild(model(.generateCylinder(height: 0.24, radius: 0.17), name: "cork", at: [0, 0.12, 0]))
+        root.addChild(model(.generateSphere(radius: 0.21), name: "shrub", at: [0, 0.31, 0]))
+        for x: Float in [-0.09, 0, 0.09] {
+            root.addChild(model(.generateSphere(radius: 0.05), name: "flower", at: [x, 0.49, 0]))
+        }
+        return root
+    }
+
+    private static func ring() throws -> MeshResource {
+        var points: [SIMD3<Float>] = []
+        var indices: [UInt32] = []
+        for index in 0..<48 {
+            let angle = Float(index) / 48 * 2 * .pi
+            for radius: Float in [0.96, 1] { points.append([cos(angle) * radius, 0, sin(angle) * radius]) }
+            let i = UInt32(index * 2)
+            let next = UInt32((index + 1) % 48 * 2)
+            indices += [i, next, i + 1, i + 1, next, next + 1]
+        }
+        var descriptor = MeshDescriptor(name: "fountain-ripple")
+        descriptor.positions = MeshBuffers.Positions(points)
+        descriptor.normals = MeshBuffers.Normals(Array(repeating: [0, 1, 0], count: points.count))
+        descriptor.primitives = .triangles(indices)
+        return try MeshResource.generate(from: [descriptor])
     }
 
     static func bench() -> Entity {
