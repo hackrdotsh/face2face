@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// A square viewport over an image that fills it at zoom 1. The person pans and zooms the image,
