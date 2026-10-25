@@ -16,6 +16,7 @@ import {
   mergeMessages,
   type PendingMessage,
 } from "./chat-messages";
+import { useChatPageIsVisible } from "./chat-visibility";
 import { TypingSignal, theirTypingTimeoutMs } from "./typing-signal";
 import { useActivity } from "./use-activity";
 import { type SocketState, useReconnectingSocket } from "./use-socket";
@@ -29,6 +30,7 @@ import { type SocketState, useReconnectingSocket } from "./use-socket";
 export function useChat(chatId: string) {
   const { client, serverURL } = useSession();
   const activity = useActivity();
+  const pageIsVisible = useChatPageIsVisible();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<PendingMessage[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -87,9 +89,9 @@ export function useChat(chatId: string) {
 
   const newestFromThemId = latestFromThem(messages)?.id;
   useEffect(() => {
-    if (!newestFromThemId || socketState !== "live") return;
+    if (!pageIsVisible || !newestFromThemId || socketState !== "live") return;
     sendFrame({ type: "read", messageId: newestFromThemId });
-  }, [newestFromThemId, socketState, sendFrame]);
+  }, [newestFromThemId, socketState, sendFrame, pageIsVisible]);
 
   function handleFrame(frame: ChatServerFrame) {
     switch (frame.type) {
