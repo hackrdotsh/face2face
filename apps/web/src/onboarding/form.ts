@@ -21,7 +21,7 @@ export interface OnboardingForm {
   needsAppUpdate: boolean;
 }
 
-const supportedTypes = new Set(["text", "date", "singleChoice"]);
+const supportedTypes = new Set(["text", "date", "singleChoice", "image"]);
 
 export function isSupported(field: OnboardingField): boolean {
   return supportedTypes.has(field.type);

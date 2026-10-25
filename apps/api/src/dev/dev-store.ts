@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Database } from "../db/client";
-import { block, connection, user } from "../db/schema";
+import { block, connection, post, user } from "../db/schema";
 import { listInterestNamesByUser } from "../interests/interest-store";
 import { seedEmailDomain } from "./seed-users";
 
@@ -54,6 +54,10 @@ export async function endChanceNow(db: Database, connectionId: string) {
     )
     .returning();
   return updated ?? null;
+}
+
+export async function deleteAllPosts(db: Database) {
+  await db.delete(post);
 }
 
 export async function deleteAllConnections(db: Database) {

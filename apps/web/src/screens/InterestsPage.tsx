@@ -10,7 +10,7 @@ import {
 import { useInterests } from "@/flows/use-interests";
 import { ErrorAlert } from "./parts";
 
-export function InterestsCard() {
+export function InterestsPage() {
   const picker = useInterests();
   const { busy } = picker.activity;
   const atLimit = picker.selectedIds.length >= picker.maxSelected;

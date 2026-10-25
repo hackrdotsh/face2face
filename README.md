@@ -3,13 +3,16 @@
 An iPhone app for meeting people with shared interests as you pass them in real life.
 The current build has sign-in with an emailed code, a verified password, or a
 passkey, password reset, and profile onboarding. The login screen uses the animated
-meadow and glass form; the account screen shares this style. Profile onboarding is server-driven.
-Proximity discovery is not implemented yet.
+meadow and glass form; the account screen shares this style. Profile onboarding is server-driven,
+with one field per step.
+An opt-in, five-minute [StreetPass discovery](docs/architecture.md#streetpass-discovery)
+turns a reciprocal Bluetooth match into an anonymous chance to connect. It is not
+validated on hardware yet, and a match does not prove that two people were near.
 
-The welcome screen is a scrolling pastel meadow. **Login** expands into the
+The welcome screen is a scrolling pastel meadow. **Get Started** expands into the
 account form, then the controls pop in sequentially after the glass finishes
 expanding; closing reverses the sequence before the glass shrinks back to the
-Login pill. Reduce Motion uses
+welcome pill. Reduce Motion uses
 a crossfade instead. The scenery pauses while entering text, in the background,
 and when Reduce Motion is enabled. The sliders button opens Settings, including
 the API server and a saved System / Light / Dark appearance choice. System is the default.

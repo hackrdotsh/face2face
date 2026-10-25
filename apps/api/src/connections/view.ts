@@ -3,6 +3,7 @@ import type {
   ConnectionSide,
   ConnectionStatus,
 } from "../db/schema";
+import type { Person } from "../profiles/person";
 import {
   type Connection,
   decidedAtOf,
@@ -11,9 +12,7 @@ import {
 } from "./lifecycle";
 import { otherSide, sideOf, userOnSide } from "./pair";
 
-export interface PublicProfile {
-  userId: string;
-  name: string;
+export interface PublicProfile extends Person {
   age: number | null;
   interests: string[];
 }

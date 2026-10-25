@@ -48,22 +48,10 @@ struct HomeView: View {
         .accessibilityIdentifier("accountHome")
     }
 
-    private var initials: String {
-        let letters = account.user.name.split(whereSeparator: \.isWhitespace).prefix(2)
-            .compactMap(\.first)
-        return letters.isEmpty ? "?" : String(letters).uppercased()
-    }
-
     private var profileCard: some View {
         card {
             VStack(spacing: 18) {
-                Text(initials)
-                    .font(.system(.title2, design: .rounded, weight: .heavy))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                    .frame(width: 68, height: 68)
-                    .background(MeadowPalette.accent.opacity(0.35), in: Circle())
-                    .accessibilityHidden(true)
+                ProfilePhotoEditor(avatar: account.user.avatar, session: session)
 
                 VStack(spacing: 6) {
                     Text("Hey, \(account.user.name).")
@@ -78,6 +66,10 @@ struct HomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
                 Button {
+                    let walk = ConnectedDiscoveryModel.backgroundWalk
+                    if walk.isRunning || walk.isStarting {
+                        walk.stop(reason: "Stopped when you signed out")
+                    }
                     Task { await session.signOut() }
                 } label: {
                     Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
@@ -142,20 +134,7 @@ struct HomeView: View {
 
     private var discoveryCard: some View {
         card {
-            HStack(alignment: .top, spacing: 14) {
-                Image(systemName: "figure.2")
-                    .font(.title2.weight(.semibold))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Nearby")
-                        .font(.system(.headline, design: .rounded, weight: .heavy))
-                        .accessibilityAddTraits(.isHeader)
-                    Text("Nearby discovery isn’t available yet.")
-                        .font(.subheadline)
-                        .foregroundStyle(MeadowPalette.secondaryInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+            DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk)
         }
     }
 

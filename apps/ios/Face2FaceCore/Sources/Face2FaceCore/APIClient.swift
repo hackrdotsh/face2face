@@ -22,6 +22,11 @@ public struct APIConfiguration: Sendable {
         guard let url = components.url else { throw APIError.invalidServerURL }
         baseURL = url
     }
+
+    /// Resolves a signed media path, which carries its own query, against the API server.
+    public func mediaURL(for path: String) -> URL? {
+        URL(string: path, relativeTo: baseURL)?.absoluteURL
+    }
 }
 
 public struct HTTPResponse: Sendable {
@@ -52,6 +57,8 @@ struct APIRequest {
     var method = "GET"
     var query: [URLQueryItem] = []
     var body: Data?
+    var contentType = "application/json"
+    var timeout: TimeInterval = 10
     var authenticated = false
     var cookie: String?
 }
@@ -84,14 +91,42 @@ public actor APIClient {
         try decode(Account.self, from: try await send(APIRequest(path: "api/me", authenticated: true)))
     }
 
+    /// A run-scoped client cannot upload old observations as a newly signed-in account.
+    /// The snapshot lives only in memory. The persistent credential stays in Keychain.
+    public func capturingCurrentCredential() async throws -> APIClient {
+        guard let credential = try await tokens.load() else { throw APIError.unauthenticated }
+        return APIClient(
+            configuration: configuration, tokens: CredentialSnapshot(credential), transport: transport)
+    }
+
+    private actor CredentialSnapshot: TokenStore {
+        private var credential: String?
+        init(_ credential: String) { self.credential = credential }
+        func load() -> String? { credential }
+        func save(_ token: String?) { credential = token }
+    }
+
+    /// Compares account context without exposing either credential. Only call with Keychain unlocked.
+    public func usesSameCredential(as other: APIClient) async throws -> Bool {
+        guard configuration.baseURL == other.configuration.baseURL else { return false }
+        guard let current = try await tokens.load() else { return false }
+        return try await other.credentialForComparison() == current
+    }
+
+    private func credentialForComparison() async throws -> String? {
+        try await tokens.load()
+    }
+
     func send(_ request: APIRequest) async throws -> HTTPResponse {
         var urlRequest = URLRequest(url: try url(for: request))
         urlRequest.httpMethod = request.method
         urlRequest.httpBody = request.body
-        urlRequest.timeoutInterval = 10
+        urlRequest.timeoutInterval = request.timeout
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         urlRequest.setValue("face2face://", forHTTPHeaderField: "Origin")
-        if request.body != nil { urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type") }
+        if request.body != nil {
+            urlRequest.setValue(request.contentType, forHTTPHeaderField: "Content-Type")
+        }
         if let cookie = request.cookie { urlRequest.setValue(cookie, forHTTPHeaderField: "Cookie") }
         if request.authenticated {
             guard let token = try await tokens.load() else { throw APIError.unauthenticated }

@@ -1,4 +1,5 @@
 import type { Database } from "../db/client";
+import type { PhotoViewer } from "../profiles/person";
 import type {
   FieldContext,
   FieldDescription,
@@ -57,29 +58,34 @@ export function parseOnboardingValues(
 
 export async function getOnboardingState(
   db: Database,
+  viewPhoto: PhotoViewer,
   fields: OnboardingField[],
   userId: string,
   now: Date,
 ): Promise<OnboardingState> {
-  const snapshot = await loadProfileSnapshot(db, userId);
+  const snapshot = await loadProfileSnapshot(db, viewPhoto, userId);
   return describeOnboarding(fields, { snapshot, today: isoDate(now) });
 }
 
 export async function updateOnboarding(
   db: Database,
+  viewPhoto: PhotoViewer,
   fields: OnboardingField[],
   userId: string,
   values: Record<string, unknown>,
   now: Date,
 ): Promise<OnboardingUpdateResult> {
-  const snapshot = await loadProfileSnapshot(db, userId);
+  const snapshot = await loadProfileSnapshot(db, viewPhoto, userId);
   const parsed = parseOnboardingValues(fields, values, {
     snapshot,
     today: isoDate(now),
   });
   if (!parsed.ok) return parsed;
   await saveProfileChanges(db, userId, parsed.changes, now);
-  return { ok: true, state: await getOnboardingState(db, fields, userId, now) };
+  return {
+    ok: true,
+    state: await getOnboardingState(db, viewPhoto, fields, userId, now),
+  };
 }
 
 function isoDate(date: Date): string {

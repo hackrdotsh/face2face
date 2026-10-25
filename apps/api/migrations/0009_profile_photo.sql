@@ -1,0 +1,1 @@
+ALTER TABLE `profile` ADD `photo_id` text;

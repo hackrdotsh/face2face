@@ -5,6 +5,7 @@ import { createDatabase } from "../db/client";
 import { requireSession } from "../middleware/session";
 import { onboardingFields } from "../onboarding/fields";
 import { getOnboardingState, updateOnboarding } from "../onboarding/onboarding";
+import { photoViewer } from "../profiles/person";
 
 const updateRequest = z.object({ values: z.record(z.string(), z.unknown()) });
 
@@ -14,6 +15,7 @@ export const onboardingRoutes = new Hono<AppEnv>()
     context.json(
       await getOnboardingState(
         createDatabase(context.env),
+        photoViewer(context.env, new Date()),
         onboardingFields,
         context.var.user.id,
         new Date(),
@@ -28,6 +30,7 @@ export const onboardingRoutes = new Hono<AppEnv>()
       return context.json({ error: "invalid_request" }, 400);
     const result = await updateOnboarding(
       createDatabase(context.env),
+      photoViewer(context.env, new Date()),
       onboardingFields,
       context.var.user.id,
       request.data.values,

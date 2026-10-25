@@ -16,7 +16,7 @@ transport does not follow redirects with credentials.
 
 `GET /health` checks the Worker response, not database readiness. `/api/auth/*`
 handles authentication. `GET /api/me` returns the authenticated person's ID, name,
-email, and whether onboarding is complete. `GET /api/coordinator` calls that person's SQLite-backed Durable Object.
+email, avatar, and whether onboarding is complete. `GET /api/coordinator` calls that person's SQLite-backed Durable Object.
 Neither protected route accepts a user ID from the caller.
 
 Swift core tests run on Linux and Mac. Keychain and SwiftUI need Apple's SDKs;
@@ -50,6 +50,8 @@ in separate tables that reference `user.id` and cascade on account deletion.
 - `gender` is a lookup table. `profile.gender_id` references it. A seed
   migration adds Male, Female, and Other. An option with `allows_description`
   accepts free text, which the server stores in `profile.gender_description`.
+- `profile.photo_id` names the current profile photo in R2. It is null when the
+  person has no photo. Better Auth's `user.image` is not used.
 - A field with more than one value gets its own junction table, for example
   `profile_interest(user_id, interest_id)`. Do not store lists in one column.
   The exception is a snapshot written once and never edited, such as
@@ -62,7 +64,7 @@ in separate tables that reference `user.id` and cascade on account deletion.
 ### Onboarding fields
 
 `apps/api/src/onboarding/fields.ts` is the list of onboarding fields. Each entry
-declares a key, a type (`text`, `date`, or `singleChoice`), a label, whether it
+declares a key, a type (`text`, `date`, `singleChoice`, or `image`), a label, whether it
 is required, its validation, and how it reads and writes the database.
 - `GET /api/onboarding` returns every field with its current value.
 - `PATCH /api/onboarding` validates the submitted values with Zod and saves them
@@ -81,6 +83,47 @@ known type needs no app release. To add a field:
 If the new field is required, existing accounts return to onboarding and see
 only that field. A field type that the app does not know makes the app ask the
 person to update it.
+
+An `image` field is optional and has the profile photo as its value. Upload the
+photo to `PUT /api/profile/photo`. `PATCH /api/onboarding` refuses a value for it.
+
+### Profile photos and avatars
+
+A person can add one profile photo. A person without a photo gets a blob
+avatar. Forum members and public connections see it. The person API shape is
+`{ userId, name, avatar }`, and `avatar` is `{ seed, photo }`.
+- `PUT /api/profile/photo` takes multipart field `image`, up to 15 MB. It
+  returns `{ avatar }`. Errors are `413 image_too_large` and
+  `415 unsupported_image`. It needs a session, but not finished onboarding.
+- `DELETE /api/profile/photo` removes the photo and returns `{ avatar }`.
+- The client crops the photo to the square around a circle before upload. The
+  server crops the center again to a square, so the result is always square.
+  It makes two WebP variants: `large` is 1024 px and `thumb` is 256 px.
+  Re-encoding removes EXIF, GPS, and other metadata.
+- Each variant goes to R2 at `profiles/<photoId>/<variant>`. The key has no
+  user ID. A new photo or a removal deletes the files of the old photo.
+- `photo` holds signed paths with the same rules as chat images. Clients show
+  each variant as a circle.
+- `seed` is the first 16 bytes of SHA-256 of `face2face-avatar:<userId>`, as
+  base64url. It does not change and does not contain the user ID.
+
+The web client and `Face2FaceCore` both draw the blob from the seed bytes `b`.
+Coordinates are in a unit square:
+1. The point count is `6 + b[0] % 3`. The hue is `(b[1] * 256 + b[2]) % 360`.
+2. Point `i` has radius `0.34 + b[4 + i] / 255 * 0.1` and angle
+   `b[3] / 255 * step + i * step - pi / 2`, where `step` is `2 * pi / count`.
+   The points go around the center `(0.5, 0.5)`.
+3. A closed Catmull-Rom spline joins the points. Each segment becomes a cubic
+   Bezier curve.
+4. The fill is a diagonal gradient from HSL `(hue, 80%, 82%)` to
+   `(hue + 40, 70%, 68%)`.
+5. The eyes are two pills, 0.06 wide and 0.12 high, in HSL `(hue, 40%, 20%)`.
+   `b[12]` sets their distance from the center, `b[13]` sets their height, and
+   `b[14]` moves both to the side.
+
+`docs/fixtures/blob-avatar.json` holds the expected output for some seeds. The
+web and Swift tests both check it. Change the drawing in both clients and the
+fixture together.
 
 ### Passkeys
 
@@ -115,7 +158,10 @@ without touching the logic:
 - `src/flows`: hooks that hold each screen's state and actions, matching the
   iPhone app's models.
 - `src/onboarding`: turns server-described fields into drafts and values.
+- `src/navigation`: hash routes such as `#/passed` and `#/chats/<id>`.
 - `src/screens` and `src/devtools`: the UI only. They read hooks and render.
+  Signed in, `HomeScreen` shows one page at a time: Passed (pending chances
+  only), Chats, Notifications, Interests, and Account.
 - `src/components/ui`: coss ui components, added with the shadcn CLI.
 
 ## Connections
@@ -153,7 +199,7 @@ the table.
 
 Until a connection is public, a participant sees only the shared interests and
 their own choices. They do not see the other person's ID, name, or decision.
-A public connection adds the other person's name, age, and interests.
+A public connection adds the other person's name, avatar, age, and interests.
 
 Routes, all behind `requireOnboarded`:
 - `GET /api/connections`
@@ -178,7 +224,8 @@ A client, web or iPhone:
 5. Reconnects with backoff when the socket closes and reloads the inbox.
 
 Notification kinds are `encounter` (shared interests and expiry), `connected`,
-and `public`. None identifies the other person.
+`public`, `post_updated`, `post_cancelled`, and `post_rsvp`. None identifies the
+other person. The post kinds hold only `postId` and `forumId`.
 
 ### Simulator
 
@@ -186,25 +233,272 @@ and `public`. None identifies the other person.
 `"true"`, every `/api/dev/*` route returns 404. These routes need no session:
 - `POST /api/dev/seed` creates or resets six people with finished profiles and
   overlapping interests. Each uses the password `face2face-seed-password`.
+- `POST /api/dev/forums/seed` seeds the people, then replaces the seeded forum
+  posts and their RSVPs. Event times are relative to now. One event is in
+  progress, one is over, and one is cancelled.
 - `POST /api/dev/encounters` with `{ "firstUserId", "secondUserId" }` records a
   simulated encounter. The response says `"simulated": true`.
 - `GET /api/dev/users`, `GET /api/dev/connections`, `GET /api/dev/interests`,
   and `GET /api/dev/users/:id/notifications` show raw state.
 - `POST /api/dev/connections/:id/expire` ends a pending chance now.
-- `POST /api/dev/reset` deletes every connection and block.
+- `POST /api/dev/reset` deletes every connection, block, and forum post.
 
 A simulated encounter is not evidence that two people were near each other.
 
-## Proximity is a separate milestone
+## Chat
 
-No Bluetooth scan, geolocation permission, encounter upload, or matching runs yet.
-Choose a discovery approach after testing physical iPhones. Measure background
-execution, battery use, permissions, false positives, and force-quit behavior.
+A connection with status `private` or `public` has one chat. The chat ID is
+the connection ID. A block closes the chat for both people.
 
-Before building the protocol:
-- Make discovery opt-in and easy to pause.
-- Never broadcast a stable account ID or profile. Evaluate rotating, expiring identifiers.
-- Treat client observations as untrusted. Plan for replay and fabricated encounters.
+### Parts
+
+- **D1** decides who can chat. The Worker reads the `connection` row on every
+  chat request and on every socket upgrade.
+- **`ChatRoom`** is a Durable Object, one for each connection. Its SQLite keeps
+  messages, uploaded images, and the read position of each side. It holds the
+  sockets of both people and relays messages and typing. It trusts the access
+  that the Worker gives it. A client cannot call it directly.
+- **`UserCoordinator`** gets a `chat_activity` event when a message arrives for
+  its person. It sends the event to that person's notification sockets. The
+  inbox does not keep it. APNs can be added at the same place.
+- **Images binding** re-encodes each upload. **R2** (`MEDIA`) keeps the result.
+  The bucket is not public.
+
+### Privacy
+
+A message says `"from": "you"` or `"from": "them"`. It never holds a user ID,
+a name, or a side. `clientId` is set only on the viewer's own messages.
+`chat_activity` holds the chat ID, message ID, and time. It holds no text.
+
+### HTTP routes
+
+All except the socket need a session and finished onboarding. A person who is
+not in the chat gets 404.
+- `GET /api/chats` lists chats with `lastMessage` and `unreadCount`, most
+  recent activity first.
+- `GET /api/chats/:id` returns one chat in the same shape.
+- `GET /api/chats/:id/messages?before=<messageId>&limit=<1-100>` returns
+  `{ messages, hasMore }`. Pages go from newest to oldest. Messages in a page
+  go from oldest to newest. Send the first message ID as `before` to get the
+  page before it.
+- `POST /api/chats/:id/ticket` returns a 60-second socket ticket.
+- `GET /api/chats/:id/socket?ticket=…` opens the chat socket.
+- `POST /api/chats/:id/images` takes multipart field `image`, up to 15 MB.
+  It returns `201 { image }`. Errors are `413 image_too_large` and
+  `415 unsupported_image`.
+
+### Socket frames
+
+Client to server:
+- `{"type":"send","clientId","text"}` or `{"type":"send","clientId","imageId"}`.
+  `text` can be up to 4000 characters. The client makes `clientId`, up to 64
+  characters. A send with the same `clientId` again returns the first message
+  and does not make a copy. Send pending messages again after a reconnect.
+- `{"type":"typing","state":"started"}` and `{"type":"typing","state":"stopped"}`.
+- `{"type":"read","messageId"}` moves this person's read position forward.
+- `ping` returns `{"type":"pong"}`.
+
+Server to client:
+- `{"type":"ready"}` when the socket opens. Load the newest page again, because
+  messages sent before the socket opened are only on the server.
+- `{"type":"ack","clientId","message"}` to the socket that sent the message.
+- `{"type":"message","message"}` to every other socket, including the sender's
+  other devices.
+- `{"type":"typing","state"}` to the other person's sockets only.
+- `{"type":"error","error","clientId"?}` for a bad frame or a refused send.
+  Errors are `invalid_frame`, `chat_closed`, `image_not_found`, and
+  `message_not_found`. The socket stays open.
+- `{"type":"closed"}`, then close code `4000`, when the chat ends. Do not
+  reconnect after a close code of 4000 or higher.
+
+### Typing
+
+The client decides when its person is typing:
+1. On a keystroke, send `started`. Send it again every 3 seconds while typing
+   continues.
+2. Send `stopped` 5 seconds after the last keystroke, on send, or when the draft
+   is empty.
+3. Show the other person as typing for 8 seconds after each `started`, unless
+   `stopped` or a message from them comes first.
+
+The server stores nothing for typing. It sends `stopped` when the person sends
+a message, and when their last typing socket closes.
+
+### Images
+
+1. The client uploads the file. The server checks the real format with the
+   Images binding. JPEG, PNG, WebP, AVIF, and HEIC are accepted. SVG and other
+   files are refused.
+2. The server makes three WebP variants. Each fits inside a square and is never
+   made larger: `original` is 2048 px, `preview` is 1024 px, and `thumb` is
+   256 px. Re-encoding removes EXIF, GPS, and other metadata.
+3. Each variant goes to R2 at `chats/<chatId>/<imageId>/<variant>`.
+4. The room records the image for the uploader's side. Only the uploader can
+   send it.
+5. The client sends `{"type":"send","clientId","imageId"}`.
+
+Each variant has `width`, `height`, and `path`. Use the size to lay out the
+message before the image loads. `path` is a signed path on the API host,
+for example `/media/chats/…/preview?expires=…&signature=…`. A path works for
+one to two hours and stays the same within each hour, so a client can cache
+it. Load the message again to get a new path.
+
+The local test for metadata uses Miniflare, which encodes with sharp. HEIC input
+is not tested locally.
+
+### Not built
+
+Message editing and deletion, read receipts for the other person, push
+notifications, and cleanup of images that were uploaded but not sent. There is
+no account deletion yet. When it exists, it must delete each chat's
+`ChatRoom` storage and its R2 prefix. It must also delete the profile photo
+files in R2.
+
+## Forums
+
+Each interest has one forum. Migration `0008_seed_forums` makes one for every
+interest, with the interest ID as the forum ID. A post in a forum is an event.
+
+### Data
+
+- `forum` links to one `interest`.
+- `post` has a required `title` and `starts_at`, and an optional `description`,
+  `location` (free text), and `ends_at`. `ends_at`, when set, must be on or
+  after `starts_at`. Deleting a post sets `deleted_at` and keeps
+  the row.
+- `post_attendee` has one row for each person who RSVPs. Database triggers keep
+  `post.attendee_count` in step with these rows.
+
+### Rules
+
+- A person can read and post in a forum only while that interest is on their
+  profile. Other forums and their posts return 404. RSVPs stay when a person
+  removes the interest.
+- Forum members see the names and photos of authors and attendees.
+- Only the author can edit or cancel a post. A cancelled post cannot change.
+- An event is over when `ends_at` passes. With no `ends_at`, it is over when
+  `starts_at` passes.
+- An RSVP to a cancelled or finished event is refused. Leaving is always
+  allowed.
+- An edit sends `post_updated` and a cancellation sends `post_cancelled` to
+  each attendee except the author. A new RSVP sends `post_rsvp` to the author,
+  unless the author is the attendee. New posts send no notification.
+
+### HTTP routes
+
+All need a session and finished onboarding.
+- `GET /api/forums` lists the person's forums with `upcomingPostCount`.
+- `GET /api/posts?after=<postId>&limit=<1-50>` returns `{ posts, hasMore }`
+  from all of the person's forums. It includes only events that are not over
+  and not cancelled, soonest `startsAt` first. Send the last post ID of a page
+  as `after` to get the next page.
+- `GET /api/forums/:id/posts?before=<postId>&limit=<1-50>` returns
+  `{ posts, hasMore }`, newest first. Cancelled posts are left out. Send the
+  last post ID of a page as `before` to get the next page.
+- `POST /api/forums/:id/posts` takes `{ title, startsAt, description?,
+  location?, endsAt? }` and returns `201 { post }`.
+- `GET /api/posts/:id` returns `{ post }`. A cancelled post still loads, with
+  `cancelled: true`.
+- `PATCH /api/posts/:id` takes any of the create fields. `null` or a blank
+  string clears an optional field.
+- `DELETE /api/posts/:id` cancels the post.
+- `PUT /api/posts/:id/rsvp` and `DELETE /api/posts/:id/rsvp` attend and leave.
+  Both return `{ post }`, and both can be sent again safely.
+- `GET /api/posts/:id/attendees` returns `{ attendees }` by RSVP time.
+
+A post includes `author`, `attendeeCount`, `attendeePreview` (the first 5
+attendees), and the viewer's `attending` and `isAuthor`. It also includes
+`edited`, `past`, and `cancelled`. Errors are `400 invalid_request`,
+`400 invalid_times`, `403 not_author`, `409 post_cancelled`, and
+`409 event_over`.
+
+## StreetPass discovery
+
+Discovery is opt-in, lasts up to five minutes, and is not validated on hardware
+yet. Phones swap short-lived random tokens over Bluetooth and report what they
+heard. When two phones report each other within two minutes, the server calls
+`recordEncounter`, so a match becomes a normal pending chance with an
+`encounter` notification. Code is in `apps/api/src/discovery` and
+`apps/api/src/routes/discovery.ts`.
+
+A match is a client report. It does not prove that two people were near each
+other. A receipt never names the other person. A block stops the chance, and
+the reporter is not told.
+
+### Leases and tokens
+
+- A lease belongs to one account and one auth session. Starting a lease ends the
+  account's previous lease. Signing out deletes it.
+- A lease lasts 30 minutes, or until the auth session expires if that is sooner.
+  A token lasts 5 minutes. Rotation adds a token, and older tokens stay valid
+  until they expire, so a handshake in flight can finish.
+- The server stores only SHA-256 hashes of tokens. Advertisements never hold an
+  account ID or profile.
+- A pair of leases produces at most one encounter. A decline is not undone by
+  more reports on the same walk.
+- Each account can start 10 leases, rotate 12 times, and send 120 new reports a
+  minute. A repeated observation ID does not count against the limit.
+- Cleanup is bounded and runs on start. There is no scheduled job.
+
+### Routes
+
+All are `POST`, behind `requireSession` and `requireOnboarded`, and take only
+the listed fields. Identifiers are UUIDs.
+
+| Route                    | Body                                      | Response                                                     |
+| ------------------------ | ----------------------------------------- | ------------------------------------------------------------ |
+| `/api/discovery/start`   | `{}`                                      | Lease                                                        |
+| `/api/discovery/rotate`  | `{ sessionId }`                           | Lease with a new token                                       |
+| `/api/discovery/stop`    | `{ sessionId }`                           | `{ stopped: true }`, also for an unknown lease               |
+| `/api/discovery/observe` | `{ sessionId, peerToken, observationId }` | `{ status: "pending" }` or `{ status: "recorded", matchId }` |
+
+A lease is `{ sessionId, token, expiresAt, sessionExpiresAt, serverTime }`. Times
+are epoch milliseconds. Clients use them relative to `serverTime`, not the phone
+clock. `matchId` is an opaque hash of the two lease IDs. Both phones get the same
+value, and it stays the same for one pair of leases.
+
+The phone picks `observationId` and reuses it on retries. A retry returns the
+current receipt, so a phone that got `pending` resends the same report every
+5 seconds until the two-minute window closes. That is how the first reporter
+learns about the match.
+
+Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required`,
+`409 observation_conflict` (an observation ID reused for another token),
+`410 discovery_inactive`, `410 invalid_peer_token`, and `429 rate_limited` with
+`Retry-After: 60`.
+
+### iPhone
+
+- Release builds show a **Discover people nearby** toggle on the home screen. It
+  runs the five-minute Walk and shows the time left and the match count.
+- Debug builds add Walk, Connected, Pocket, and Device test tabs beside the
+  account screen. The Device and Pocket tests are anonymous and never reach the API.
+- In the background, iOS gives only short upload passes. A phone that reports
+  first sees the match when it returns to the foreground.
+- The iPhone app has no Passed screen yet. Check a match's chance in the web client.
+
+`pnpm test:streetpass` runs the contract over real HTTP against a local API with
+`DEV_TOOLS` set to `"true"`. It signs in as two seed people who are not connected
+or blocked and expires their earlier pending chance first. It tests no Bluetooth.
+
+### Two-phone check
+
+1. Run `pnpm db:migrate`, then the API over Tailscale or the LAN, as in the README.
+2. Sign in on each iPhone as a different onboarded person, such as two seed
+   people after `POST /api/dev/seed`.
+3. Turn on discovery on both phones with the screens unlocked, then bring them
+   together.
+4. Confirm that each phone shows one match, and that the web client shows one
+   pending chance for each person with their shared interests and no name.
+5. Keep both phones near each other for a minute. The count must stay at one,
+   and no second chance may appear.
+6. Turn discovery off on one phone. The other phone must not record a new match.
+7. Repeat with one phone in the background, then locked, and write down the results.
+
+## Before real users
+
+- Measure background execution, battery use, permissions, false positives, and
+  force-quit behavior on hardware.
 - Do not expose precise locations or a live nearby-person map by default.
 - Decide what each person must consent to before revealing identity or messaging.
 - Include blocking, reporting, account deletion, retention, and age/safety policy
@@ -213,8 +507,13 @@ Before building the protocol:
 
 ## Suggested next slice
 
-The encounter simulator, connections, and notifications exist. Next:
-- Add the Face2FaceCore client for the inbox, ticket, and socket, then the iPhone screens.
+The encounter simulator, StreetPass discovery, connections, notifications, and
+chat exist. Next:
+- Add the Face2FaceCore client for the inbox, chats, tickets, and sockets, then
+  the iPhone screens.
+- Before deploying chat, create the `face2face-media` R2 bucket and enable
+  Images transformations on the account.
 - Let people choose interests during onboarding.
-- Test discovery on two physical iPhones. A simulated encounter must never
-  count as proof of actual proximity.
+- Run the two-phone check above. A simulated or client-reported encounter must
+  never count as proof of actual proximity.
+- Add a Passed screen to the iPhone app.

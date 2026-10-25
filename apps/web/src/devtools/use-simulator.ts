@@ -53,6 +53,12 @@ export function useSimulator() {
       return `Seeded ${userIds.length} people.`;
     });
 
+  const seedForumPosts = () =>
+    runAndReload(async () => {
+      const { postIds } = await dev.seedForums(client);
+      return `Seeded ${postIds.length} forum posts.`;
+    });
+
   const toggleSelected = (userId: string) =>
     setSelectedIds((current) =>
       current.includes(userId)
@@ -81,7 +87,7 @@ export function useSimulator() {
   const resetConnections = () =>
     runAndReload(async () => {
       await dev.resetConnections(client);
-      return "Deleted every connection and block.";
+      return "Deleted every connection, block, and forum post.";
     });
 
   const signInAs = (user: DevUser) =>
@@ -111,6 +117,7 @@ export function useSimulator() {
     activity,
     reload,
     seed,
+    seedForumPosts,
     toggleSelected,
     simulateEncounter,
     expire,

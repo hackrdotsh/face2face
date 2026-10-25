@@ -26,5 +26,8 @@ Keep database code on the server. Decode HTTP responses into Codable Swift model
 store signed bearer tokens in Keychain, never UserDefaults. Generate Worker bindings with Wrangler.
 Generate the Xcode project from apps/ios/project.yml. Do not hand-edit generated projects.
 Linux can test the Swift core, not SwiftUI, Security.framework, signing, or iPhone behavior.
-Proximity discovery remains unimplemented. Do not claim a client-reported
-encounter proves physical proximity or expose location without explicit consent.
+StreetPass discovery is built but not validated on hardware. A reciprocal match
+must go through `recordEncounter`, so the `connection` table stays the only lasting
+record. Never broadcast account IDs or return a peer's identity in a discovery
+response. Do not claim a client-reported encounter proves physical proximity or
+expose location without explicit consent.

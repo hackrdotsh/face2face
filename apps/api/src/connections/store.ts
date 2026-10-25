@@ -10,6 +10,7 @@ import {
   user,
 } from "../db/schema";
 import { listInterestNamesByUser } from "../interests/interest-store";
+import type { PersonViewer } from "../profiles/person";
 import type { Connection, ConnectionChanges } from "./lifecycle";
 import type { OrderedPair } from "./pair";
 import { ageOn, type PublicProfile } from "./view";
@@ -174,27 +175,30 @@ export async function insertBlock(
 
 export async function loadPublicProfiles(
   db: Database,
+  viewPerson: PersonViewer,
   userIds: string[],
   today: Date,
 ): Promise<Map<string, PublicProfile>> {
   if (userIds.length === 0) return new Map();
   const [people, interestsByUser] = await Promise.all([
     db
-      .select({ id: user.id, name: user.name, birthDate: profile.birthDate })
+      .select({
+        userId: user.id,
+        name: user.name,
+        photoId: profile.photoId,
+        birthDate: profile.birthDate,
+      })
       .from(user)
       .leftJoin(profile, eq(profile.userId, user.id))
       .where(inArray(user.id, userIds)),
     listInterestNamesByUser(db, userIds),
   ]);
-  return new Map(
-    people.map((person) => [
-      person.id,
-      {
-        userId: person.id,
-        name: person.name,
-        age: person.birthDate ? ageOn(person.birthDate, today) : null,
-        interests: interestsByUser.get(person.id) ?? [],
-      },
-    ]),
+  const profiles = await Promise.all(
+    people.map(async (person) => ({
+      ...(await viewPerson(person)),
+      age: person.birthDate ? ageOn(person.birthDate, today) : null,
+      interests: interestsByUser.get(person.userId) ?? [],
+    })),
   );
+  return new Map(profiles.map((profile) => [profile.userId, profile]));
 }

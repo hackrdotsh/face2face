@@ -13,22 +13,31 @@ final class SessionModel {
 
     private static var defaultAddress: String {
         #if DEBUG
-            "http://localhost:8080"
+            "https://f2f.rocky.systems"
         #else
             ""
         #endif
     }
 
     func client() throws -> APIClient {
+        let configuration = try self.configuration()
+        UserDefaults.standard.set(configuration.baseURL.absoluteString, forKey: "apiAddress")
+        return APIClient(
+            configuration: configuration, tokens: KeychainTokenStore(server: configuration.baseURL))
+    }
+
+    /// A signed photo path on the current server, or nil when the address is not valid.
+    func mediaURL(for path: String) -> URL? {
+        try? configuration().mediaURL(for: path)
+    }
+
+    private func configuration() throws -> APIConfiguration {
         #if DEBUG
             let allowHTTP = true
         #else
             let allowHTTP = false
         #endif
-        let configuration = try APIConfiguration(address: serverAddress, allowInsecureHTTP: allowHTTP)
-        UserDefaults.standard.set(configuration.baseURL.absoluteString, forKey: "apiAddress")
-        return APIClient(
-            configuration: configuration, tokens: KeychainTokenStore(server: configuration.baseURL))
+        return try APIConfiguration(address: serverAddress, allowInsecureHTTP: allowHTTP)
     }
 
     func serverChanged() {

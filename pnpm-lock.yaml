@@ -277,6 +277,9 @@ importers:
       react-dom:
         specifier: 19.3.1
         version: 19.3.1(react@19.3.1)
+      react-easy-crop:
+        specifier: 6.2.4
+        version: 6.2.4(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       tailwind-merge:
         specifier: 3.7.0
         version: 3.7.0
@@ -3002,6 +3005,12 @@ packages:
       sass:
         optional: true
 
+  normalize-wheel@1.0.1:
+    resolution:
+      {
+        integrity: sha512-1OnlAPZ3zgrk8B91HyRj+eVv+kS5u+Z0SCsak6Xil/kmgEia50ga7zfkumayonZrImffAxPU/5WcyGhzetHNPA==,
+      }
+
   obug@2.2.1:
     resolution:
       {
@@ -3068,6 +3077,15 @@ packages:
       }
     peerDependencies:
       react: ^19.3.1
+
+  react-easy-crop@6.2.4:
+    resolution:
+      {
+        integrity: sha512-OWdnFYctzUNlekjob+bQfloG9wyhIBkkmeISnM5XVE4Byqn0jmVxDF7oz85ovUF+EIPQyj0yAHbBEFtnxwGv4g==,
+      }
+    peerDependencies:
+      react: ">=16.4.0"
+      react-dom: ">=16.4.0"
 
   react@19.3.1:
     resolution:
@@ -4756,6 +4774,8 @@ snapshots:
       - babel-plugin-macros
     optional: true
 
+  normalize-wheel@1.0.1: {}
+
   obug@2.2.1: {}
 
   path-to-regexp@6.3.0: {}
@@ -4789,6 +4809,12 @@ snapshots:
     dependencies:
       react: 19.3.1
       scheduler: 0.28.0
+
+  react-easy-crop@6.2.4(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+    dependencies:
+      normalize-wheel: 1.0.1
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
 
   react@19.3.1: {}
 

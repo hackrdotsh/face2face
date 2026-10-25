@@ -95,6 +95,7 @@ async function upsertSeedUser(
     birthDate: seed.birthDate,
     genderId: seed.genderId,
     genderDescription: seed.genderId === "other" ? "Non-binary" : null,
+    photoId: null,
     createdAt: now,
     updatedAt: now,
   };

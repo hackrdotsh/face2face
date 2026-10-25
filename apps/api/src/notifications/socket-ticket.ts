@@ -1,4 +1,12 @@
+import {
+  base64url,
+  fromBase64url,
+  isSignatureValid,
+  signPayload,
+} from "../crypto/signing";
+
 const ticketLifetimeMs = 60 * 1000;
+const ticketPurpose = "socket-ticket";
 const encoder = new TextEncoder();
 
 export function socketTicketSecret(env: Env): string {
@@ -12,9 +20,10 @@ interface TicketClaims {
 }
 
 /**
- * A short-lived signed credential for opening the notification socket.
- * Browsers cannot send an Authorization header on a WebSocket, and a bearer
- * token in a URL would end up in logs.
+ * A short-lived signed credential for opening a socket. Browsers cannot send
+ * an Authorization header on a WebSocket, and a bearer token in a URL would
+ * end up in logs. A ticket proves who the person is, so each socket route
+ * still checks what they may open.
  */
 export async function createSocketTicket(
   secret: string,
@@ -26,7 +35,7 @@ export async function createSocketTicket(
     expiresAt: now.getTime() + ticketLifetimeMs,
   };
   const payload = base64url(encoder.encode(JSON.stringify(claims)));
-  const signature = await sign(secret, payload);
+  const signature = await signPayload(secret, ticketPurpose, payload);
   return {
     ticket: `${payload}.${signature}`,
     expiresAt: new Date(claims.expiresAt).toISOString(),
@@ -41,27 +50,12 @@ export async function readSocketTicket(
 ): Promise<string | null> {
   const [payload, signature] = ticket.split(".");
   if (!payload || !signature) return null;
-  const expected = await sign(secret, payload);
-  if (!constantTimeEqual(signature, expected)) return null;
+  if (!(await isSignatureValid(secret, ticketPurpose, payload, signature))) {
+    return null;
+  }
   const claims = parseClaims(payload);
   if (!claims || claims.expiresAt <= now.getTime()) return null;
   return claims.userId;
-}
-
-async function sign(secret: string, payload: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(`socket-ticket:${secret}`),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(payload),
-  );
-  return base64url(new Uint8Array(signature));
 }
 
 function parseClaims(payload: string): TicketClaims | null {
@@ -83,25 +77,4 @@ function parseClaims(payload: string): TicketClaims | null {
   } catch {
     return null;
   }
-}
-
-function constantTimeEqual(first: string, second: string): boolean {
-  if (first.length !== second.length) return false;
-  let difference = 0;
-  for (let index = 0; index < first.length; index++) {
-    difference |= first.charCodeAt(index) ^ second.charCodeAt(index);
-  }
-  return difference === 0;
-}
-
-function base64url(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
-
-function fromBase64url(text: string): Uint8Array {
-  const binary = atob(text.replaceAll("-", "+").replaceAll("_", "/"));
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }

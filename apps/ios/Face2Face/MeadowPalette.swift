@@ -8,6 +8,7 @@ enum MeadowPalette {
     static let paper = color(0xFFFDF8, dark: 0x172333)
     static let field = color(0xF4F2EE, dark: 0x243347)
     static let fieldBorder = color(0xD8D6D1, dark: 0x415167)
+    static let thumb = color(0xFFFDF8, dark: 0x415167)
     static let accent = color(0xEDC4F0, dark: 0xBBA8EB)
     static let accentInk = color(0x34394D, dark: 0x1D2334)
     static let accentShadow = color(0xC99ECD, dark: 0x76619D)

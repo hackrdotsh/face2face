@@ -1,3 +1,4 @@
+import type { Account } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,7 +14,7 @@ import { useSession } from "@/session/session";
 import { OnboardingFieldInput } from "./OnboardingFieldInput";
 import { ActionForm, ErrorAlert } from "./parts";
 
-export function OnboardingScreen() {
+export function OnboardingScreen({ account }: { account: Account }) {
   const flow = useOnboarding();
   const session = useSession();
   const { form, activity } = flow;
@@ -44,6 +45,7 @@ export function OnboardingScreen() {
                 field={field}
                 draft={form.drafts[field.key] ?? emptyDraft()}
                 error={flow.fieldErrors[field.key]}
+                avatar={account.user.avatar}
                 onChange={(change) => flow.edit(field.key, change)}
               />
             ))}

@@ -8,6 +8,7 @@ import type {
   NotificationEvent,
   Notifier,
 } from "../notifications/notification";
+import type { PersonViewer } from "../profiles/person";
 import {
   agreeToPublic,
   block,
@@ -54,6 +55,7 @@ type ConnectionAction = (
 /** Lists the person's current connections. Expired chances are left out. */
 export async function listConnectionViews(
   db: Database,
+  viewPerson: PersonViewer,
   userId: string,
   now: Date,
 ): Promise<ConnectionView[]> {
@@ -61,6 +63,7 @@ export async function listConnectionViews(
   const rows = await listConnectionsFor(db, userId);
   const profiles = await loadPublicProfiles(
     db,
+    viewPerson,
     publicCounterparts(rows, userId),
     now,
   );
@@ -72,6 +75,7 @@ export async function listConnectionViews(
 
 export async function decideConnection(
   db: Database,
+  viewPerson: PersonViewer,
   notifier: Notifier,
   userId: string,
   connectionId: string,
@@ -85,11 +89,12 @@ export async function decideConnection(
     now,
     (row, side) => decide(row, side, decision, now),
   );
-  return finishChange(db, notifier, userId, result, now);
+  return finishChange(db, viewPerson, notifier, userId, result, now);
 }
 
 export async function goPublic(
   db: Database,
+  viewPerson: PersonViewer,
   notifier: Notifier,
   userId: string,
   connectionId: string,
@@ -102,12 +107,13 @@ export async function goPublic(
     now,
     (row, side) => agreeToPublic(row, side, now),
   );
-  return finishChange(db, notifier, userId, result, now);
+  return finishChange(db, viewPerson, notifier, userId, result, now);
 }
 
 /** Blocks the other person on this connection. They are never told. */
 export async function blockConnection(
   db: Database,
+  viewPerson: PersonViewer,
   notifier: Notifier,
   userId: string,
   connectionId: string,
@@ -128,7 +134,7 @@ export async function blockConnection(
       createdAt: now,
     });
   }
-  return finishChange(db, notifier, userId, result, now);
+  return finishChange(db, viewPerson, notifier, userId, result, now);
 }
 
 /**
@@ -167,6 +173,7 @@ async function changeConnection(
 
 async function finishChange(
   db: Database,
+  viewPerson: PersonViewer,
   notifier: Notifier,
   userId: string,
   result: ChangeResult,
@@ -176,7 +183,10 @@ async function finishChange(
   if (result.previousStatus !== result.row.status) {
     await announceStatus(notifier, result.row);
   }
-  return { ok: true, connection: await viewFor(db, result.row, userId, now) };
+  return {
+    ok: true,
+    connection: await viewFor(db, viewPerson, result.row, userId, now),
+  };
 }
 
 async function loadCurrentConnection(
@@ -209,12 +219,14 @@ function statusEvent(row: Connection): NotificationEvent | null {
 
 async function viewFor(
   db: Database,
+  viewPerson: PersonViewer,
   row: Connection,
   userId: string,
   now: Date,
 ): Promise<ConnectionView> {
   const profiles = await loadPublicProfiles(
     db,
+    viewPerson,
     publicCounterparts([row], userId),
     now,
   );
@@ -223,7 +235,10 @@ async function viewFor(
   return view;
 }
 
-function publicCounterparts(rows: Connection[], userId: string): string[] {
+export function publicCounterparts(
+  rows: Connection[],
+  userId: string,
+): string[] {
   return rows.flatMap((row) => {
     const side = sideOf(row, userId);
     if (row.status !== "public" || !side) return [];

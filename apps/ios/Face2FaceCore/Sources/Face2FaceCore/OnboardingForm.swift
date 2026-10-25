@@ -62,7 +62,7 @@ public struct OnboardingForm: Equatable, Sendable {
             let keepsDescription = option.allowsDescription && !description.isEmpty
             return .choice(
                 ChoiceValue(optionId: option.id, description: keepsDescription ? description : nil))
-        case .unsupported:
+        case .image, .unsupported:
             return nil
         }
     }

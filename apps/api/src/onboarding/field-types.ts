@@ -1,3 +1,4 @@
+import type { ProfilePhoto } from "../profiles/person";
 import type { ProfileChanges, ProfileSnapshot } from "./profile-store";
 
 export interface ChoiceOption {
@@ -19,10 +20,10 @@ export interface FieldConstraints {
 
 export interface FieldDescription {
   key: string;
-  type: "text" | "date" | "singleChoice";
+  type: "text" | "date" | "singleChoice" | "image";
   label: string;
   required: boolean;
-  value: string | ChoiceValue | null;
+  value: string | ChoiceValue | ProfilePhoto | null;
   constraints?: FieldConstraints;
   options?: ChoiceOption[];
 }

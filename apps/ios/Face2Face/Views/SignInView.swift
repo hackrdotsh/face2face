@@ -6,10 +6,13 @@ enum SignInField: Hashable {
 }
 
 struct SignInView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var model: SignInModel
     let contentVisible: Bool
     let focusedField: FocusState<SignInField?>.Binding
     let onClose: () -> Void
+
+    static let lastEntranceOrder = 4
 
     init(
         session: SessionModel, passkeys: PasskeyAuthorizer, contentVisible: Bool,
@@ -22,24 +25,8 @@ struct SignInView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .top, spacing: 12) {
-                Text(model.step == .details ? "Hey, you." : "Check your inbox")
-                    .font(.system(.title, design: .rounded, weight: .heavy))
-                    .accessibilityAddTraits(.isHeader)
-                Spacer(minLength: 0)
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(.subheadline, weight: .semibold))
-                        .frame(width: 44, height: 44)
-                        .background(MeadowPalette.field, in: Circle())
-                }
-                .buttonStyle(MeadowPressStyle())
-                .accessibilityLabel("Back to welcome")
-                .accessibilityIdentifier("loginBack")
-            }
-            .modifier(entrance(0))
-
+        VStack(alignment: .leading, spacing: 16) {
+            header.modifier(entrance(0))
             switch model.step {
             case .details: details
             case .code(let purpose): codeEntry(purpose)
@@ -49,122 +36,204 @@ struct SignInView: View {
         .onChange(of: model.activity.errorMessage) { _, error in
             if let error { AccessibilityNotification.Announcement(error).post() }
         }
+        .onChange(of: model.step) { _, step in
+            if case .code = step { focusedField.wrappedValue = .code }
+        }
+        .onChange(of: model.codeRejections) { focusedField.wrappedValue = .code }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.system(.title, design: .rounded, weight: .heavy))
+                    .contentTransition(.interpolate)
+                    .accessibilityAddTraits(.isHeader)
+                if case .code = model.step, let notice = model.notice {
+                    Text(notice)
+                        .font(.subheadline)
+                        .foregroundStyle(MeadowPalette.secondaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 0)
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(.subheadline, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .background(MeadowPalette.field, in: Circle())
+            }
+            .buttonStyle(MeadowPressStyle())
+            .accessibilityLabel("Back to welcome")
+            .accessibilityIdentifier("loginBack")
+        }
+    }
+
+    private var title: String {
+        switch model.step {
+        case .code(.passwordReset): "Reset your password"
+        case .code: "Check your inbox"
+        case .details where model.method == .createAccount: "Create Account"
+        case .details: "Hey, you."
+        }
     }
 
     private var details: some View {
         Group {
-            Picker("Sign-in method", selection: $model.method) {
-                Text("Email code").tag(SignInModel.Method.emailCode)
-                Text("Password").tag(SignInModel.Method.password)
-                Text("Create account").tag(SignInModel.Method.createAccount)
+            if model.method != .createAccount {
+                MeadowSegmentedControl(
+                    title: "Sign-in method",
+                    selection: Binding(get: { model.method }, set: { switchMode(to: $0) }),
+                    options: [(.emailCode, "Email Code"), (.password, "Password")]
+                )
+                .accessibilityIdentifier("signInMethod")
+                .modifier(entrance(1))
+                .transition(modeTransition)
             }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("signInMethod")
-            .modifier(entrance(1))
 
-            field("Email", symbol: "envelope") {
-                TextField("you@example.com", text: $model.email)
-                    .textContentType(.username)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused(focusedField, equals: .email)
-                    .submitLabel(model.method == .emailCode ? .go : .next)
-                    .onSubmit {
-                        if model.method == .emailCode {
-                            submitDetails()
-                        } else {
-                            focusedField.wrappedValue = .password
+            VStack(alignment: .leading, spacing: 12) {
+                MeadowField(label: "Email", symbol: "envelope") {
+                    TextField("you@example.com", text: $model.email)
+                        .textContentType(.username)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused(focusedField, equals: .email)
+                        .submitLabel(model.method == .emailCode ? .go : .next)
+                        .onSubmit {
+                            if model.method == .emailCode {
+                                submitDetails()
+                            } else {
+                                focusedField.wrappedValue = .password
+                            }
                         }
-                    }
-                    .accessibilityLabel("Email")
-                    .accessibilityIdentifier("emailField")
-            }
-            .modifier(entrance(2))
+                        .accessibilityLabel("Email")
+                        .accessibilityIdentifier("emailField")
+                }
 
-            if model.method != .emailCode {
-                field("Password", symbol: "lock") {
-                    SecureField("Your password", text: $model.password)
+                if model.method != .emailCode {
+                    MeadowField(
+                        label: "Password", symbol: "lock",
+                        accessory: model.method == .password
+                            ? (
+                                "Forgot Password?",
+                                {
+                                    focusedField.wrappedValue = nil
+                                    Task { await model.forgotPassword() }
+                                }
+                            ) : nil
+                    ) {
+                        SecureField(
+                            model.method == .createAccount ? "At least 12 characters" : "Your password",
+                            text: $model.password
+                        )
                         .textContentType(model.method == .createAccount ? .newPassword : .password)
                         .focused(focusedField, equals: .password)
                         .submitLabel(.go)
                         .onSubmit(submitDetails)
                         .accessibilityLabel("Password")
                         .accessibilityIdentifier("passwordField")
-                }
-                .modifier(entrance(3))
-            }
-            if model.method == .createAccount {
-                Text("Use at least 12 characters.")
-                    .font(.footnote)
-                    .foregroundStyle(MeadowPalette.secondaryInk)
-                    .modifier(entrance(3))
-            }
-
-            feedback.modifier(entrance(4))
-            primaryButton(submitTitle, action: submitDetails).modifier(entrance(5))
-
-            VStack(spacing: 12) {
-                if model.method == .password {
-                    Button("Forgot password?") {
-                        focusedField.wrappedValue = nil
-                        Task { await model.forgotPassword() }
                     }
-                    .frame(minHeight: 44)
+                    .transition(modeTransition)
                 }
-                Button("Sign in with a passkey") {
-                    focusedField.wrappedValue = nil
+            }
+            .modifier(entrance(2))
+
+            feedback.modifier(entrance(3))
+
+            MeadowPrimaryButton(title: submitTitle, isBusy: model.activity.isBusy, action: submitDetails)
+                .accessibilityIdentifier("accountSubmit")
+                .modifier(entrance(3))
+
+            detailsLinks.modifier(entrance(4))
+        }
+    }
+
+    private var detailsLinks: some View {
+        VStack(spacing: 4) {
+            if model.method == .createAccount {
+                linkButton("Sign In", before: "Already have an account? ") { switchMode(to: .emailCode) }
+                    .accessibilityIdentifier("signInLink")
+                    .transition(modeTransition)
+            } else {
+                linkButton("Create Account", before: "New here? ") { switchMode(to: .createAccount) }
+                    .accessibilityIdentifier("createAccountLink")
+                    .transition(modeTransition)
+                linkButton("Sign In", after: " with a Passkey", symbol: "person.badge.key") {
                     Task { await model.signInWithPasskey() }
                 }
-                .frame(maxWidth: .infinity, minHeight: 44)
+                .transition(modeTransition)
             }
-            .font(.footnote.weight(.semibold))
-            .modifier(entrance(6))
         }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var modeAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.42, dampingFraction: 0.86)
+    }
+
+    private var modeTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.94, anchor: .top))
+    }
+
+    private func switchMode(to method: SignInModel.Method) {
+        withAnimation(modeAnimation) { model.switchMethod(to: method) }
     }
 
     private func codeEntry(_ purpose: EmailCodePurpose) -> some View {
         Group {
-            field("6-digit code", symbol: "number") {
-                TextField("000000", text: $model.code)
-                    .textContentType(.oneTimeCode)
-                    .keyboardType(.numberPad)
-                    .focused(focusedField, equals: .code)
-                    .accessibilityLabel("6-digit code")
-                    .accessibilityIdentifier("codeField")
+            OneTimeCodeField(
+                code: $model.code, focus: focusedField, focusValue: .code,
+                rejections: model.codeRejections
+            ) {
+                if purpose == .passwordReset {
+                    focusedField.wrappedValue = .newPassword
+                } else {
+                    Task { await model.submitCode() }
+                }
             }
-            .modifier(entrance(2))
+            .modifier(entrance(1))
+
             if purpose == .passwordReset {
-                field("New password", symbol: "lock") {
-                    SecureField("New password", text: $model.newPassword)
+                MeadowField(label: "New password", symbol: "lock") {
+                    SecureField("At least 12 characters", text: $model.newPassword)
                         .textContentType(.newPassword)
                         .focused(focusedField, equals: .newPassword)
+                        .submitLabel(.go)
+                        .onSubmit(submitCode)
                         .accessibilityLabel("New password")
                 }
+                .modifier(entrance(2))
+            }
+
+            feedback.modifier(entrance(3))
+
+            if purpose == .passwordReset {
+                MeadowPrimaryButton(
+                    title: "Reset Password", isBusy: model.activity.isBusy, action: submitCode
+                )
+                .accessibilityIdentifier("accountSubmit")
                 .modifier(entrance(3))
+            } else if model.activity.isBusy {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("Checking code")
             }
-            feedback.modifier(entrance(4))
-            primaryButton(purpose == .passwordReset ? "Reset password" : "Continue") {
-                focusedField.wrappedValue = nil
-                Task { await model.submitCode() }
-            }
-            .modifier(entrance(5))
+
             HStack {
-                Button("Send a new code") { Task { await model.resendCode() } }
+                linkButton("Resend Code") { Task { await model.resendCode() } }
                 Spacer()
-                Button("Back") {
+                linkButton("Use a Different Email") {
                     focusedField.wrappedValue = nil
                     model.backToDetails()
                 }
             }
-            .font(.footnote.weight(.semibold))
-            .frame(minHeight: 44)
-            .modifier(entrance(6))
+            .modifier(entrance(4))
         }
     }
 
     @ViewBuilder private var feedback: some View {
-        if let notice = model.notice {
+        if case .details = model.step, let notice = model.notice {
             Text(notice).font(.footnote).foregroundStyle(MeadowPalette.secondaryInk)
         }
         if let error = model.activity.errorMessage {
@@ -178,9 +247,9 @@ struct SignInView: View {
 
     private var submitTitle: String {
         switch model.method {
-        case .emailCode: "Email me a code"
-        case .password: "Sign in"
-        case .createAccount: "Create account"
+        case .emailCode: "Email Me a Code"
+        case .password: "Sign In"
+        case .createAccount: "Create Account"
         }
     }
 
@@ -189,52 +258,38 @@ struct SignInView: View {
         Task { await model.submitDetails() }
     }
 
-    private func entrance(_ order: Int) -> FormEntrance {
-        FormEntrance(visible: contentVisible, order: order, lastOrder: 6)
+    private func submitCode() {
+        focusedField.wrappedValue = nil
+        Task { await model.submitCode() }
     }
 
-    private func field<Content: View>(
-        _ label: String, symbol: String, @ViewBuilder content: () -> Content
+    /// A text button where only `title` is underlined; `before` and `after` are plain text around it.
+    private func linkButton(
+        _ title: String, before: String = "", after: String = "", symbol: String? = nil,
+        action: @escaping () -> Void
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(label).font(.system(.caption, design: .rounded, weight: .bold))
-            HStack(spacing: 12) {
-                Image(systemName: symbol).foregroundStyle(MeadowPalette.secondaryInk).accessibilityHidden(
-                    true)
-                content().font(.body).tint(MeadowPalette.ink)
-            }
-            .padding(15)
-            .frame(minHeight: 52)
-            .background(MeadowPalette.field, in: RoundedRectangle(cornerRadius: 12))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(MeadowPalette.fieldBorder, lineWidth: 1).allowsHitTesting(false)
+        let text = Text("\(before)\(Text(title).underline())\(after)")
+        return Button {
+            if focusedField.wrappedValue != .code { focusedField.wrappedValue = nil }
+            action()
+        } label: {
+            if let symbol {
+                Label {
+                    text
+                } icon: {
+                    Image(systemName: symbol)
+                }
+            } else {
+                text
             }
         }
+        .font(.system(.footnote, design: .rounded, weight: .bold))
+        .foregroundStyle(MeadowPalette.ink)
+        .frame(minHeight: 44)
+        .buttonStyle(MeadowPressStyle())
     }
 
-    private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Spacer(minLength: 0)
-                Text(title)
-                if model.activity.isBusy {
-                    ProgressView().tint(MeadowPalette.accentInk)
-                } else {
-                    Image(systemName: "arrow.right").accessibilityHidden(true)
-                }
-                Spacer(minLength: 0)
-            }
-            .font(.system(.headline, design: .rounded, weight: .heavy))
-            .foregroundStyle(MeadowPalette.accentInk)
-            .padding(18)
-            .background {
-                RoundedRectangle(cornerRadius: 16).fill(MeadowPalette.accent)
-                    .shadow(color: MeadowPalette.accentShadow, radius: 0, y: 4)
-            }
-        }
-        .buttonStyle(MeadowPressStyle())
-        .accessibilityValue(model.activity.isBusy ? "Loading" : "")
-        .accessibilityIdentifier("accountSubmit")
+    private func entrance(_ order: Int) -> FormEntrance {
+        FormEntrance(visible: contentVisible, order: order, lastOrder: Self.lastEntranceOrder)
     }
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ProfilePhoto } from "../profiles/person";
 import type {
   ChoiceOption,
   ChoiceValue,
@@ -144,4 +145,21 @@ function subtractYears(isoDate: string, years: number): string {
   const date = new Date(`${isoDate}T00:00:00Z`);
   date.setUTCFullYear(date.getUTCFullYear() - years);
   return date.toISOString().slice(0, 10);
+}
+
+/** Set by uploading to `/api/profile/photo`, never by an onboarding update. */
+export function photoField(
+  field: Omit<FieldBase<ProfilePhoto>, "write">,
+): OnboardingField {
+  return {
+    key: field.key,
+    describe: ({ snapshot }) => ({
+      key: field.key,
+      type: "image",
+      label: field.label,
+      required: field.required,
+      value: field.read(snapshot),
+    }),
+    parse: () => ({ ok: false, message: "Upload the photo instead." }),
+  };
 }

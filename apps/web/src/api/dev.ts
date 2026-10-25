@@ -14,6 +14,14 @@ export function seedUsers(client: APIClient) {
   });
 }
 
+/** Seeds the people too, then replaces the seeded forum posts. */
+export function seedForums(client: APIClient) {
+  return client.send<{ postIds: string[] }>({
+    path: "api/dev/forums/seed",
+    body: {},
+  });
+}
+
 export function listDevUsers(client: APIClient) {
   return client.send<{ seedPassword: string; users: DevUser[] }>({
     path: "api/dev/users",

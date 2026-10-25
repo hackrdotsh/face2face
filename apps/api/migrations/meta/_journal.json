@@ -43,6 +43,41 @@
       "when": 1792865505303,
       "tag": "0005_seed_interests",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792883836167,
+      "tag": "0006_forums",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792883836561,
+      "tag": "0007_post_attendee_count",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792883836928,
+      "tag": "0008_seed_forums",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792888492384,
+      "tag": "0009_profile_photo",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792891870955,
+      "tag": "0010_streetpass_discovery",
+      "breakpoints": true
     }
   ]
 }

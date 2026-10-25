@@ -36,7 +36,7 @@ final class LoginTests: XCTestCase {
 
     func testRegistrationClosesAndReopensAsSignIn() {
         let app = launchApp()
-        selectMethod("Create account", in: app)
+        openCreateAccount(in: app)
         XCTAssertTrue(app.secureTextFields["passwordField"].exists)
         app.swipeDown()
         app.buttons["loginBack"].tap()
@@ -44,7 +44,7 @@ final class LoginTests: XCTestCase {
         XCTAssertFalse(app.secureTextFields["passwordField"].exists)
         app.buttons["loginStart"].tap()
         XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.segmentedControls["signInMethod"].buttons["Email code"].isSelected)
+        XCTAssertTrue(app.buttons["Email Code"].isSelected)
     }
 
     func testLoginPillEdgesAreTappable() {
@@ -77,11 +77,10 @@ final class LoginTests: XCTestCase {
     func testLoginExpandsIntoFormAndReturnsToWelcome() {
         let app = launchApp(openLogin: false)
         XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.buttons["loginStart"].label, "Login")
+        XCTAssertEqual(app.buttons["loginStart"].label, "Get Started")
         XCTAssertLessThan(app.buttons["loginStart"].frame.width, app.frame.width * 0.7)
         XCTAssertGreaterThanOrEqual(app.buttons["loginStart"].frame.height, 44)
-        XCTAssertLessThan(app.buttons["loginStart"].frame.midY, app.frame.height * 0.72)
-        XCTAssertGreaterThan(app.buttons["loginStart"].frame.midY, app.frame.height * 0.58)
+        XCTAssertEqual(app.buttons["loginStart"].frame.midY, app.frame.midY, accuracy: 4)
         XCTAssertFalse(app.textFields["emailField"].exists)
         XCTAssertFalse(app.staticTexts["Take the scenic route"].exists)
         capture("Welcome")
@@ -111,7 +110,7 @@ final class LoginTests: XCTestCase {
 
         XCTAssertFalse(app.buttons["sceneryToggle"].exists)
 
-        selectMethod("Create account", in: app)
+        openCreateAccount(in: app)
         XCTAssertTrue(app.secureTextFields["passwordField"].exists)
         reveal(app.textFields["emailField"], in: app)
         capture("Create account")
@@ -123,9 +122,10 @@ final class LoginTests: XCTestCase {
         capture("Keyboard")
         app.toolbars.buttons["Done"].tap()
 
+        app.buttons["signInLink"].tap()
         selectMethod("Password", in: app)
-        XCTAssertTrue(app.buttons["Forgot password?"].exists)
-        XCTAssertTrue(app.buttons["Sign in with a passkey"].exists)
+        XCTAssertTrue(app.buttons["Forgot Password?"].exists)
+        XCTAssertTrue(app.buttons["Sign In with a Passkey"].exists)
         app.swipeDown()
         app.swipeDown()
         app.buttons["appSettings"].tap()
@@ -141,7 +141,7 @@ final class LoginTests: XCTestCase {
         reveal(app.buttons["accountSubmit"], in: app)
         XCTAssertTrue(app.buttons["accountSubmit"].isHittable)
         capture("Large text sign in")
-        selectMethod("Create account", in: app)
+        openCreateAccount(in: app)
         reveal(app.buttons["accountSubmit"], in: app)
         XCTAssertTrue(app.buttons["accountSubmit"].isHittable)
         capture("Large text create account")
@@ -153,7 +153,7 @@ final class LoginTests: XCTestCase {
         app.buttons["accountSubmit"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["authError"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["accountSubmit"].isEnabled)
-        XCTAssertTrue(app.segmentedControls["signInMethod"].isEnabled)
+        XCTAssertTrue(app.buttons["Password"].isEnabled)
         capture("Sign in error")
     }
 
@@ -163,8 +163,15 @@ final class LoginTests: XCTestCase {
         ).firstMatch
     }
 
+    private func openCreateAccount(in app: XCUIApplication) {
+        let link = app.buttons["createAccountLink"]
+        reveal(link, in: app)
+        link.tap()
+        XCTAssertTrue(app.secureTextFields["passwordField"].waitForExistence(timeout: 3))
+    }
+
     private func selectMethod(_ title: String, in app: XCUIApplication) {
-        let method = app.segmentedControls["signInMethod"].buttons[title]
+        let method = app.buttons[title]
         for _ in 0..<6 {
             if method.isHittable { break }
             app.swipeDown()
