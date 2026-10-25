@@ -21,8 +21,8 @@ final class TownUITests: XCTestCase {
         let forums = app.buttons["town-forums"]
         XCTAssertTrue(forums.waitForExistence(timeout: 8))
         forums.tap()
-        XCTAssertTrue(app.staticTexts["Town Preview"].waitForExistence(timeout: 4))
-        app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["forumsPreviewLabel"].waitForExistence(timeout: 4))
+        app.buttons["Back to town"].tap()
         XCTAssertTrue(app.buttons["townAccount"].waitForExistence(timeout: 4))
     }
 
