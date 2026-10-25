@@ -15,10 +15,16 @@ export const interest = sqliteTable(
     id: text("id").primaryKey(),
     name: text("name").notNull().unique(),
     memberCount: integer("member_count").notNull().default(0),
+    /** Null for seeded interests. */
+    createdBy: text("created_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }),
   },
   (table) => [
     check("interest_name_lowercase", sql`${table.name} = lower(${table.name})`),
     check("interest_member_count_not_negative", sql`${table.memberCount} >= 0`),
+    index("interest_created_by_idx").on(table.createdBy, table.createdAt),
   ],
 );
 

@@ -98,4 +98,89 @@ describe("interests API", () => {
     }>();
     expect(connection.sharedInterests).toEqual(["jazz", "reading"]);
   });
+
+  it("creates a new interest and selects it for its creator", async () => {
+    const headers = await onboardedPerson("creator@example.test");
+    const response = await addInterest(headers, "  Rock  Climbing’s ");
+    expect(response.status).toBe(200);
+    const body = await response.json<{
+      interestId: string;
+      interests: (InterestChoice & { name: string })[];
+    }>();
+    const created = body.interests.find(
+      (choice) => choice.id === body.interestId,
+    );
+    expect(created).toMatchObject({
+      name: "rock climbing's",
+      memberCount: 1,
+      selected: true,
+    });
+  });
+
+  it("selects the existing interest when the name matches", async () => {
+    const headers = await onboardedPerson("matcher@example.test");
+    const response = await addInterest(headers, "Board Games");
+    const body = await response.json<{ interestId: string }>();
+    expect(body.interestId).toBe("board-games");
+    const picked = (await choices(headers)).filter((choice) => choice.selected);
+    expect(picked.map((choice) => choice.id)).toEqual(["board-games"]);
+  });
+
+  it("rejects names outside the rules", async () => {
+    const headers = await onboardedPerson("rules@example.test");
+    for (const name of ["a", "x".repeat(33), "-dash", "emoji 🎸", "  "]) {
+      const response = await addInterest(headers, name);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: "invalid_fields" });
+    }
+  });
+
+  it("refuses a new interest past the selection cap", async () => {
+    const headers = await onboardedPerson("full@example.test");
+    const ten = (await choices(headers))
+      .slice(0, 10)
+      .map((choice) => choice.id);
+    await putInterests(headers, ten);
+    expect((await addInterest(headers, "kite flying")).status).toBe(409);
+    expect((await addInterest(headers, "Board Games")).status).toBe(200);
+  });
+
+  it("limits how many interests one person creates a day", async () => {
+    const headers = await onboardedPerson("prolific@example.test");
+    for (const name of ["sumo", "curling", "fencing", "rowing", "archery"]) {
+      expect((await addInterest(headers, name)).status).toBe(200);
+    }
+    expect((await addInterest(headers, "bowling")).status).toBe(429);
+    expect((await addInterest(headers, "coffee")).status).toBe(200);
+  });
+
+  it("opens a forum once a created interest has three members", async () => {
+    const forumIds = async (headers: Record<string, string>) => {
+      const response = await callAPI("/api/forums", { headers });
+      const { forums } = await response.json<{ forums: { id: string }[] }>();
+      return forums.map((forum) => forum.id);
+    };
+    const first = await onboardedPerson("first@example.test");
+    const { interestId } = await (
+      await addInterest(first, "bird watching")
+    ).json<{ interestId: string }>();
+    await addInterest(
+      await onboardedPerson("second@example.test"),
+      "bird watching",
+    );
+    expect(await forumIds(first)).not.toContain(interestId);
+    await addInterest(
+      await onboardedPerson("third@example.test"),
+      "Bird Watching",
+    );
+    expect(await forumIds(first)).toContain(interestId);
+  });
 });
+
+function addInterest(headers: Record<string, string>, name: string) {
+  return callAPI("/api/interests", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
