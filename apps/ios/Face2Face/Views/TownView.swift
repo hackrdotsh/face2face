@@ -389,7 +389,7 @@ enum TownDestination: String, CaseIterable, Identifiable {
     }
 }
 
-struct TownScene: View {
+struct TownCanvasScene: View {
     var isMoving = true
     var visitors: [PublicTownFriend] = []
     var session: SessionModel?

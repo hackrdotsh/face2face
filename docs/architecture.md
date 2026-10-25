@@ -23,12 +23,12 @@ Swift core tests run on Linux and Mac. Keychain and SwiftUI need Apple's SDKs;
 the macOS CI job builds the simulator target. Physical-device behavior still
 requires Xcode and an iPhone. Generated projects and local build output are ignored.
 
-## Decorative forest
+## 3D scenery
 
-`MeadowScene` chooses the RealityKit forest on iOS 18+ when the saved **3D forest**
+`MeadowScene` chooses the RealityKit forest on iOS 18+ when the saved **3D scenery**
 appearance preference is on. iOS 17, an explicit opt-out, or an asset-generation
-failure uses `MeadowCanvasScene`. Login, onboarding, and profile share this wrapper;
-the town and its real public-friend visitors are not part of this prototype.
+failure uses `MeadowCanvasScene`. Login, onboarding, and profile share this wrapper.
+The same preference controls the matching 3D town, with `TownCanvasScene` as its fallback.
 
 The camera is orthographic and virtual, not AR: there is no camera permission,
 tracking session, downloaded model, or new dependency. Pine meshes are generated
@@ -42,11 +42,20 @@ the path while walking and turns sideways only to greet. Fireflies belong to
 the scrolling terrain tiles, with only small local drift, rather than the camera.
 For deterministic Debug screenshots, `-forest-preview-time 4` freezes a greeting.
 
-A view-owned task updates transforms approximately 30 times per second while the
-screen is moving and active. It cancels on disappearance, backgrounding, or Reduce
-Motion; paused frames retain their pose. Light/dark changes repaint the scene
+A view-owned task updates forest transforms approximately 30 times per second;
+the town uses a matching SwiftUI animation timeline. Both pause when inactive or
+with Reduce Motion; paused frames retain their pose. Light/dark changes repaint the scene
 without rebuilding geometry. Long-running battery usage and frame pacing still
 need measurement on hardware. Decorative crossings never record encounters.
+
+`Town3DWorld` builds the venue, café, noticeboard, paths, shoreline, trees, and blob
+residents as RealityKit geometry. `TownProjection` keeps the orthographic camera
+and the accessible 400 × 640 interaction map aligned. Camera gestures are disabled;
+building and public-friend actions stay in SwiftUI, including large-text navigation.
+Only the existing public-friend filter supplies identified visitors. Clearing that
+list replaces their 3D shapes with anonymous decorative residents; no scene data is
+stored or interpreted as real location. Profile revalidation, chats, notifications,
+and all authorization continue through the existing models and routes.
 
 ## Accounts and onboarding
 

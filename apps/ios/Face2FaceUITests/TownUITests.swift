@@ -2,6 +2,16 @@ import XCTest
 
 @MainActor
 final class TownUITests: XCTestCase {
+    func testTwoDimensionalTownRemainsAvailable() {
+        let app = launch(scenery3D: false)
+        let forums = app.buttons["town-forums"]
+        XCTAssertTrue(forums.waitForExistence(timeout: 8))
+        forums.tap()
+        XCTAssertTrue(app.staticTexts["Town preview"].waitForExistence(timeout: 4))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["townAccount"].waitForExistence(timeout: 4))
+    }
+
     func testBuildingsOpenAndDismissTheirOwnDestinations() {
         let app = launch()
         let identifiers = ["encounters", "connections", "forums"]
@@ -137,9 +147,10 @@ final class TownUITests: XCTestCase {
         capture("large-text-destination")
     }
 
-    private func launch(extra: [String] = []) -> XCUIApplication {
+    private func launch(extra: [String] = [], scenery3D: Bool = true) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-town-preview", "-appearance", "light"] + extra
+        app.launchArguments =
+            ["-town-preview", "-appearance", "light", "-forest3DEnabled", scenery3D ? "YES" : "NO"] + extra
         app.launch()
         return app
     }

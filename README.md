@@ -11,8 +11,9 @@ turns a reciprocal Bluetooth match into an anonymous chance to connect. It is no
 validated on hardware yet, and a match does not prove that two people were near.
 
 On iOS 18 and later, the welcome, onboarding, and profile backgrounds are a 3D forest
-with layered pines and rounded versions of the blob avatars. **Settings → 3D forest**
-switches back to the original 2D meadow; iOS 17 uses it automatically. The town is unchanged.
+with layered pines and rounded versions of the blob avatars. The town is a matching
+3D village with a venue, café, noticeboard, shoreline, and blob residents.
+**Settings → 3D scenery** switches both scenes back to 2D; iOS 17 uses 2D automatically.
 **Get Started** expands into the
 account form, then the controls pop in sequentially after the glass finishes
 expanding; closing reverses the sequence before the glass shrinks back to the

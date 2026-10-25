@@ -14,6 +14,18 @@
 | Reduced motion       | iOS Accessibility → Motion                    | No resident, water or sign animation                                            |
 | Large text           | Accessibility text sizes                      | Scenery followed by full-size destination buttons                               |
 
+## 3D scenery
+
+On iOS 18+, **Settings → 3D scenery** enables the shared RealityKit forest and town.
+The town has modeled buildings, paths, shoreline, trees, and blob residents. Its
+SwiftUI hit targets retain the same map coordinates and identifiers. iOS 17, an
+explicit opt-out, or an asset-generation failure uses the 2D town.
+
+`Town3DTests.swift` checks scene structure, projection alignment and removal of
+public-friend meshes. Town/PublicFriends UI tests exercise the 3D renderer; the
+Town suite also checks the 2D fallback. Capture light and dark previews. The 3D
+camera is fixed and never represents a real person's location.
+
 ## Evidence commands
 
 ```sh
@@ -55,7 +67,7 @@ corresponding town lists. Chat-message push delivery is not added here.
 - Only `status == "public"` with a disclosed `them` profile and public user ID can
   become `PublicTownFriend`. Private, pending, blocked, expired and unknown statuses
   never create NPCs, even if a response unexpectedly includes identity-shaped data.
-- Up to three visitors use the login walker, with a small avatar and first-name tag.
+- Up to three visitors use seeded 3D blobs (the login walker in 2D), with a photo badge when available and a first-name tag.
   Tap `town-friend-<connectionId>` for the compact profile. Large-text mode uses
   stationary friend buttons below the destinations.
 - Opening a profile fetches `/api/connections` again before showing identity. A
