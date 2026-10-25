@@ -23,6 +23,8 @@ final class SignInModel {
     var code = ""
     var newPassword = ""
     private(set) var notice: String?
+    /// Counts rejected codes, so the code input can react to each one.
+    private(set) var codeRejections = 0
     let activity = Activity()
 
     private let session: SessionModel
@@ -51,7 +53,7 @@ final class SignInModel {
 
     func submitCode() async {
         guard case .code(let purpose) = step else { return }
-        await activity.run {
+        let succeeded = await activity.run {
             let client = try self.session.client()
             switch purpose {
             case .signIn:
@@ -67,6 +69,10 @@ final class SignInModel {
             self.clearSecrets()
             try await self.session.refreshAccount()
         }
+        if !succeeded, purpose != .passwordReset {
+            code = ""
+            codeRejections += 1
+        }
     }
 
     func resendCode() async {
@@ -78,6 +84,7 @@ final class SignInModel {
             case .emailVerification: try await client.resendVerificationCode(email: self.email)
             case .passwordReset: try await client.requestPasswordReset(email: self.email)
             }
+            self.code = ""
             self.notice = "We sent a new code to \(self.email)."
         }
     }
@@ -97,6 +104,12 @@ final class SignInModel {
             try await client.signIn(with: assertion, for: challenge)
             try await self.session.refreshAccount()
         }
+    }
+
+    func switchMethod(to method: Method) {
+        self.method = method
+        activity.errorMessage = nil
+        notice = nil
     }
 
     func backToDetails() {

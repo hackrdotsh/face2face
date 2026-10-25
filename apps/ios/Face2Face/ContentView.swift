@@ -3,7 +3,6 @@ import SwiftUI
 @MainActor
 struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Namespace private var accountTransition
     @Bindable var session: SessionModel
     let passkeys: PasskeyAuthorizer
@@ -15,7 +14,6 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let contentHeight = showingLogin ? geometry.size.height - 44 : geometry.size.height * 2 / 3
             ZStack {
                 MeadowScene(
                     isMoving: focusedField == nil && !showingSettings,
@@ -26,22 +24,37 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         toolbar
-                        welcome.padding(.top, 32)
-                        Spacer(minLength: 110)
                         if showingLogin {
+                            Spacer(minLength: 16)
                             accountCard.transition(.opacity)
+                            Spacer(minLength: 0)
+                            // Balances the toolbar, the uneven paddings, and the uneven safe areas, so the card centers on the screen.
+                            Color.clear.frame(
+                                height: max(
+                                    0, 24 + geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom))
                         } else {
-                            loginButton.transition(.opacity)
+                            welcome.padding(.top, 32).transition(.opacity)
+                            Spacer(minLength: 0)
                         }
                     }
                     .frame(maxWidth: 440)
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: max(0, contentHeight))
+                    .frame(minHeight: max(0, geometry.size.height - 44))
                     .padding(.horizontal, 24)
                     .padding(.top, 12)
                     .padding(.bottom, 32)
+                    .overlay {
+                        if !showingLogin {
+                            loginButton
+                                .padding(
+                                    .bottom, geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom
+                                )
+                                .transition(.opacity)
+                        }
+                    }
                 }
                 .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
                 .scrollDismissesKeyboard(.interactively)
             }
         }
@@ -94,7 +107,7 @@ struct ContentView: View {
 
     private var loginButton: some View {
         Button(action: openLogin) {
-            Text("Login")
+            Text("Get Started")
                 .font(.system(.headline, design: .rounded, weight: .heavy))
                 .frame(minWidth: 140)
                 .padding(.horizontal, 30)
@@ -117,7 +130,7 @@ struct ContentView: View {
                 accountSurface(expanded: expanded)
             } else {
                 accountSurface(expanded: expanded)
-                    .matchedGeometryEffect(id: "accountSurface", in: accountTransition, anchor: .bottom)
+                    .matchedGeometryEffect(id: "accountSurface", in: accountTransition, anchor: .center)
             }
         }
         .shadow(color: MeadowPalette.shadow.opacity(0.12), radius: 16, y: 6)
@@ -126,33 +139,9 @@ struct ContentView: View {
     @ViewBuilder
     private func accountSurface(expanded: Bool) -> some View {
         if expanded {
-            glassSurface(RoundedRectangle(cornerRadius: 32), interactive: false)
+            MeadowGlass(shape: RoundedRectangle(cornerRadius: MeadowRadius.card))
         } else {
-            glassSurface(Capsule(), interactive: true)
-        }
-    }
-
-    @ViewBuilder
-    private func glassSurface<Surface: InsettableShape>(
-        _ shape: Surface, interactive: Bool
-    ) -> some View {
-        if reduceTransparency {
-            shape.fill(MeadowPalette.paper)
-        } else if #available(iOS 26.0, *) {
-            shape.fill(.clear)
-                .glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
-        } else {
-            shape.fill(.ultraThinMaterial)
-                .overlay {
-                    shape.strokeBorder(
-                        LinearGradient(
-                            colors: [
-                                MeadowPalette.glassEdge.opacity(0.9), MeadowPalette.glassEdge.opacity(0.15),
-                                MeadowPalette.glassEdge.opacity(0.6),
-                            ],
-                            startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: 1)
-                }
+            MeadowGlass(shape: Capsule(), interactive: true)
         }
     }
 
@@ -161,7 +150,7 @@ struct ContentView: View {
             session: session, passkeys: passkeys, contentVisible: formVisible,
             focusedField: $focusedField, onClose: closeLogin
         )
-        .padding(24)
+        .padding(MeadowRadius.cardInset)
         .background { accountBackground(expanded: true) }
     }
 
@@ -180,7 +169,8 @@ struct ContentView: View {
         guard showingLogin, !isClosingForm else { return }
         focusedField = nil
         isClosingForm = true
-        let duration = FormEntrance.exitDuration(lastOrder: 6, reduceMotion: reduceMotion)
+        let duration = FormEntrance.exitDuration(
+            lastOrder: SignInView.lastEntranceOrder, reduceMotion: reduceMotion)
         withAnimation(.easeIn(duration: duration), completionCriteria: .logicallyComplete) {
             formVisible = false
         } completion: {
@@ -191,16 +181,5 @@ struct ContentView: View {
                 isClosingForm = false
             }
         }
-    }
-}
-
-struct MeadowPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
-            .opacity(configuration.isPressed ? 0.8 : 1)
-            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
