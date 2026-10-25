@@ -76,20 +76,35 @@ const { password } = await json(
   await post("dev/seed", {}),
   "Seeding failed. Is DEV_TOOLS true?",
 );
-const people = ["seed-ava", "seed-ben"];
+const { users } = await json(
+  await request("dev/users"),
+  "Dev users request failed",
+);
 const { connections: rows } = await json(
   await request("dev/connections"),
   "Dev connections request failed",
 );
-for (const row of rows) {
-  const pair = [row.userLowId, row.userHighId];
-  if (!people.every((id) => pair.includes(id))) continue;
-  check(
-    row.status === "pending" ||
-      row.status === "expired" ||
-      row.status === "blocked",
-    "Ava and Ben are already connected. Run POST /api/dev/reset first.",
+const rowsFor = (first, second) =>
+  rows.filter(
+    (row) =>
+      [row.userLowId, row.userHighId].includes(first.id) &&
+      [row.userLowId, row.userHighId].includes(second.id),
   );
+// A connected or blocked pair cannot get a new chance, so pick a pair without one.
+const seeds = users.filter((user) => user.id.startsWith("seed-"));
+const people = seeds
+  .flatMap((first, index) =>
+    seeds.slice(index + 1).map((second) => [first, second]),
+  )
+  .find(([first, second]) =>
+    rowsFor(first, second).every((row) =>
+      ["pending", "expired"].includes(row.status),
+    ),
+  );
+check(people, "Every seed pair is connected. Run POST /api/dev/reset first.");
+const [first, second] = people;
+console.log(`Using ${first.id} and ${second.id}.`);
+for (const row of rowsFor(first, second)) {
   if (row.status === "pending") {
     await json(
       await post(`dev/connections/${row.id}/expire`, {}),
@@ -101,36 +116,36 @@ for (const row of rows) {
 const clients = [];
 const leases = [];
 try {
-  const ava = await signIn("seed-ava", password);
-  clients.push(ava);
-  const ben = await signIn("seed-ben", password);
-  clients.push(ben);
-  const avaBefore = (await pendingChances(ava)).length;
-  const names = [ava.id, ben.id, "Ava", "Ben"];
+  const one = await signIn(first.id, password);
+  clients.push(one);
+  const two = await signIn(second.id, password);
+  clients.push(two);
+  const firstBefore = (await pendingChances(one)).length;
+  const names = [first.id, second.id, first.name, second.name];
 
   const a = await json(
-    await post("discovery/start", {}, ava.credential),
-    "Ava start failed",
+    await post("discovery/start", {}, one.credential),
+    "First start failed",
   );
-  leases.push([ava, a]);
+  leases.push([one, a]);
   const b = await json(
-    await post("discovery/start", {}, ben.credential),
-    "Ben start failed",
+    await post("discovery/start", {}, two.credential),
+    "Second start failed",
   );
-  leases.push([ben, b]);
+  leases.push([two, b]);
 
   const observationId = randomUUID();
-  const oneSided = await observe(ava, a, b, observationId);
+  const oneSided = await observe(one, a, b, observationId);
   const oneSidedBody = await oneSided.text();
   check(oneSided.status === 200, "First observation failed");
   check(JSON.parse(oneSidedBody).status === "pending", "One-sided match");
   assertAnonymous(oneSidedBody, names);
   check(
-    (await pendingChances(ava)).length === avaBefore,
+    (await pendingChances(one)).length === firstBefore,
     "A one-sided report opened a chance",
   );
 
-  const reciprocal = await observe(ben, b, a);
+  const reciprocal = await observe(two, b, a);
   const reciprocalBody = await reciprocal.text();
   check(reciprocal.status === 200, "Reciprocal observation failed");
   check(
@@ -138,49 +153,52 @@ try {
     "Reciprocal reports were not recorded",
   );
   assertAnonymous(reciprocalBody, names);
-  const avaChances = await pendingChances(ava);
-  const benChances = await pendingChances(ben);
-  check(avaChances.length === avaBefore + 1, "No pending chance for Ava");
-  const chance = avaChances[0];
+  const firstChances = await pendingChances(one);
+  const secondChances = await pendingChances(two);
   check(
-    benChances.some((row) => row.id === chance.id),
-    "Ben did not get the same chance",
+    firstChances.length === firstBefore + 1,
+    "No pending chance for the first person",
+  );
+  const chance = firstChances[0];
+  check(
+    secondChances.some((row) => row.id === chance.id),
+    "The second person did not get the same chance",
   );
   check(chance.them === null, "A pending chance named the other person");
 
   const retry = await json(
-    await observe(ava, a, b, observationId),
+    await observe(one, a, b, observationId),
     "Retry failed",
   );
   check(retry.status === "recorded", "Retry did not see the match");
 
   const rotated = await json(
-    await post("discovery/rotate", { sessionId: a.sessionId }, ava.credential),
+    await post("discovery/rotate", { sessionId: a.sessionId }, one.credential),
     "Rotation failed",
   );
   check(
     rotated.token !== a.token && rotated.sessionId === a.sessionId,
     "Rotation contract mismatch",
   );
-  await json(await observe(ben, b, rotated), "Rotated-token report failed");
+  await json(await observe(two, b, rotated), "Rotated-token report failed");
   check(
-    (await pendingChances(ava)).length === avaBefore + 1,
+    (await pendingChances(one)).length === firstBefore + 1,
     "Rotation opened a second chance",
   );
 
   await json(
-    await post("discovery/stop", { sessionId: a.sessionId }, ava.credential),
+    await post("discovery/stop", { sessionId: a.sessionId }, one.credential),
     "Stop failed",
   );
-  const revoked = await observe(ben, b, rotated);
+  const revoked = await observe(two, b, rotated);
   check(revoked.status === 410, "A revoked token was accepted");
 
-  const signedOut = await post("auth/sign-out", {}, ben.credential);
-  check(signedOut.status === 200, "Ben sign-out failed");
+  const signedOut = await post("auth/sign-out", {}, two.credential);
+  check(signedOut.status === 200, "Second sign-out failed");
   const afterSignOut = await post(
     "discovery/rotate",
     { sessionId: b.sessionId },
-    ben.credential,
+    two.credential,
   );
   check(afterSignOut.status === 401, "A signed-out credential still worked");
 

@@ -472,8 +472,8 @@ Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required
 - The iPhone app has no Passed screen yet. Check a match's chance in the web client.
 
 `pnpm test:streetpass` runs the contract over real HTTP against a local API with
-`DEV_TOOLS` set to `"true"`. It signs in as two seed people and expires their
-earlier pending chance first. It tests no Bluetooth.
+`DEV_TOOLS` set to `"true"`. It signs in as two seed people who are not connected
+or blocked and expires their earlier pending chance first. It tests no Bluetooth.
 
 ### Two-phone check
 
