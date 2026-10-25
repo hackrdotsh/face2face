@@ -22,10 +22,12 @@ final class TownUITests: XCTestCase {
             } else if identifiers[index] == "forums" {
                 XCTAssertTrue(app.staticTexts["forumsPreviewLabel"].waitForExistence(timeout: 4))
             } else {
-                XCTAssertTrue(app.staticTexts["Town preview"].waitForExistence(timeout: 4))
+                XCTAssertTrue(app.staticTexts["encountersPreviewLabel"].waitForExistence(timeout: 4))
             }
             capture(identifiers[index])
-            if identifiers[index] == "forums" {
+            if identifiers[index] == "encounters" {
+                app.buttons["encountersBack"].tap()
+            } else if identifiers[index] == "forums" {
                 app.buttons["Back to town"].tap()
             } else {
                 app.buttons["Done"].tap()
