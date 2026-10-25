@@ -119,7 +119,11 @@ final class NotificationsModel {
                     [
                         "id": "preview-\(index)", "kind": event.0,
                         "createdAt": formatter.string(from: now.addingTimeInterval(event.1)),
-                        "connectionId": "preview-connection", "postId": "preview-event", "forumId": "music",
+                        "connectionId": "preview-connection",
+                        "postId": event.0 == "post_cancelled"
+                            ? "preview-cancelled"
+                            : event.0 == "post_updated" ? "preview-past" : "preview-event",
+                        "forumId": event.0 == "post_rsvp" ? "music" : "coffee",
                         "sharedInterests": event.0 == "encounter" ? ["music", "coffee"] : [],
                     ]
                 }

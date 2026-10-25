@@ -21,9 +21,21 @@ final class InterestsModel {
     private var saveTask: Task<Void, Never>?
     private var saveFailed = false
     private let session: SessionModel
+    private let source: (@MainActor () async throws -> any InterestRepository)?
+    private let onSaved: (@MainActor () -> Void)?
 
-    init(session: SessionModel) {
+    init(
+        session: SessionModel, repository: (@MainActor () async throws -> any InterestRepository)? = nil,
+        onSaved: (@MainActor () -> Void)? = nil
+    ) {
         self.session = session
+        source = repository
+        self.onSaved = onSaved
+    }
+
+    private func repository() async throws -> any InterestRepository {
+        if let source { return try await source() }
+        return try session.client()
     }
 
     /// The catalog as it looks with the on-screen picks, with member counts to match.
@@ -54,7 +66,7 @@ final class InterestsModel {
 
     func load() async {
         guard saved == nil, !isLoading else { return }
-        if session.isTownPreview {
+        if session.isTownPreview && source == nil {
             apply(Self.preview)
             return
         }
@@ -62,7 +74,8 @@ final class InterestsModel {
         loadFailed = false
         defer { isLoading = false }
         do {
-            apply(try await session.client().interests())
+            let client = try await repository()
+            apply(try await client.interests())
         } catch {
             loadFailed = true
             errorMessage = error.localizedDescription
@@ -105,7 +118,9 @@ final class InterestsModel {
         errorMessage = nil
         defer { isAdding = false }
         do {
-            apply(try await session.client().addInterest(named: name))
+            let client = try await repository()
+            apply(try await client.addInterest(named: name))
+            onSaved?()
             query = ""
         } catch APIError.invalidFields(let fields) {
             errorMessage = fields["name"] ?? APIError.invalidFields(fields).localizedDescription
@@ -130,8 +145,10 @@ final class InterestsModel {
         while let saved, selectedIDs != Set(saved.selected.map(\.id)) {
             let wanted = selectedIDs
             do {
-                let result = try await session.client().replaceInterests(wanted.sorted())
+                let client = try await repository()
+                let result = try await client.replaceInterests(wanted.sorted())
                 self.saved = result
+                onSaved?()
             } catch {
                 selectedIDs = Set(saved.selected.map(\.id))
                 saveFailed = true

@@ -7,6 +7,7 @@ struct NotificationsView: View {
     @State private var destination: TownDestination?
     @State private var confirmingClear = false
     @State private var push = PushNotifications.shared
+    @State private var event: ForumEventRoute?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -68,6 +69,7 @@ struct NotificationsView: View {
         .sheet(item: $destination) { place in
             TownDestinationView(destination: place, session: session)
         }
+        .sheet(item: $event) { route in ForumEventSheet(id: route.id, session: session) }
         .confirmationDialog(
             "Clear all notifications?", isPresented: $confirmingClear, titleVisibility: .visible
         ) {
@@ -188,7 +190,16 @@ struct NotificationsView: View {
     }
 
     @ViewBuilder private func notificationCard(_ notification: InboxNotification) -> some View {
-        if let target = notification.townDestination {
+        if [.postUpdated, .postCancelled, .postRSVP].contains(notification.kind), let id = notification.postId
+        {
+            Button {
+                event = ForumEventRoute(id: id)
+            } label: {
+                cardContents(notification, actionable: true)
+            }
+            .buttonStyle(MeadowPressStyle()).accessibilityHint("Opens event details")
+            .accessibilityIdentifier("notification-\(notification.id)")
+        } else if let target = notification.townDestination {
             Button {
                 destination = target
             } label: {

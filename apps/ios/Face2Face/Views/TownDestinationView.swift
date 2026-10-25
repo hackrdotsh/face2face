@@ -13,7 +13,13 @@ struct TownDestinationView: View {
 
     var body: some View {
         Group {
-            if destination == .connections { ChatsView(session: session) } else { readOnlyDestination }
+            if destination == .connections {
+                ChatsView(session: session)
+            } else if destination == .forums {
+                ForumsView(session: session)
+            } else {
+                readOnlyDestination
+            }
         }
     }
 

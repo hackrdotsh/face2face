@@ -52,7 +52,7 @@ final class NotificationsUITests: XCTestCase {
         XCTAssertTrue(event.isHittable)
         capture("notifications-large-text")
         event.tap()
-        XCTAssertTrue(app.navigationBars["Forums"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["forumEventHeading"].waitForExistence(timeout: 4))
     }
 
     func testBellCountsUnseenAndSwipeDeletes() {
