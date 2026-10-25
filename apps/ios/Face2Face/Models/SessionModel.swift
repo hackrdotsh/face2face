@@ -68,7 +68,9 @@ final class SessionModel {
     func signOut() async {
         ConnectedDiscoveryModel.backgroundWalk.stop(reason: "Signed out")
         await activity.run {
-            do { try await self.client().signOut() } catch APIError.unauthenticated {}
+            let client = try self.client()
+            await PushNotifications.shared.signOut(client: client)
+            do { try await client.signOut() } catch APIError.unauthenticated {}
             self.phase = .signedOut
         }
     }

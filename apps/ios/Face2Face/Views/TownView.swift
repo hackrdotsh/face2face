@@ -9,6 +9,8 @@ struct TownView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.scenePhase) private var scenePhase
     @State private var friends: TownFriendsModel
+    @State private var inbox: NotificationsModel
+    @State private var push = PushNotifications.shared
     @State private var openedPreviewProfile = false
     @State private var openedLaunchRoutes = false
     @State private var destination: TownDestination?
@@ -23,6 +25,7 @@ struct TownView: View {
         self.session = session
         self.passkeys = passkeys
         _friends = State(initialValue: TownFriendsModel(session: session))
+        _inbox = State(initialValue: NotificationsModel(session: session))
     }
 
     var body: some View {
@@ -105,7 +108,7 @@ struct TownView: View {
             }
         }
         .fullScreenCover(isPresented: $showingNotifications) {
-            NotificationsView(session: session)
+            NotificationsView(session: session, model: inbox)
         }
         .fullScreenCover(item: $chatRoute) { route in
             NavigationStack { ChatConversationView(chatID: route.id, session: session) }
@@ -155,8 +158,22 @@ struct TownView: View {
             friends.clearVisibleData()
             friends.closeProfile()
         }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                await inbox.refreshUnreadCount()
+                do { try await Task.sleep(for: .seconds(30)) } catch { return }
+            }
+        }
+        .onChange(of: push.foregroundArrivals) { Task { await inbox.refreshUnreadCount() } }
+        .onChange(of: push.inboxRequested, initial: true) {
+            guard push.inboxRequested else { return }
+            push.inboxRequested = false
+            showingNotifications = true
+        }
         .task(id: account.user.id) {
             guard !session.isTownPreview else { return }
+            await PushNotifications.shared.start(for: account, session: session)
             await ConnectedDiscoveryModel.backgroundWalk.restore(for: account)
         }
         #if DEBUG
@@ -206,14 +223,18 @@ struct TownView: View {
             Button {
                 showingNotifications = true
             } label: {
-                Image(systemName: "bell")
+                Image(systemName: inbox.unreadCount > 0 ? "bell.fill" : "bell")
                     .font(.system(size: 19, weight: .semibold))
                     .frame(width: 44, height: 44)
                     .background(MeadowPalette.paper.opacity(0.85), in: Circle())
                     .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
+                    .overlay(alignment: .topTrailing) {
+                        if inbox.unreadCount > 0 { UnreadBadge(count: inbox.unreadCount) }
+                    }
             }
             .buttonStyle(MeadowPressStyle())
             .accessibilityLabel("Notifications")
+            .accessibilityValue(inbox.unreadCount > 0 ? "\(inbox.unreadCount) new" : "")
             .accessibilityIdentifier("townNotifications")
             Button {
                 showingSettings = true
@@ -467,5 +488,23 @@ struct TownScene: View {
             if old { elapsed += Date().timeIntervalSince(startedAt) }
             if new { startedAt = Date() }
         }
+    }
+}
+
+/// The count of notifications that arrived since the inbox was last opened.
+private struct UnreadBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text(count > 99 ? "99+" : "\(count)")
+            .font(.system(size: 11, weight: .heavy, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(MeadowPalette.paper)
+            .padding(.horizontal, 5)
+            .frame(minWidth: 20, minHeight: 20)
+            .background(MeadowPalette.errorInk, in: Capsule())
+            .overlay(Capsule().strokeBorder(MeadowPalette.paper, lineWidth: 2))
+            .offset(x: 4, y: -4)
+            .accessibilityHidden(true)
     }
 }

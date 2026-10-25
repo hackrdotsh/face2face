@@ -3,22 +3,19 @@ import SwiftUI
 
 struct NotificationsView: View {
     let session: SessionModel
-    @State private var model: NotificationsModel
+    let model: NotificationsModel
     @State private var destination: TownDestination?
+    @State private var confirmingClear = false
+    @State private var push = PushNotifications.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var typeSize
 
-    init(session: SessionModel) {
-        self.session = session
-        _model = State(initialValue: NotificationsModel(session: session))
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             header
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+            List {
+                Group {
                     introduction
                     if model.isPreview { previewLabel }
                     if let error = model.error { errorCard(error) }
@@ -28,18 +25,23 @@ struct NotificationsView: View {
                             .accessibilityIdentifier("notificationsLoading")
                     } else if model.hasLoaded && model.notifications.isEmpty {
                         emptyInbox
-                    } else {
-                        ForEach(groups, id: \.day) { group in
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text(dayTitle(group.day))
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(MeadowPalette.secondaryInk)
-                                    .padding(.leading, 4)
-                                    .accessibilityAddTraits(.isHeader)
-                                ForEach(group.notifications) { notification in
-                                    notificationCard(notification)
+                    }
+                    ForEach(groups, id: \.day) { group in
+                        Text(dayTitle(group.day))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(MeadowPalette.secondaryInk)
+                            .padding(.leading, 4).padding(.top, 12)
+                            .accessibilityAddTraits(.isHeader)
+                        ForEach(group.notifications) { notification in
+                            notificationCard(notification)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        Task { await model.delete(notification) }
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                    .accessibilityIdentifier("notificationDelete-\(notification.id)")
                                 }
-                            }
                         }
                     }
                     if !model.notifications.isEmpty {
@@ -49,21 +51,37 @@ struct NotificationsView: View {
                             .frame(maxWidth: .infinity).padding(.vertical, 12)
                     }
                 }
-                .frame(maxWidth: 560)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 24)
-                .padding(.top, 20)
-                .padding(.bottom, 32)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 6, leading: 24, bottom: 6, trailing: 24))
             }
-            .refreshable { await model.reload() }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .contentMargins(.top, 14, for: .scrollContent)
+            .refreshable { await reloadAndMarkSeen() }
         }
         .background(MeadowPalette.grass.ignoresSafeArea())
         .foregroundStyle(MeadowPalette.ink)
         .fontDesign(.rounded)
-        .task(id: scenePhase) { if scenePhase == .active { await model.reload() } }
+        .task(id: scenePhase) { if scenePhase == .active { await reloadAndMarkSeen() } }
+        .onChange(of: push.foregroundArrivals) { Task { await reloadAndMarkSeen() } }
         .sheet(item: $destination) { place in
             TownDestinationView(destination: place, session: session)
         }
+        .confirmationDialog(
+            "Clear all notifications?", isPresented: $confirmingClear, titleVisibility: .visible
+        ) {
+            Button("Clear All", role: .destructive) { Task { await model.clearAll() } }
+                .accessibilityIdentifier("notificationsConfirmClear")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("They will be removed from all of your devices.")
+        }
+    }
+
+    private func reloadAndMarkSeen() async {
+        await model.reload()
+        if model.error == nil { await model.markSeen() }
     }
 
     private var header: some View {
@@ -80,8 +98,15 @@ struct NotificationsView: View {
             Text("Notifications").font(.headline)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
+            if !model.notifications.isEmpty {
+                Button("Clear All") { confirmingClear = true }
+                    .font(.subheadline.weight(.bold))
+                    .padding(.horizontal, 16).frame(minHeight: 44)
+                    .background(MeadowPalette.paper, in: Capsule())
+                    .accessibilityIdentifier("notificationsClearAll")
+            }
             Button {
-                Task { await model.reload() }
+                Task { await reloadAndMarkSeen() }
             } label: {
                 Image(systemName: "arrow.clockwise").font(.headline)
                     .frame(width: 44, height: 44)
@@ -150,7 +175,7 @@ struct NotificationsView: View {
                 .font(.headline)
                 .accessibilityIdentifier("notificationsError")
             Text(message).font(.subheadline).foregroundStyle(MeadowPalette.secondaryInk)
-            Button("Try again") { Task { await model.reload() } }
+            Button("Try Again") { Task { await reloadAndMarkSeen() } }
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(MeadowPalette.accentInk)
                 .padding(.horizontal, 18).frame(minHeight: 44)
