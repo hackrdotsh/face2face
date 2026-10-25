@@ -13,6 +13,7 @@ import type { ChatList } from "@/flows/use-chats";
 import type { ConnectionList } from "@/flows/use-connections";
 import type { NotificationFeed } from "@/flows/use-notifications";
 import { hrefFor, type Route } from "@/navigation/routes";
+import { ConnectionAvatar } from "./avatar";
 import { ChatThread } from "./ChatThread";
 import { ErrorAlert, SocketBadge } from "./parts";
 
@@ -98,6 +99,7 @@ function ChatRow({ chat }: { chat: ChatSummary }) {
       href={hrefFor({ page: "chats", chatId: chat.id })}
       className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
     >
+      <ConnectionAvatar them={chat.connection.them} className="size-10" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex items-baseline justify-between gap-2">
           <span className={hasUnread ? "font-semibold" : "font-medium"}>

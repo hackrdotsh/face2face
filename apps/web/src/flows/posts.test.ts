@@ -17,7 +17,11 @@ const post: Post = {
   endsAt: null,
   createdAt: "2026-10-24T12:00:00.000Z",
   updatedAt: "2026-10-24T12:00:00.000Z",
-  author: { userId: "a", name: "Ava", image: null },
+  author: {
+    userId: "a",
+    name: "Ava",
+    avatar: { seed: "AAAAAAAAAAAAAAAAAAAAAA", photo: null },
+  },
   attendeeCount: 2,
   attendeePreview: [],
   attending: false,

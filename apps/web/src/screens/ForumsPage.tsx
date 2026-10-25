@@ -17,6 +17,7 @@ import { type ForumList, useForums } from "@/flows/use-forums";
 import type { PostList } from "@/flows/use-post-list";
 import { useUpcomingPosts } from "@/flows/use-upcoming-posts";
 import { hrefFor } from "@/navigation/routes";
+import { Avatar } from "./avatar";
 import {
   AttendeeStack,
   EventDetails,
@@ -230,6 +231,10 @@ function PostSummary({
       <EventDetails post={post} />
       <p className="text-muted-foreground text-xs">
         {forumName && <span className="capitalize">{forumName} · </span>}
+        <Avatar
+          avatar={post.author.avatar}
+          className="mr-1 size-4 align-text-bottom"
+        />
         Posted by {post.isAuthor ? "you" : post.author.name}
       </p>
       <footer className="flex items-center justify-between gap-2">

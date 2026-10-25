@@ -1,7 +1,20 @@
+/** Signed paths to square variants. Show them as circles. */
+export interface ProfilePhoto {
+  large: string;
+  thumb: string;
+}
+
+/** A photo, or a blob avatar drawn from `seed` when there is none. */
+export interface Avatar {
+  seed: string;
+  photo: ProfilePhoto | null;
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
+  avatar: Avatar;
 }
 
 export interface Account {
@@ -31,10 +44,11 @@ export interface FieldConstraints {
 /** `type` stays open so a field type added on the server reaches the UI as unsupported instead of failing. */
 export interface OnboardingField {
   key: string;
-  type: "text" | "date" | "singleChoice" | (string & {});
+  type: "text" | "date" | "singleChoice" | "image" | (string & {});
   label: string;
   required: boolean;
-  value: FieldValue | null;
+  /** An `image` field holds the uploaded photo. It is set by uploading, not by an update. */
+  value: FieldValue | ProfilePhoto | null;
   constraints?: FieldConstraints;
   options?: ChoiceOption[];
 }
@@ -65,9 +79,13 @@ export type ConnectionStatus =
   | "blocked";
 export type ConnectionDecision = "accepted" | "declined";
 
-export interface PublicProfile {
+export interface Person {
   userId: string;
   name: string;
+  avatar: Avatar;
+}
+
+export interface PublicProfile extends Person {
   age: number | null;
   interests: string[];
 }
@@ -221,13 +239,6 @@ export interface Forum {
   upcomingPostCount: number;
 }
 
-/** Forum members see each other's names and photos. */
-export interface ForumPerson {
-  userId: string;
-  name: string;
-  image: string | null;
-}
-
 export interface Post {
   id: string;
   forumId: string;
@@ -238,10 +249,10 @@ export interface Post {
   endsAt: string | null;
   createdAt: string;
   updatedAt: string;
-  author: ForumPerson;
+  author: Person;
   attendeeCount: number;
   /** The first few attendees, by RSVP time. */
-  attendeePreview: ForumPerson[];
+  attendeePreview: Person[];
   attending: boolean;
   isAuthor: boolean;
   edited: boolean;

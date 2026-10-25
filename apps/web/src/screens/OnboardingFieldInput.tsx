@@ -1,8 +1,9 @@
-import type { OnboardingField } from "@/api/types";
+import type { Avatar, OnboardingField } from "@/api/types";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Radio, RadioGroup } from "@/components/ui/radio-group";
 import { type FieldDraft, selectedOption } from "@/onboarding/form";
+import { ProfilePhotoEditor } from "./ProfilePhotoEditor";
 import { TextField } from "./parts";
 
 /** Renders one server-described onboarding field. Add a case here when the server adds a field type. */
@@ -10,11 +11,14 @@ export function OnboardingFieldInput({
   field,
   draft,
   error,
+  avatar,
   onChange,
 }: {
   field: OnboardingField;
   draft: FieldDraft;
   error?: string;
+  /** The signed-in person's avatar, for `image` fields. */
+  avatar: Avatar;
   onChange: (change: Partial<FieldDraft>) => void;
 }) {
   switch (field.type) {
@@ -73,6 +77,8 @@ export function OnboardingFieldInput({
         </Field>
       );
     }
+    case "image":
+      return <ProfilePhotoEditor avatar={avatar} label={field.label} />;
     default:
       return null;
   }

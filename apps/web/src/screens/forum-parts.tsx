@@ -1,34 +1,13 @@
 import { CalendarDotsIcon, CheckIcon, MapPinIcon } from "@phosphor-icons/react";
 import { useState } from "react";
-import type { ForumPerson, Post, PostInput } from "@/api/types";
+import type { Post, PostInput } from "@/api/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { formatEventTime, fromLocalInput, toLocalInput } from "@/flows/posts";
-import { cn } from "@/lib/utils";
+import { Avatar } from "./avatar";
 import { ActionForm, TextField } from "./parts";
-
-export function Avatar({
-  person,
-  className,
-}: {
-  person: ForumPerson;
-  className?: string;
-}) {
-  const base = cn(
-    "inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-medium text-muted-foreground text-xs ring-2 ring-card",
-    className,
-  );
-  if (person.image) {
-    return <img className={base} src={person.image} alt="" />;
-  }
-  return (
-    <span className={base} aria-hidden="true">
-      {person.name.trim().charAt(0).toUpperCase() || "?"}
-    </span>
-  );
-}
 
 /** Overlapping faces of the first attendees, then the total. */
 export function AttendeeStack({ post }: { post: Post }) {
@@ -41,7 +20,11 @@ export function AttendeeStack({ post }: { post: Post }) {
     <span className="flex items-center gap-2">
       <span className="flex -space-x-2">
         {attendeePreview.map((person) => (
-          <Avatar key={person.userId} person={person} />
+          <Avatar
+            key={person.userId}
+            avatar={person.avatar}
+            className="bg-card ring-2 ring-card"
+          />
         ))}
       </span>
       <span className="text-muted-foreground text-sm tabular-nums">

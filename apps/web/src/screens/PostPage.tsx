@@ -11,9 +11,9 @@ import {
 } from "@/components/ui/card";
 import { usePost } from "@/flows/use-post";
 import { hrefFor } from "@/navigation/routes";
+import { Avatar } from "./avatar";
 import {
   AttendeeStack,
-  Avatar,
   EventDetails,
   PostForm,
   PostStatus,
@@ -52,6 +52,10 @@ export function PostPage({
         <BackLink forumId={post.forumId} />
         <CardTitle>{post.title}</CardTitle>
         <CardDescription>
+          <Avatar
+            avatar={post.author.avatar}
+            className="mr-1 size-4 align-text-bottom"
+          />
           Posted by {post.isAuthor ? "you" : post.author.name}
           {post.edited && " · edited"}
         </CardDescription>
@@ -99,7 +103,7 @@ export function PostPage({
                   key={person.userId}
                   className="flex items-center gap-2 text-sm"
                 >
-                  <Avatar person={person} />
+                  <Avatar avatar={person.avatar} />
                   {person.name}
                 </li>
               ))}

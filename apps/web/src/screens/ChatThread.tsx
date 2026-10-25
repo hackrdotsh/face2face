@@ -21,14 +21,13 @@ import type { PendingMessage } from "@/flows/chat-messages";
 import { type Conversation, useChat } from "@/flows/use-chat";
 import type { ChatList } from "@/flows/use-chats";
 import type { ConnectionList } from "@/flows/use-connections";
+import { acceptedImageTypes } from "@/lib/image-types";
 import { cn } from "@/lib/utils";
 import type { Route } from "@/navigation/routes";
 import { useSession } from "@/session/session";
+import { ConnectionAvatar } from "./avatar";
 import { chatTitle } from "./ChatsPage";
 import { ErrorAlert, Notice, SocketBadge } from "./parts";
-
-const acceptedImageTypes =
-  "image/jpeg,image/png,image/webp,image/avif,image/heic";
 
 export function ChatThread({
   chat,
@@ -55,6 +54,7 @@ export function ChatThread({
         >
           <ArrowLeftIcon />
         </Button>
+        <ConnectionAvatar them={chat.connection.them} className="size-8" />
         <CardTitle className="truncate">{chatTitle(chat)}</CardTitle>
         <CardAction>
           <SocketBadge state={conversation.socketState} />

@@ -12,6 +12,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useAccountHome } from "@/flows/use-account-home";
 import { useSession } from "@/session/session";
+import { ProfilePhotoEditor } from "./ProfilePhotoEditor";
 import { ActionForm, ErrorAlert, TextField } from "./parts";
 
 export function AccountPage({ account }: { account: Account }) {
@@ -26,6 +27,11 @@ export function AccountPage({ account }: { account: Account }) {
       </CardHeader>
       <CardPanel className="flex flex-col gap-4">
         <ErrorAlert message={home.activity.error} />
+        <ProfilePhotoEditor
+          avatar={account.user.avatar}
+          label="Profile photo"
+        />
+        <Separator />
         <div className="flex items-center gap-2 text-sm">
           Coordinator
           {home.coordinator ? (

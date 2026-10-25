@@ -61,14 +61,31 @@ describe("onboarding form", () => {
     });
   });
 
-  it("flags a required field type this build cannot render", () => {
+  it("shows a photo field but never sends it as a value", () => {
     const form = createForm({
       complete: false,
       fields: [
         {
           key: "photo",
           type: "image",
-          label: "Photo",
+          label: "Profile photo",
+          required: false,
+          value: null,
+        },
+      ],
+    });
+    expect(form.fields.map((field) => field.key)).toEqual(["photo"]);
+    expect(formValues(form)).toEqual({});
+  });
+
+  it("flags a required field type this build cannot render", () => {
+    const form = createForm({
+      complete: false,
+      fields: [
+        {
+          key: "voice",
+          type: "audio",
+          label: "Voice note",
           required: true,
           value: null,
         },

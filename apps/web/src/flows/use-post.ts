@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { cancelPost, editPost, getPost, listAttendees } from "@/api/forums";
-import type { ForumPerson, Post, PostInput } from "@/api/types";
+import type { Person, Post, PostInput } from "@/api/types";
 import { useSession } from "@/session/session";
 import { useActivity } from "./use-activity";
 import { useRsvp } from "./use-rsvp";
@@ -13,7 +13,7 @@ export function usePost(postId: string, latestNotificationId?: string) {
   const { client } = useSession();
   const activity = useActivity();
   const [post, setPost] = useState<Post | null>(null);
-  const [attendees, setAttendees] = useState<ForumPerson[]>([]);
+  const [attendees, setAttendees] = useState<Person[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
 
   const reload = useCallback(

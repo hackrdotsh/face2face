@@ -25,7 +25,7 @@ export function RootScreen() {
     case "signedOut":
       return <SignInScreen />;
     case "needsOnboarding":
-      return <OnboardingScreen />;
+      return <OnboardingScreen account={phase.account} />;
     case "ready":
       return <HomeScreen account={phase.account} />;
   }

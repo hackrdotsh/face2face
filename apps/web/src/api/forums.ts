@@ -1,5 +1,5 @@
 import type { APIClient } from "./client";
-import type { Forum, ForumPerson, Post, PostInput, PostPage } from "./types";
+import type { Forum, Person, Post, PostInput, PostPage } from "./types";
 
 export async function listForums(client: APIClient) {
   const { forums } = await client.send<{ forums: Forum[] }>({
@@ -77,7 +77,7 @@ export async function setAttending(
 }
 
 export async function listAttendees(client: APIClient, postId: string) {
-  const { attendees } = await client.send<{ attendees: ForumPerson[] }>({
+  const { attendees } = await client.send<{ attendees: Person[] }>({
     path: `${postPath(postId)}/attendees`,
     authenticated: true,
   });
