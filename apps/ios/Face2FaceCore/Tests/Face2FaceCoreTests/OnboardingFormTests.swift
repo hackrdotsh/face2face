@@ -64,3 +64,18 @@ private var tokyo: Calendar {
     #expect(form.fields.map(\.key) == ["pronouns"])
     #expect(form.needsAppUpdate)
 }
+
+@Test func showsTheInterestsStepUntilSomethingIsPicked() throws {
+    let empty = try state(
+        #"{"complete":true,"fields":[{"key":"interests","type":"interests","label":"Interests","required":false,"value":null}]}"#
+    )
+    let form = OnboardingForm(state: empty)
+    #expect(form.fields.map(\.type) == [.interests])
+    #expect(form.values().isEmpty)
+
+    let picked = try state(
+        #"{"complete":true,"fields":[{"key":"interests","type":"interests","label":"Interests","required":false,"value":["coffee"]}]}"#
+    )
+    #expect(picked.fields.first?.value == .interests(["coffee"]))
+    #expect(OnboardingForm(state: picked).fields.isEmpty)
+}
