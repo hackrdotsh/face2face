@@ -40,6 +40,11 @@ final class TownUITests: XCTestCase {
         account.tap()
         XCTAssertTrue(app.otherElements["accountHome"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.staticTexts["Hey, Preview Walker."].exists)
+        let search = app.textFields["interestSearch"]
+        XCTAssertTrue(search.waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["coffee"].exists, "Picked interests show as pills")
+        XCTAssertLessThan(search.frame.minY, app.switches["discoveryToggle"].frame.minY)
+        capture("account-top")
         XCTAssertTrue(app.buttons["homeSignOut"].exists)
         XCTAssertTrue(app.buttons["addPasskey"].exists)
         reveal(app.buttons["addPasskey"], in: app)

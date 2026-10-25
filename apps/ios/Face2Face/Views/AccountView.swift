@@ -6,11 +6,13 @@ struct AccountView: View {
     @Bindable var session: SessionModel
     @Environment(\.dismiss) private var dismiss
     @State private var passkeyEnrollment: PasskeyEnrollmentModel
+    @State private var interests: InterestsModel
 
     init(account: Account, session: SessionModel, passkeys: PasskeyAuthorizer) {
         self.account = account
         self.session = session
         _passkeyEnrollment = State(initialValue: PasskeyEnrollmentModel(session: session, passkeys: passkeys))
+        _interests = State(initialValue: InterestsModel(session: session))
     }
 
     var body: some View {
@@ -23,51 +25,18 @@ struct AccountView: View {
                 .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 18) {
-                        ProfilePhotoEditor(avatar: account.user.avatar, session: session)
-                        VStack(spacing: 6) {
-                            Text("Hey, \(account.user.name).")
-                                .font(.system(.title, design: .rounded, weight: .heavy))
-                                .accessibilityAddTraits(.isHeader)
-                            Text(account.user.email)
-                                .font(.subheadline)
-                                .foregroundStyle(MeadowPalette.secondaryInk)
-                                .textSelection(.enabled)
+                    VStack(spacing: 16) {
+                        MeadowCard { profile }
+                        MeadowCard { InterestsSection(model: interests) }
+                        MeadowCard {
+                            DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk, account: account)
                         }
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                        Divider()
-                        DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk, account: account)
-                        Divider()
-                        passkeySection
-
-                        Button {
-                            Task {
-                                await session.signOut()
-                                if case .signedOut = session.phase { dismiss() }
-                            }
-                        } label: {
-                            Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                                .font(.subheadline.weight(.semibold))
-                                .padding(.horizontal, 18)
-                                .padding(.vertical, 11)
-                                .frame(minHeight: 44)
-                                .background(MeadowPalette.field, in: Capsule())
-                                .contentShape(Capsule())
-                        }
-                        .buttonStyle(MeadowPressStyle())
-                        .accessibilityIdentifier("homeSignOut")
+                        MeadowCard { passkeySection }
+                        signOutButton.padding(.top, 8)
                     }
-                    .frame(maxWidth: .infinity)
                     .disabled(
                         session.activity.isBusy || passkeyEnrollment.activity.isBusy || session.isTownPreview
                     )
-                    .padding(24)
-                    .background {
-                        MeadowGlass(shape: RoundedRectangle(cornerRadius: 32))
-                            .shadow(color: MeadowPalette.shadow.opacity(0.12), radius: 16, y: 6)
-                    }
                     .frame(maxWidth: 440)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
@@ -75,6 +44,7 @@ struct AccountView: View {
                     .padding(.bottom, 32)
                 }
                 .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
             }
         }
         .foregroundStyle(MeadowPalette.ink)
@@ -90,11 +60,27 @@ struct AccountView: View {
         }
     }
 
+    private var profile: some View {
+        VStack(spacing: 18) {
+            ProfilePhotoEditor(avatar: account.user.avatar, session: session)
+            VStack(spacing: 6) {
+                Text("Hey, \(account.user.name).")
+                    .font(.system(.title, design: .rounded, weight: .heavy))
+                    .accessibilityAddTraits(.isHeader)
+                Text(account.user.email)
+                    .font(.subheadline)
+                    .foregroundStyle(MeadowPalette.secondaryInk)
+                    .textSelection(.enabled)
+            }
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     private var passkeySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Passkey")
-                .font(.system(.headline, design: .rounded, weight: .heavy))
-                .accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: 16) {
+            MeadowSectionHeader(title: "Passkey")
             if passkeyEnrollment.isEnrolled {
                 Label("Passkey added", systemImage: "checkmark.shield")
             } else {
@@ -102,21 +88,31 @@ struct AccountView: View {
                     .font(.subheadline)
                     .foregroundStyle(MeadowPalette.secondaryInk)
                     .fixedSize(horizontal: false, vertical: true)
-                Button {
+                MeadowPrimaryButton(title: "Add a Passkey", symbol: "person.badge.key") {
                     Task { await passkeyEnrollment.addPasskey(for: account) }
-                } label: {
-                    Text("Add a passkey")
-                        .font(.system(.headline, design: .rounded, weight: .heavy))
-                        .foregroundStyle(MeadowPalette.accentInk)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(MeadowPalette.accent, in: Capsule())
-                        .contentShape(Capsule())
                 }
-                .buttonStyle(MeadowPressStyle())
                 .accessibilityIdentifier("addPasskey")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var signOutButton: some View {
+        Button {
+            Task {
+                await session.signOut()
+                if case .signedOut = session.phase { dismiss() }
+            }
+        } label: {
+            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 11)
+                .frame(minHeight: 44)
+                .background(MeadowPalette.field, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(MeadowPressStyle())
+        .accessibilityIdentifier("homeSignOut")
     }
 }

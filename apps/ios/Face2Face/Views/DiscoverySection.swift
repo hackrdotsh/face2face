@@ -20,9 +20,7 @@ struct DiscoverySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Discovery")
-                .font(.system(.headline, design: .rounded, weight: .heavy))
-                .accessibilityAddTraits(.isHeader)
+            MeadowSectionHeader(title: "Discovery")
             Toggle("Discover people nearby", isOn: isOn)
                 .accessibilityIdentifier("discoveryToggle")
                 .disabled(
@@ -44,7 +42,7 @@ struct DiscoverySection: View {
                 Label(message, systemImage: "exclamationmark.triangle")
             }
             if model.revocationPending {
-                Button(model.isRevoking ? "Stopping…" : "Finish stopping") { model.retryRevocation() }
+                Button(model.isRevoking ? "Stopping…" : "Finish Stopping") { model.retryRevocation() }
                     .disabled(model.isRevoking)
             }
             Text(

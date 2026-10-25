@@ -173,3 +173,24 @@ struct MeadowCard<Content: View>: View {
             }
     }
 }
+
+/// A card's heading, with optional trailing detail such as a count.
+struct MeadowSectionHeader: View {
+    let title: String
+    var detail: String?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.system(.headline, design: .rounded, weight: .heavy))
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            if let detail {
+                Text(detail)
+                    .font(.system(.caption, design: .rounded, weight: .bold))
+                    .foregroundStyle(MeadowPalette.secondaryInk)
+                    .monospacedDigit()
+            }
+        }
+    }
+}

@@ -78,7 +78,7 @@ struct OnboardingView: View {
             Spacer()
 
             Menu {
-                Button("Sign out", role: .destructive) { Task { await model.signOut() } }
+                Button("Sign Out", role: .destructive) { Task { await model.signOut() } }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(.subheadline, weight: .bold))
