@@ -131,6 +131,8 @@ final class LoginTests: XCTestCase {
         let app = launchApp(openLogin: false)
         XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["loginStart"].label, "Get Started")
+        XCTAssertFalse(app.staticTexts["face2face"].exists)
+        XCTAssertTrue(app.buttons["appSettings"].isHittable)
         XCTAssertLessThan(app.buttons["loginStart"].frame.width, app.frame.width * 0.7)
         XCTAssertGreaterThanOrEqual(app.buttons["loginStart"].frame.height, 44)
         XCTAssertEqual(app.buttons["loginStart"].frame.midY, app.frame.midY, accuracy: 4)
