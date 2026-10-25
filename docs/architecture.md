@@ -109,7 +109,10 @@ without touching the logic:
 - `src/flows`: hooks that hold each screen's state and actions, matching the
   iPhone app's models.
 - `src/onboarding`: turns server-described fields into drafts and values.
+- `src/navigation`: hash routes such as `#/passed` and `#/chats/<id>`.
 - `src/screens` and `src/devtools`: the UI only. They read hooks and render.
+  Signed in, `HomeScreen` shows one page at a time: Passed (pending chances
+  only), Chats, Notifications, Interests, and Account.
 - `src/components/ui`: coss ui components, added with the shadcn CLI.
 
 ## Connections
@@ -189,6 +192,114 @@ and `public`. None identifies the other person.
 
 A simulated encounter is not evidence that two people were near each other.
 
+## Chat
+
+A connection with status `private` or `public` has one chat. The chat ID is
+the connection ID. A block closes the chat for both people.
+
+### Parts
+
+- **D1** decides who can chat. The Worker reads the `connection` row on every
+  chat request and on every socket upgrade.
+- **`ChatRoom`** is a Durable Object, one for each connection. Its SQLite keeps
+  messages, uploaded images, and the read position of each side. It holds the
+  sockets of both people and relays messages and typing. It trusts the access
+  that the Worker gives it. A client cannot call it directly.
+- **`UserCoordinator`** gets a `chat_activity` event when a message arrives for
+  its person. It sends the event to that person's notification sockets. The
+  inbox does not keep it. APNs can be added at the same place.
+- **Images binding** re-encodes each upload. **R2** (`MEDIA`) keeps the result.
+  The bucket is not public.
+
+### Privacy
+
+A message says `"from": "you"` or `"from": "them"`. It never holds a user ID,
+a name, or a side. `clientId` is set only on the viewer's own messages.
+`chat_activity` holds the chat ID, message ID, and time. It holds no text.
+
+### HTTP routes
+
+All except the socket need a session and finished onboarding. A person who is
+not in the chat gets 404.
+- `GET /api/chats` lists chats with `lastMessage` and `unreadCount`, most
+  recent activity first.
+- `GET /api/chats/:id` returns one chat in the same shape.
+- `GET /api/chats/:id/messages?before=<messageId>&limit=<1-100>` returns
+  `{ messages, hasMore }`. Pages go from newest to oldest. Messages in a page
+  go from oldest to newest. Send the first message ID as `before` to get the
+  page before it.
+- `POST /api/chats/:id/ticket` returns a 60-second socket ticket.
+- `GET /api/chats/:id/socket?ticket=…` opens the chat socket.
+- `POST /api/chats/:id/images` takes multipart field `image`, up to 15 MB.
+  It returns `201 { image }`. Errors are `413 image_too_large` and
+  `415 unsupported_image`.
+
+### Socket frames
+
+Client to server:
+- `{"type":"send","clientId","text"}` or `{"type":"send","clientId","imageId"}`.
+  `text` can be up to 4000 characters. The client makes `clientId`, up to 64
+  characters. A send with the same `clientId` again returns the first message
+  and does not make a copy. Send pending messages again after a reconnect.
+- `{"type":"typing","state":"started"}` and `{"type":"typing","state":"stopped"}`.
+- `{"type":"read","messageId"}` moves this person's read position forward.
+- `ping` returns `{"type":"pong"}`.
+
+Server to client:
+- `{"type":"ready"}` when the socket opens. Load the newest page again, because
+  messages sent before the socket opened are only on the server.
+- `{"type":"ack","clientId","message"}` to the socket that sent the message.
+- `{"type":"message","message"}` to every other socket, including the sender's
+  other devices.
+- `{"type":"typing","state"}` to the other person's sockets only.
+- `{"type":"error","error","clientId"?}` for a bad frame or a refused send.
+  Errors are `invalid_frame`, `chat_closed`, `image_not_found`, and
+  `message_not_found`. The socket stays open.
+- `{"type":"closed"}`, then close code `4000`, when the chat ends. Do not
+  reconnect after a close code of 4000 or higher.
+
+### Typing
+
+The client decides when its person is typing:
+1. On a keystroke, send `started`. Send it again every 3 seconds while typing
+   continues.
+2. Send `stopped` 5 seconds after the last keystroke, on send, or when the draft
+   is empty.
+3. Show the other person as typing for 8 seconds after each `started`, unless
+   `stopped` or a message from them comes first.
+
+The server stores nothing for typing. It sends `stopped` when the person sends
+a message, and when their last typing socket closes.
+
+### Images
+
+1. The client uploads the file. The server checks the real format with the
+   Images binding. JPEG, PNG, WebP, AVIF, and HEIC are accepted. SVG and other
+   files are refused.
+2. The server makes three WebP variants. Each fits inside a square and is never
+   made larger: `original` is 2048 px, `preview` is 1024 px, and `thumb` is
+   256 px. Re-encoding removes EXIF, GPS, and other metadata.
+3. Each variant goes to R2 at `chats/<chatId>/<imageId>/<variant>`.
+4. The room records the image for the uploader's side. Only the uploader can
+   send it.
+5. The client sends `{"type":"send","clientId","imageId"}`.
+
+Each variant has `width`, `height`, and `path`. Use the size to lay out the
+message before the image loads. `path` is a signed path on the API host,
+for example `/media/chats/…/preview?expires=…&signature=…`. A path works for
+one to two hours and stays the same within each hour, so a client can cache
+it. Load the message again to get a new path.
+
+The local test for metadata uses Miniflare, which encodes with sharp. HEIC input
+is not tested locally.
+
+### Not built
+
+Message editing and deletion, read receipts for the other person, push
+notifications, and cleanup of images that were uploaded but not sent. There is
+no account deletion yet. When it exists, it must delete each chat's
+`ChatRoom` storage and its R2 prefix.
+
 ## Proximity is a separate milestone
 
 No Bluetooth scan, geolocation permission, encounter upload, or matching runs yet.
@@ -207,8 +318,11 @@ Before building the protocol:
 
 ## Suggested next slice
 
-The encounter simulator, connections, and notifications exist. Next:
-- Add the Face2FaceCore client for the inbox, ticket, and socket, then the iPhone screens.
+The encounter simulator, connections, notifications, and chat exist. Next:
+- Add the Face2FaceCore client for the inbox, chats, tickets, and sockets, then
+  the iPhone screens.
+- Before deploying chat, create the `face2face-media` R2 bucket and enable
+  Images transformations on the account.
 - Let people choose interests during onboarding.
 - Test discovery on two physical iPhones. A simulated encounter must never
   count as proof of actual proximity.
