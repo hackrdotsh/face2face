@@ -28,7 +28,7 @@ struct SettingsView: View {
                             .accessibilityIdentifier("forest3DToggle")
                     }
                 }
-                Section("API server") {
+                Section("API Server") {
                     TextField("API URL", text: $session.serverAddress)
                         .keyboardType(.URL)
                         .textContentType(.URL)
@@ -43,7 +43,7 @@ struct SettingsView: View {
                 .disabled(session.isTownPreview)
                 #if DEBUG
                     if session.isTownPreview {
-                        Section("Town preview") {
+                        Section("Town Preview") {
                             Button("Return to sign in") {
                                 session.showSignInForTesting()
                                 dismiss()
@@ -51,7 +51,7 @@ struct SettingsView: View {
                             .accessibilityIdentifier("exitTownPreview")
                         }
                     }
-                    Section("Developer tools") {
+                    Section("Developer Tools") {
                         if account == nil {
                             Button("Preview town") {
                                 session.enterTownPreview()

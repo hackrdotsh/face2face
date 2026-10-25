@@ -65,6 +65,7 @@ final class ChatConversationModel {
                     guard state != .closed else { return }
                     transcript.merge(try ChatPreview.messages(chatID: chatID))
                     state = .live
+                    theyAreTyping = ProcessInfo.processInfo.arguments.contains("-chat-preview-typing")
                     flushPending()
                     startMetadataRefresh(run: run)
                 } catch { self.error = "Couldn't open the sample conversation." }

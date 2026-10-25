@@ -126,7 +126,7 @@ struct RecentlyEncounteredView: View {
                 Image(systemName: "arrow.left").font(.headline).frame(width: 44, height: 44)
                     .background(MeadowPalette.paper, in: Circle())
             }.accessibilityLabel("Close recently encountered").accessibilityIdentifier("encountersBack")
-            Text("Recently encountered").font(.headline).lineLimit(2)
+            Text("Recently Encountered").font(.headline).lineLimit(2)
                 .accessibilityIdentifier("encountersTitle")
             Spacer(minLength: 0)
             Button {
@@ -156,7 +156,7 @@ struct RecentlyEncounteredView: View {
             Button {
                 showingChats = true
             } label: {
-                Label("Your conversations", systemImage: "bubble.left.and.bubble.right")
+                Label("Your Conversations", systemImage: "bubble.left.and.bubble.right")
                     .font(.subheadline.weight(.bold)).frame(minHeight: 44)
             }.accessibilityIdentifier("encountersChats")
         }
@@ -195,11 +195,16 @@ struct RecentlyEncounteredView: View {
     private func chanceCard(_ chance: TownConnection) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "person.fill.questionmark").font(.system(size: 23))
-                    .frame(width: 48, height: 48).background(
-                        MeadowPalette.path, in: RoundedRectangle(cornerRadius: 17)
-                    )
-                    .accessibilityHidden(true)
+                Group {
+                    if let avatar = chance.avatar {
+                        AvatarView(avatar: avatar, session: session, side: 48)
+                    } else {
+                        Image(systemName: "person.fill.questionmark").font(.system(size: 23))
+                            .frame(width: 48, height: 48).background(
+                                MeadowPalette.path, in: RoundedRectangle(cornerRadius: 17))
+                    }
+                }
+                .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("A little in common").font(.headline).accessibilityIdentifier("chance-\(chance.id)")
                     Text("Their name and answer stay private.").font(.caption).foregroundStyle(

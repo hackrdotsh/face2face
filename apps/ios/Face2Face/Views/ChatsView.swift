@@ -127,8 +127,8 @@ struct ChatIdentityAvatar: View {
     var side: CGFloat = 36
     var body: some View {
         Group {
-            if let friend = chat?.connection.publicTownFriend {
-                AvatarView(avatar: friend.avatar, session: session, side: side)
+            if let avatar = chat?.connection.avatar {
+                AvatarView(avatar: avatar, session: session, side: side)
             } else {
                 Image(systemName: "person.fill.questionmark")
                     .font(.system(size: side * 0.42)).foregroundStyle(MeadowPalette.accentInk)

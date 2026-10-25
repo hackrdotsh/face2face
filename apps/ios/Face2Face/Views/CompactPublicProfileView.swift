@@ -10,7 +10,7 @@ struct CompactPublicProfileView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Public profile").font(.headline)
+                Text("Public Profile").font(.headline)
                 Spacer()
                 Button {
                     dismiss()
