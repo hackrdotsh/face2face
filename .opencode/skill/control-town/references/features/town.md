@@ -34,3 +34,26 @@ Notifications UI tests: `apps/ios/Face2FaceUITests/NotificationsUITests.swift`.
 sessions load the API, never samples. This page has no unread tracking, live socket,
 or APNs delivery. Event notices open the forums list; connection notices open the
 corresponding town lists.
+
+## Public friend visitors
+
+- Only `status == "public"` with a disclosed `them` profile and public user ID can
+  become `PublicTownFriend`. Private, pending, blocked, expired and unknown statuses
+  never create NPCs, even if a response unexpectedly includes identity-shaped data.
+- Up to three visitors use the login walker, with a small avatar and first-name tag.
+  Tap `town-friend-<connectionId>` for the compact profile. Large-text mode uses
+  stationary friend buttons below the destinations.
+- Opening a profile fetches `/api/connections` again before showing identity. A
+  missing/revoked connection shows an unavailable state. Failed refreshes clear
+  cached visitors and profiles. Data is held in memory and cleared in the background.
+- The roster refreshes on foreground and every 60 seconds while the town is active.
+  NPCs do not mean online, physically nearby, or currently in someone else's town.
+- The card shows only avatar, name, age and interests disclosed by the public
+  connection response. It exposes no contact details or location.
+
+`preview` includes labelled sample public friends. Append `-town-friend-profile`
+to open a sample card directly. `-town-friends-preview-state empty`, `error` or
+`revoked` exercises those states; `revoked` removes public status on the next fetch.
+
+Tests: `PublicTownFriendsTests.swift` (portable filter), `TownFriendsTests.swift`
+(native revalidation/races), and `PublicFriendsUITests.swift` (tap/profile/privacy).

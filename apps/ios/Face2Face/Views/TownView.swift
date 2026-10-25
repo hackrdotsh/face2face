@@ -1,19 +1,45 @@
 import Face2FaceCore
 import SwiftUI
 
-/// The signed-in front door. The people in the scenery are decorative, not live encounters.
+/// The signed-in front door. Public friend visitors are representations, not live presence.
 struct TownView: View {
     let account: Account
     let session: SessionModel
     let passkeys: PasskeyAuthorizer
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var friends: TownFriendsModel
+    @State private var openedPreviewProfile = false
     @State private var destination: TownDestination?
     @State private var showingAccount = false
     @State private var showingNotifications = false
 
+    init(account: Account, session: SessionModel, passkeys: PasskeyAuthorizer) {
+        self.account = account
+        self.session = session
+        self.passkeys = passkeys
+        _friends = State(initialValue: TownFriendsModel(session: session))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
+            if let error = friends.error, friends.selectedID == nil {
+                HStack(spacing: 8) {
+                    Text(error).font(.caption).accessibilityIdentifier("townFriendsError")
+                    Button("Retry") { Task { await friends.refresh() } }.font(.caption.weight(.bold))
+                        .accessibilityIdentifier("townFriendsRetry")
+                }
+                .foregroundStyle(MeadowPalette.secondaryInk)
+                .padding(.horizontal, 24).padding(.vertical, 6)
+            } else if !friends.visitors.isEmpty {
+                Text(
+                    friends.isPreview
+                        ? "Preview · sample public friends" : "Public friends · tap a familiar face"
+                )
+                .font(.caption).foregroundStyle(MeadowPalette.secondaryInk)
+                .padding(.horizontal, 24).padding(.bottom, 4)
+            }
             if typeSize.isAccessibilitySize {
                 ScrollView {
                     VStack(spacing: 12) {
@@ -29,12 +55,30 @@ struct TownView: View {
                             }
                             .accessibilityIdentifier("town-\(place.rawValue)")
                         }
+                        ForEach(friends.visitors) { friend in
+                            Button {
+                                friends.select(friend)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    AvatarView(avatar: friend.avatar, session: session, side: 40)
+                                    Text(friend.name).font(.headline)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                }
+                                .padding(20).background(
+                                    MeadowPalette.paper, in: RoundedRectangle(cornerRadius: 20))
+                            }
+                            .accessibilityLabel("\(friend.name), public friend")
+                            .accessibilityIdentifier("town-friend-\(friend.id)")
+                        }
                     }.padding(.horizontal, 20)
                 }
             } else {
-                TownScene(isMoving: destination == nil && !showingAccount && !showingNotifications) { place in
-                    destination = place
-                }
+                TownScene(
+                    isMoving: destination == nil && !showingAccount && !showingNotifications
+                        && friends.selectedID == nil,
+                    visitors: friends.visitors, session: session,
+                    onSelect: { destination = $0 }, onSelectFriend: { friends.select($0) })
             }
         }
         .background(MeadowPalette.grass.ignoresSafeArea())
@@ -74,6 +118,40 @@ struct TownView: View {
         }
         .fullScreenCover(isPresented: $showingNotifications) {
             NotificationsView(session: session)
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { friends.selectedID != nil },
+                set: { if !$0 { friends.closeProfile() } })
+        ) {
+            CompactPublicProfileView(model: friends, session: session)
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else {
+                friends.clearVisibleData()
+                return
+            }
+            await friends.refresh()
+            #if DEBUG
+                if !openedPreviewProfile, ProcessInfo.processInfo.arguments.contains("-town-friend-profile"),
+                    let friend = friends.visitors.first
+                {
+                    openedPreviewProfile = true
+                    friends.select(friend)
+                }
+            #endif
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(60)) } catch { return }
+                await friends.refresh()
+            }
+        }
+        .onDisappear {
+            friends.clearVisibleData()
+            friends.closeProfile()
+        }
+        .onChange(of: account.user.id) {
+            friends.clearVisibleData()
+            friends.closeProfile()
         }
         #if DEBUG
             .onAppear {
@@ -161,7 +239,10 @@ enum TownDestination: String, CaseIterable, Identifiable {
 
 struct TownScene: View {
     var isMoving = true
+    var visitors: [PublicTownFriend] = []
+    var session: SessionModel?
     var onSelect: ((TownDestination) -> Void)?
+    var onSelectFriend: ((PublicTownFriend) -> Void)?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var startedAt = Date()
@@ -174,47 +255,69 @@ struct TownScene: View {
             let origin = CGPoint(
                 x: (geometry.size.width - 400 * scale) / 2,
                 y: (geometry.size.height - 640 * scale) / 2)
-            ZStack(alignment: .topLeading) {
-                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !running)) { timeline in
-                    let time =
-                        reduceMotion
-                        ? 0 : elapsed + (running ? timeline.date.timeIntervalSince(startedAt) : 0)
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !running)) { timeline in
+                let time =
+                    reduceMotion
+                    ? 0 : elapsed + (running ? timeline.date.timeIntervalSince(startedAt) : 0)
+                ZStack(alignment: .topLeading) {
                     Canvas { context, _ in
                         var world = context
                         world.translateBy(x: origin.x, y: origin.y)
                         world.scaleBy(x: scale, y: scale)
-                        TownIllustration.draw(context: world, time: time)
+                        TownIllustration.draw(context: world, time: time, friendCount: min(3, visitors.count))
                     }
                     .accessibilityHidden(true)
                     .allowsHitTesting(false)
-                }
-                if let onSelect {
-                    ForEach(TownDestination.allCases) { place in
-                        Button {
-                            onSelect(place)
-                        } label: {
-                            VStack {
-                                Spacer(minLength: 0)
-                                Text(place.title)
-                                    .font(.system(.caption, design: .rounded, weight: .bold))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 9)
-                                    .background(MeadowPalette.paper.opacity(0.96), in: Capsule())
-                                    .overlay(Capsule().strokeBorder(MeadowPalette.glassEdge.opacity(0.7)))
-                                    .fixedSize(horizontal: true, vertical: false)
+                    if let onSelect {
+                        ForEach(TownDestination.allCases) { place in
+                            Button {
+                                onSelect(place)
+                            } label: {
+                                VStack {
+                                    Spacer(minLength: 0)
+                                    Text(place.title)
+                                        .font(.system(.caption, design: .rounded, weight: .bold))
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 9)
+                                        .background(MeadowPalette.paper.opacity(0.96), in: Capsule())
+                                        .overlay(Capsule().strokeBorder(MeadowPalette.glassEdge.opacity(0.7)))
+                                        .fixedSize(horizontal: true, vertical: false)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .contentShape(Rectangle())
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .contentShape(Rectangle())
+                            .buttonStyle(MeadowPressStyle())
+                            .frame(width: place.frame.width * scale, height: place.frame.height * scale)
+                            .position(
+                                x: origin.x + place.frame.midX * scale,
+                                y: origin.y + place.frame.midY * scale
+                            )
+                            .accessibilityLabel(place.title)
+                            .accessibilityHint("Opens \(place.title.lowercased())")
+                            .accessibilityIdentifier("town-\(place.rawValue)")
                         }
-                        .buttonStyle(MeadowPressStyle())
-                        .frame(width: place.frame.width * scale, height: place.frame.height * scale)
-                        .position(
-                            x: origin.x + place.frame.midX * scale,
-                            y: origin.y + place.frame.midY * scale
-                        )
-                        .accessibilityLabel(place.title)
-                        .accessibilityHint("Opens \(place.title.lowercased())")
-                        .accessibilityIdentifier("town-\(place.rawValue)")
+                    }
+                    if let session, let onSelectFriend {
+                        ForEach(Array(visitors.prefix(3).enumerated()), id: \.element.id) { index, friend in
+                            let pose = TownResidentMotion.pose(slot: index, time: time)
+                            Button {
+                                onSelectFriend(friend)
+                            } label: {
+                                TownFriendNPC(friend: friend, session: session, pose: pose, time: time)
+                                    .scaleEffect(scale)
+                                    .frame(width: max(44, 72 * scale), height: max(44, 64 * scale))
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .position(
+                                x: origin.x + pose.point.x * scale, y: origin.y + (pose.point.y + 8) * scale
+                            )
+                            .accessibilityLabel("\(friend.name), public friend")
+                            .accessibilityHint(
+                                "Opens their public profile. Not live location or online status."
+                            )
+                            .accessibilityIdentifier("town-friend-\(friend.id)")
+                        }
                     }
                 }
             }

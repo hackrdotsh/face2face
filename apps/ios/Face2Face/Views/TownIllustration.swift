@@ -6,7 +6,7 @@ enum TownIllustration {
     private static let cream = MeadowPalette.paper
     private static let wood = MeadowPalette.trunk
 
-    static func draw(context: GraphicsContext, time: TimeInterval) {
+    static func draw(context: GraphicsContext, time: TimeInterval, friendCount: Int = 0) {
         terrain(context: context)
         water(context: context, time: time)
         paths(context: context)
@@ -14,7 +14,7 @@ enum TownIllustration {
         venue(context: context, time: time)
         cafe(context: context, time: time)
         board(context: context)
-        residents(context: context, time: time)
+        residents(context: context, time: time, friendCount: friendCount)
         waterfront(context: context)
     }
 
@@ -259,23 +259,13 @@ enum TownIllustration {
         }
     }
 
-    private static func residents(context: GraphicsContext, time: TimeInterval) {
-        // Constant-speed strolls with short pauses at each end, not aimless orbiting.
-        let routes: [(CGPoint, CGPoint)] = [
-            (CGPoint(x: 199, y: 106), CGPoint(x: 199, y: 184)),
-            (CGPoint(x: 281, y: 410), CGPoint(x: 216, y: 410)),
-            (CGPoint(x: 199, y: 461), CGPoint(x: 199, y: 516)),
-        ]
-        for (index, route) in routes.enumerated() {
-            let duration = 12.0 + Double(index) * 3
-            let phase = (time / duration + Double(index) * 0.27).truncatingRemainder(dividingBy: 2)
-            let progress = min(1, max(0, phase < 1 ? phase * 1.2 : (2 - phase) * 1.2))
-            let p = CGPoint(
-                x: route.0.x + (route.1.x - route.0.x) * progress,
-                y: route.0.y + (route.1.y - route.0.y) * progress)
+    private static func residents(context: GraphicsContext, time: TimeInterval, friendCount: Int) {
+        for index in 0..<3 where index >= friendCount {
+            let pose = TownResidentMotion.pose(slot: index, time: time)
             person(
-                context, at: p, index: index + 1, time: time + Double(index), facing: phase < 1,
-                standing: progress == 1 || progress == 0)
+                context, at: pose.point, index: index + 1, time: time + Double(index),
+                facing: pose.facingForward,
+                standing: pose.standing)
         }
     }
 

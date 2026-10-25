@@ -56,7 +56,7 @@ struct TownDestinationView: View {
                         VStack(alignment: .leading, spacing: 5) {
                             // The server keeps this nil until both participants go public.
                             Text(
-                                connection.them?.name
+                                connection.publicTownFriend?.name
                                     ?? (connection.isPending ? "A new hello" : "Anonymous connection")
                             )
                             .font(.headline)
