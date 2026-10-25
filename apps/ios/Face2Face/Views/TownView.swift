@@ -9,6 +9,7 @@ struct TownView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.scenePhase) private var scenePhase
     @State private var friends: TownFriendsModel
+    @State private var publicConnections = PublicConnectionUpdates.shared
     @State private var inbox: NotificationsModel
     @State private var push = PushNotifications.shared
     @State private var openedPreviewProfile = false
@@ -136,7 +137,7 @@ struct TownView: View {
                 friends.clearVisibleData()
                 return
             }
-            await friends.refresh()
+            await friends.refresh(preferredConnectionID: publicConnections.latestID)
             #if DEBUG
                 if !openedPreviewProfile, ProcessInfo.processInfo.arguments.contains("-town-friend-profile"),
                     let friend = friends.visitors.first
@@ -147,7 +148,7 @@ struct TownView: View {
             #endif
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(60)) } catch { return }
-                await friends.refresh()
+                await friends.refresh(preferredConnectionID: publicConnections.latestID)
             }
         }
         .onDisappear {
@@ -157,6 +158,9 @@ struct TownView: View {
         .onChange(of: account.user.id) {
             friends.clearVisibleData()
             friends.closeProfile()
+        }
+        .onChange(of: publicConnections.revision) {
+            Task { await friends.refresh(preferredConnectionID: publicConnections.latestID) }
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }

@@ -119,7 +119,7 @@ try {
       ? "Verified: interest membership, event create/edit/cancel, RSVP idempotency, attendees, notifications and access denial."
       : encounters
         ? "Verified: anonymous chances, decline closure, one-sided acceptance without chat, mutual acceptance with chat and outsider denial."
-        : "Verified: two-way text/photos, signed media, idempotent retry, typing, unread clearing and block closure.",
+        : "Verified: two-way text/photos, signed media, idempotent retry, typing, unread clearing, mutual profile sharing, public friends and block closure.",
   );
 } catch (error) {
   console.error(error.message);

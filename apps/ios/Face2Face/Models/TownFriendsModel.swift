@@ -39,7 +39,7 @@ final class TownFriendsModel {
         isPreview = false
     }
 
-    func refresh() async {
+    func refresh(preferredConnectionID: String? = nil) async {
         generation += 1
         let request = generation
         do {
@@ -55,7 +55,10 @@ final class TownFriendsModel {
             #else
                 let candidates = remaining.shuffled()
             #endif
-            visitors = Array((previous + candidates).prefix(3))
+            let preferred = friends.first { $0.id == preferredConnectionID }
+            let ordered = previous + candidates
+            visitors = Array(
+                ((preferred.map { [$0] } ?? []) + ordered.filter { $0.id != preferred?.id }).prefix(3))
             profileChecked = selectedID != nil
             error = nil
         } catch {
@@ -70,8 +73,14 @@ final class TownFriendsModel {
 
     func select(_ friend: PublicTownFriend) {
         guard visitors.contains(where: { $0.id == friend.id }) else { return }
+        openPublicConnection(friend.id)
+    }
+
+    /// The compact sheet still fetches the public-only list before rendering any identity.
+    /// A public chat need not already occupy one of the three visitor slots.
+    func openPublicConnection(_ id: String) {
         generation += 1
-        selectedID = friend.id
+        selectedID = id
         profileChecked = false
         error = nil
     }
@@ -91,7 +100,7 @@ final class TownFriendsModel {
 }
 
 #if DEBUG
-    private enum TownFriendsPreview {
+    @MainActor private enum TownFriendsPreview {
         static func load(request: Int) throws -> [PublicTownFriend] {
             let arguments = ProcessInfo.processInfo.arguments
             let index = arguments.firstIndex(of: "-town-friends-preview-state")
@@ -127,7 +136,8 @@ final class TownFriendsModel {
             let connections = try JSONDecoder().decode(
                 [TownConnection].self,
                 from: JSONSerialization.data(withJSONObject: rows))
-            return connections.compactMap(\.publicTownFriend)
+            let base = connections.compactMap(\.publicTownFriend)
+            return state == "revoked" ? base : base + (try ChatPreview.sharedPublicFriends())
         }
     }
 #endif

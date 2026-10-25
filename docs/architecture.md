@@ -557,8 +557,9 @@ Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required
   A phone that reports
   first sees the match when it returns to the foreground.
 - The iPhone's Recently Encountered page shows pending chances and accept/decline
-  controls. Mutual acceptance opens private chat; public-profile consent remains
-  a separate action and still needs native controls.
+  controls. Mutual acceptance opens private chat. The chat's Share profiles action
+  separately records public-profile consent, with confirmation and anonymous waiting.
+  Both consents are required before profiles or town visitors become visible.
 
 `pnpm test:streetpass` runs the contract over real HTTP against a local API with
 `DEV_TOOLS` set to `"true"`. It signs in as two seed people who are not connected
@@ -598,9 +599,7 @@ or blocked and expires their earlier pending chance first. It tests no Bluetooth
 ## Suggested next slice
 
 The native client has the inbox, chat with photos, public-friend visitors, forums,
-event editing/RSVP, and interest selection. Remaining demo gates:
-- Add mutual go-public controls to the native connection flow. Accept/decline and
-  the handoff into private messaging are implemented.
+event editing/RSVP, interest selection, and mutual profile sharing. Remaining demo gates:
 - Rehearse real sign-in and image delivery against production. Local chat tests do
   not verify email delivery or production R2/Images configuration.
 - Onboarding interest selection depends on the matching Worker deployment; optional

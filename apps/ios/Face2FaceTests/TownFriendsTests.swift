@@ -93,6 +93,35 @@ final class TownFriendsTests: XCTestCase {
         XCTAssertNil(model.selectedProfile)
     }
 
+    func testNewPublicFriendCanTakeAVisitorSlotButMissingPreferenceCannotAddOne() async throws {
+        let friends = try (0..<5).map { try publicFriend(String($0)) }
+        let model = TownFriendsModel(load: { friends })
+        await model.refresh()
+        let unlisted = try XCTUnwrap(friends.first { !model.visitors.contains($0) })
+        await model.refresh(preferredConnectionID: unlisted.id)
+        XCTAssertEqual(model.visitors.first, unlisted)
+        XCTAssertEqual(model.visitors.count, 3)
+        await model.refresh(preferredConnectionID: "private-or-blocked")
+        XCTAssertEqual(model.visitors.count, 3)
+        XCTAssertFalse(model.visitors.contains { $0.id == "private-or-blocked" })
+    }
+
+    func testChatProfileCanOpenOutsideVisitorSlotsButMustRevalidate() async throws {
+        let friends = try (0..<5).map { try publicFriend(String($0)) }
+        var result = friends
+        let model = TownFriendsModel(load: { result })
+        await model.refresh()
+        let unlisted = try XCTUnwrap(friends.first { !model.visitors.contains($0) })
+        model.openPublicConnection(unlisted.id)
+        XCTAssertNil(model.selectedProfile)
+        await model.refresh()
+        XCTAssertEqual(model.selectedProfile, unlisted)
+        result.removeAll { $0.id == unlisted.id }
+        model.openPublicConnection(unlisted.id)
+        await model.refresh()
+        XCTAssertNil(model.selectedProfile)
+    }
+
     func testResidentMovementIsBoundedAndDeterministic() {
         for slot in 0..<3 {
             for time in [0.0, 5, 50, 10000, .nan, .infinity] {

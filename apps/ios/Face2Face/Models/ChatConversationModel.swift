@@ -16,12 +16,20 @@ final class ChatConversationModel {
     private(set) var loadingOlder = false
     private(set) var theyAreTyping = false
     private(set) var isBlocking = false
+    private(set) var isSharingProfiles = false
+    private(set) var profileSharingError: String?
     var draft = ""
     private var client: APIClient?
     private var socket: (any ChatSocketTransport)?
     private var generation = 0
     private var sendTasks: [String: Task<Void, Never>] = [:]
     private var heartbeat: Task<Void, Never>?
+    private var metadataTask: Task<Void, Never>?
+    private var metadataVersion = 0
+    private var announcedPublic = false
+    private var hasSeenPrivate = false
+    private let metadataLoader: (@MainActor () async throws -> ChatSummary)?
+    private let consentRecorder: (@MainActor () async throws -> TownConnection)?
     private var typingStop: Task<Void, Never>?
     private var theirTypingStop: Task<Void, Never>?
     private var lastTyping = Date.distantPast
@@ -29,9 +37,15 @@ final class ChatConversationModel {
     private var previewPhotos: [String: Data] = [:]
     func localPreviewPhoto(_ id: String) -> Data? { previewPhotos[id] }
 
-    init(chatID: String, session: SessionModel) {
+    init(
+        chatID: String, session: SessionModel,
+        loadSummary: (@MainActor () async throws -> ChatSummary)? = nil,
+        recordProfileConsent: (@MainActor () async throws -> TownConnection)? = nil
+    ) {
         self.chatID = chatID
         self.session = session
+        metadataLoader = loadSummary
+        consentRecorder = recordProfileConsent
     }
 
     func run() async {
@@ -45,14 +59,14 @@ final class ChatConversationModel {
         #if DEBUG
             if session.isTownPreview {
                 do {
-                    summary = try ChatPreview.chats().first { $0.id == chatID }
-                    guard summary != nil else {
-                        closePermanently()
-                        return
-                    }
+                    let value = try await loadSummary()
+                    guard run == generation, !Task.isCancelled else { return }
+                    applySummary(value)
+                    guard state != .closed else { return }
                     transcript.merge(try ChatPreview.messages(chatID: chatID))
                     state = .live
                     flushPending()
+                    startMetadataRefresh(run: run)
                 } catch { self.error = "Couldn't open the sample conversation." }
                 return
             }
@@ -71,10 +85,11 @@ final class ChatConversationModel {
                     client = try await current.capturingCurrentCredential()
                 }
                 guard let client, run == generation, !Task.isCancelled else { break }
-                let latestSummary = try await client.chat(chatID)
+                let latestSummary = try await loadSummary()
                 let page = try await client.chatMessages(chatID)
                 guard run == generation, !Task.isCancelled else { break }
-                summary = latestSummary
+                applySummary(latestSummary)
+                guard state != .closed else { break }
                 transcript.merge(page.messages)
                 hasMore = hasMore || page.hasMore
                 let url = try await client.chatSocketURL(chatID)
@@ -93,6 +108,7 @@ final class ChatConversationModel {
                         await refreshLatest()
                         guard run == generation, !Task.isCancelled else { break }
                         flushPending()
+                        startMetadataRefresh(run: run)
                         heartbeat?.cancel()
                         heartbeat = Task { [weak self] in
                             while !Task.isCancelled {
@@ -151,6 +167,8 @@ final class ChatConversationModel {
             await connection.close()
             guard run == generation, !Task.isCancelled, state != .closed else { break }
             heartbeat?.cancel()
+            metadataTask?.cancel()
+            metadataVersion += 1
             theyAreTyping = false
             state = .reconnecting
             attempt += 1
@@ -162,7 +180,9 @@ final class ChatConversationModel {
 
     func stop() async {
         generation += 1
+        metadataVersion += 1
         heartbeat?.cancel()
+        metadataTask?.cancel()
         typingStop?.cancel()
         theirTypingStop?.cancel()
         for task in sendTasks.values { task.cancel() }
@@ -171,8 +191,134 @@ final class ChatConversationModel {
         socket = nil
         theyAreTyping = false
         summary = nil
+        isSharingProfiles = false
+        profileSharingError = nil
         if state != .closed { state = .paused }
         await connection?.close()
+    }
+
+    func shareProfiles() async {
+        guard state == .live, !isBlocking, !isSharingProfiles,
+            summary?.connection.canOfferProfileSharing == true
+        else { return }
+        isSharingProfiles = true
+        profileSharingError = nil
+        metadataVersion += 1
+        let request = metadataVersion
+        let run = generation
+        defer { if run == generation { isSharingProfiles = false } }
+        do {
+            let connection: TownConnection
+            if let consentRecorder {
+                connection = try await consentRecorder()
+            } else {
+                #if DEBUG
+                    if session.isTownPreview {
+                        connection = try ChatPreview.shareProfiles(chatID: chatID)
+                    } else {
+                        guard let client, try await session.client().usesSameCredential(as: client) else {
+                            closePermanently()
+                            return
+                        }
+                        connection = try await client.agreeToPublicConnection(chatID)
+                    }
+                #else
+                    guard let client, try await session.client().usesSameCredential(as: client) else {
+                        closePermanently()
+                        return
+                    }
+                    connection = try await client.agreeToPublicConnection(chatID)
+                #endif
+            }
+            guard run == generation, request == metadataVersion, !Task.isCancelled else { return }
+            guard let updated = summary?.replacingConnection(connection) else {
+                closePermanently()
+                return
+            }
+            applySummary(updated)
+        } catch {
+            guard run == generation, request == metadataVersion, !Task.isCancelled else { return }
+            if authorizationEnded(error) {
+                closePermanently()
+                return
+            }
+            // A timed-out POST may have saved consent. Reconcile once without another POST.
+            do {
+                let latest = try await loadSummary()
+                guard run == generation, request == metadataVersion, !Task.isCancelled else { return }
+                applySummary(latest)
+            } catch {
+                guard run == generation, request == metadataVersion, !Task.isCancelled else { return }
+                if authorizationEnded(error) {
+                    closePermanently()
+                    return
+                }
+            }
+            guard run == generation else { return }
+            if summary?.connection.hasChosenProfileSharing != true && summary?.connection.status != "public" {
+                profileSharingError =
+                    "Couldn't confirm profile sharing. Check the latest status before trying again. Your chat can stay anonymous."
+            }
+        }
+    }
+
+    func refreshConnection() async {
+        guard state == .live, !isSharingProfiles else { return }
+        metadataVersion += 1
+        let request = metadataVersion
+        let run = generation
+        do {
+            let value = try await loadSummary()
+            guard run == generation, request == metadataVersion, !Task.isCancelled else { return }
+            applySummary(value)
+            profileSharingError = nil
+        } catch {
+            guard run == generation, request == metadataVersion, !Task.isCancelled else { return }
+            if authorizationEnded(error) {
+                closePermanently()
+            } else {
+                profileSharingError =
+                    "Couldn't refresh profile-sharing status. No new profile information has been revealed."
+            }
+        }
+    }
+
+    private func loadSummary() async throws -> ChatSummary {
+        if let metadataLoader { return try await metadataLoader() }
+        #if DEBUG
+            if session.isTownPreview {
+                guard let value = try ChatPreview.chat(chatID) else { throw APIError.server(404) }
+                return value
+            }
+        #endif
+        guard let client, try await session.client().usesSameCredential(as: client) else {
+            throw APIError.unauthenticated
+        }
+        return try await client.chat(chatID)
+    }
+
+    private func applySummary(_ value: ChatSummary) {
+        guard value.id == chatID, value.connection.id == chatID, value.connection.isFriend else {
+            closePermanently()
+            return
+        }
+        summary = value
+        if value.connection.status == "private" { hasSeenPrivate = true }
+        if value.connection.publicTownFriend != nil && hasSeenPrivate && !announcedPublic {
+            announcedPublic = true
+            PublicConnectionUpdates.shared.confirmedPublic(chatID)
+        }
+    }
+
+    private func startMetadataRefresh(run: Int) {
+        metadataTask?.cancel()
+        metadataTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(5)) } catch { return }
+                guard let self, self.generation == run, self.state == .live else { return }
+                await self.refreshConnection()
+            }
+        }
     }
 
     func changeDraft() {
@@ -351,6 +497,10 @@ final class ChatConversationModel {
         previewPhotos = [:]
         error = "This conversation is no longer available. It may have been blocked or your session ended."
         heartbeat?.cancel()
+        metadataTask?.cancel()
+        metadataVersion += 1
+        isSharingProfiles = false
+        profileSharingError = nil
         typingStop?.cancel()
         theirTypingStop?.cancel()
         theyAreTyping = false

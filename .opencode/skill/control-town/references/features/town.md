@@ -93,18 +93,32 @@ Tests: `PublicTownFriendsTests.swift` (portable filter), `TownFriendsTests.swift
   The conversation options menu exposes the existing block action, with confirmation.
   Unconfirmed sends stay in memory only while the conversation is open; leaving
   warns before discarding them. Older messages load with the Earlier messages button.
+- `chatShareProfiles` asks for explicit consent in an anonymous chat. Cancel changes
+  nothing. Agree sends the viewer's consent to `/api/connections/:id/public`.
+  `chatSharingWaiting` keeps identity hidden and removes repeated consent controls.
+  Messaging and blocking remain available; acceptance alone never shares profiles.
+- The open chat checks connection status every five seconds. A failed consent reply
+  triggers a read, not another POST. Backgrounding invalidates in-flight results.
+  After mutual consent, `chatProfilesPublic` and `chatViewProfile` appear. The compact
+  profile revalidates the public-only list before showing identity. The town also
+  reloads that list and reserves one of its three visitor slots for the new friend.
+  Neither the profile nor the visitor implies online presence or physical proximity.
 
 `preview -town-chat preview-ava` opens a sample public conversation;
 `preview -town-chat preview-private` opens an anonymous one. Preview sends are local,
 explicitly labelled, and do not contact the API.
+Add `-chat-sharing-preview-state peer-agreed` to simulate a second consent, or
+`peer-later` to exercise the five-second refresh. Omit the flag for one-sided waiting.
 
 `node scripts/chat-smoke.mjs` provisions an isolated temporary local D1/R2/DO Worker,
 runs the real Swift HTTP/WebSocket clients in both directions (text and photos),
-checks retry deduplication, typing, signed image retrieval, unread clearing and block
-closure, then stops its own Worker. It never resets the shared dev database.
+checks retry deduplication, typing, signed image retrieval, unread clearing, mutual
+profile sharing, public-friend visibility and block closure, then stops its own
+Worker. It never resets the shared dev database.
 
 Tests: `ChatTests.swift`, opt-in `LiveChatTests.swift`, native `ChatModelTests.swift`,
-and `ChatUITests.swift`. The native photo test uses the API's EXIF/GPS fixture.
+`ProfileSharingTests.swift`, `ProfileSharingUITests.swift`, and `ChatUITests.swift`.
+The native photo test uses the API's EXIF/GPS fixture.
 The photo-picker UI test uses an existing simulator photo, or skips if the library
 is empty. Seed it with `xcrun simctl addmedia booted <test-image>` before running.
 

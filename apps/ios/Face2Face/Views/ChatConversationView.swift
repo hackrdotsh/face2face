@@ -5,6 +5,7 @@ import SwiftUI
 struct ChatConversationView: View {
     let session: SessionModel
     @State private var model: ChatConversationModel
+    @State private var profile: TownFriendsModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var pickedPhoto: PhotosPickerItem?
@@ -13,6 +14,7 @@ struct ChatConversationView: View {
     @State private var photoError: String?
     @State private var showLeaveWarning = false
     @State private var showBlockWarning = false
+    @State private var showShareConfirmation = false
     @State private var selectedImage: ChatImage?
     @State private var followLatest = true
     @FocusState private var focused: Bool
@@ -20,11 +22,13 @@ struct ChatConversationView: View {
     init(chatID: String, session: SessionModel) {
         self.session = session
         _model = State(initialValue: ChatConversationModel(chatID: chatID, session: session))
+        _profile = State(initialValue: TownFriendsModel(session: session))
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            profileSharingCard
             if session.isTownPreview {
                 Text("Preview · messages stay on this device").font(.caption)
                     .foregroundStyle(MeadowPalette.secondaryInk).padding(.vertical, 6)
@@ -49,9 +53,19 @@ struct ChatConversationView: View {
         .foregroundStyle(MeadowPalette.ink).fontDesign(.rounded)
         .toolbar(.hidden, for: .navigationBar, .tabBar)
         .task(id: scenePhase) {
-            if scenePhase == .active { await model.run() } else { await model.stop() }
+            if scenePhase == .active {
+                if profile.selectedID != nil { await profile.refresh() }
+                await model.run()
+            } else {
+                profile.clearVisibleData()
+                await model.stop()
+            }
         }
-        .onDisappear { Task { await model.stop() } }
+        .onDisappear {
+            profile.clearVisibleData()
+            profile.closeProfile()
+            Task { await model.stop() }
+        }
         .task(id: pickedPhoto) { await preparePickedPhoto() }
         .onChange(of: model.draft) { model.changeDraft() }
         .onChange(of: model.state) {
@@ -59,6 +73,8 @@ struct ChatConversationView: View {
                 attachment = nil
                 pickedPhoto = nil
                 focused = false
+                profile.clearVisibleData()
+                profile.closeProfile()
             }
         }
         .confirmationDialog(
@@ -90,6 +106,82 @@ struct ChatConversationView: View {
                         ToolbarItem(placement: .confirmationAction) { Button("Done") { selectedImage = nil } }
                     }
             }
+        }
+        .alert("Share profiles with this connection?", isPresented: $showShareConfirmation) {
+            Button("Agree to share") { Task { await model.shareProfiles() } }
+            Button("Keep anonymous", role: .cancel) {}
+        } message: {
+            Text(
+                "Your name, photo, age and interests stay hidden until you both agree. Once public, you can view each other's profiles and appear as town visitors. You can't undo this choice here, but you can still block the connection."
+            )
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { profile.selectedID != nil }, set: { if !$0 { profile.closeProfile() } })
+        ) {
+            CompactPublicProfileView(model: profile, session: session)
+        }
+    }
+
+    @ViewBuilder private var profileSharingCard: some View {
+        if let connection = model.summary?.connection {
+            VStack(alignment: .leading, spacing: 8) {
+                if connection.status == "public" {
+                    Label("Profiles shared", systemImage: "person.2.fill").font(.subheadline.weight(.bold))
+                        .accessibilityIdentifier("chatProfilesPublic")
+                    Text("You both agreed. Public friends can visit your town.")
+                        .font(.caption).foregroundStyle(MeadowPalette.secondaryInk)
+                    if connection.publicTownFriend != nil {
+                        Button {
+                            focused = false
+                            profile.openPublicConnection(model.chatID)
+                        } label: {
+                            Label("View profile", systemImage: "person.crop.circle")
+                                .font(.subheadline.weight(.bold)).frame(minHeight: 44)
+                        }
+                        .disabled(model.state != .live || model.isBlocking)
+                        .accessibilityIdentifier("chatViewProfile")
+                    }
+                } else if connection.hasChosenProfileSharing {
+                    Label("Your choice is saved", systemImage: "clock").font(.subheadline.weight(.bold))
+                        .accessibilityIdentifier("chatSharingWaiting")
+                    Text(
+                        "Waiting for them. Your profiles stay anonymous until you both agree. You can keep chatting."
+                    )
+                    .font(.caption).foregroundStyle(MeadowPalette.secondaryInk)
+                } else {
+                    Label("A little more face to face", systemImage: "person.2").font(
+                        .subheadline.weight(.bold))
+                    Text("Sharing is optional. Only a mutual yes reveals your profiles to each other.")
+                        .font(.caption).foregroundStyle(MeadowPalette.secondaryInk)
+                    if connection.canOfferProfileSharing {
+                        Button {
+                            focused = false
+                            showShareConfirmation = true
+                        } label: {
+                            Text(model.isSharingProfiles ? "Saving your choice…" : "Share profiles")
+                                .font(.subheadline.weight(.bold)).padding(.horizontal, 18).frame(
+                                    minHeight: 44
+                                )
+                                .background(MeadowPalette.accent, in: Capsule()).foregroundStyle(
+                                    MeadowPalette.accentInk)
+                        }
+                        .disabled(model.state != .live || model.isSharingProfiles || model.isBlocking)
+                        .accessibilityIdentifier("chatShareProfiles")
+                    }
+                }
+                if let error = model.profileSharingError {
+                    Text(error).font(.caption).foregroundStyle(MeadowPalette.errorInk)
+                        .accessibilityIdentifier("chatSharingError")
+                    Button("Check sharing status") { Task { await model.refreshConnection() } }
+                        .font(.caption.weight(.bold)).frame(minHeight: 44)
+                        .disabled(model.state != .live || model.isSharingProfiles)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+            .background(MeadowPalette.paper, in: RoundedRectangle(cornerRadius: 20))
+            .padding(.horizontal, 20).padding(.bottom, 8)
         }
     }
 
