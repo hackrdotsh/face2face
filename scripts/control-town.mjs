@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,6 +77,42 @@ try {
       run("xcrun", ["devicectl", "list", "devices"]);
       run("xcrun", ["simctl", "list", "devices", "booted"]);
       break;
+    case "push-doctor": {
+      const app = args[0]
+        ? resolve(args[0])
+        : `${derived}/Build/Products/Debug-iphoneos/Face2Face.app`;
+      const path = resolve(tmpdir(), "opencode", "push-entitlements.plist");
+      mkdirSync(resolve(path, ".."), { recursive: true });
+      writeFileSync(
+        path,
+        run("codesign", ["-d", "--entitlements", "-", "--xml", app], true),
+      );
+      const signed = JSON.parse(
+        run("plutil", ["-convert", "json", "-o", "-", path], true),
+      );
+      const bundle = run(
+        "/usr/libexec/PlistBuddy",
+        ["-c", "Print :CFBundleIdentifier", `${app}/Info.plist`],
+        true,
+      ).trim();
+      const environment = signed["aps-environment"] ?? null;
+      console.log(
+        JSON.stringify(
+          {
+            app,
+            bundle,
+            applicationID: signed["application-identifier"] ?? null,
+            signedPushEnvironment: environment,
+            result: environment
+              ? "Push entitlement exists; also verify the matching APNs topic, permission, provider and device registration."
+              : "This signed build cannot receive APNs. Build with push entitlements and a push-enabled provisioning team; do not confuse this with notification permission.",
+          },
+          null,
+          2,
+        ),
+      );
+      break;
+    }
     case "preview": {
       const device = simulator();
       const { app, bundle } = build(
@@ -151,6 +187,7 @@ try {
     default:
       console.log(`Town verification (macOS + Xcode + XcodeGen):
   doctor                              List physical devices and booted simulators
+  push-doctor [path-to.app]            Inspect the built app's effective APNs entitlement
   preview [-town-destination forums]   Build, install and open an offline Debug preview
   screenshot <path> [device-udid]      Capture the booted simulator or specified phone
   deploy <device-udid> [app-arguments] Build, install and launch on an explicit phone

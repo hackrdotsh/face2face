@@ -299,11 +299,11 @@ Routes, all behind `requireOnboarded`:
 
 Each person's `UserCoordinator` Durable Object keeps their inbox, the latest
 200 notifications. The inbox is the record. A WebSocket only delivers new
-notifications while a client is open. An iPhone app in the background has no
-socket, so `notify` also sends an APNs alert for `encounter`, `connected`,
+notifications while a client is open. A foreground socket is not a background
+delivery channel, so `notify` also sends an APNs alert for `encounter`, `connected`,
 `public`, and `message` to each of the person's registered phones.
 
-A client, web or iPhone:
+A notification-socket client:
 1. Loads `GET /api/notifications` on launch and when it returns to the foreground.
    The response is `{ notifications, unreadCount }`.
 2. Gets a 60-second ticket from `POST /api/notifications/ticket` with its bearer token.
@@ -330,16 +330,27 @@ other person. The post kinds hold only `postId` and `forumId`.
 - The iPhone app asks for notification permission the first time it reaches the
   town. It then sends its APNs token to `PUT /api/notifications/devices/:token`
   with `{ "environment": "sandbox" | "production" }`. Debug builds use the
-  sandbox. Sign out calls `DELETE /api/notifications/devices/:token` first.
+  sandbox. Foreground activation retries setup, and registration caching includes
+  the account and API server. Sign out calls `DELETE /api/notifications/devices/:token` first.
 - The coordinator keeps the newest 10 tokens for each person. It forgets a token
   when APNs answers 410, `BadDeviceToken`, or `DeviceTokenNotForTopic`.
-- The alert holds the same text as the inbox card, the unread count as the app
-  badge, and `notificationId`, `kind`, and `connectionId`. It never names the
-  other person.
-- While the app is open it shows no banner. The bell's count updates instead.
+- Connection alerts hold the inbox text; message alerts carry a short preview
+  that is not stored in the inbox. Both carry the badge count, `notificationId`,
+  `kind`, and the applicable `connectionId` or `chatId`. Neither names the sender.
+- While the app is open, message alerts show a banner, sound and badge outside
+  the actively visible conversation. Chat visibility is account/owner-scoped and
+  clears on disappearance or backgrounding. Connection events retain the in-app UI.
 - Push is off until the Worker has `APNS_KEY_ID` and `APNS_PRIVATE_KEY` (the
   .p8 contents) and `APPLE_APP_ID` is set. The team ID and topic come from
   `APPLE_APP_ID`. The build also needs the `aps-environment` entitlement.
+- Settings → Notifications reports permission, Apple registration and upload errors,
+  and authenticated server setup from `GET /api/notifications/push-status`.
+  The endpoint exposes provider availability, account device count and topic—not
+  tokens or keys. Token/topic/environment APNs rejections are logged before a token
+  is removed. A successful registration is not proof of APNs delivery.
+- `control-town.mjs push-doctor [app-path]` inspects the actual signed entitlement,
+  not the source plist. A local build without it cannot receive push; the signing
+  team, app topic and server provider still need to match in a push-enabled build.
 - A phone belongs to the account that registered it last. D1's `push_device`
   table maps the SHA-256 hash of each token to its owner. Registering removes the
   token from the previous owner's coordinator, so a phone stops getting an
@@ -380,11 +391,19 @@ the connection ID. A block closes the chat for both people.
   that the Worker gives it. A client cannot call it directly.
 - **`UserCoordinator`** gets a `chat_activity` event when a message arrives for
   its person. It sends the event to that person's notification sockets. The
-  inbox does not keep it. When the recipient has no socket open in that chat,
-  `ChatRoom` also calls `notifyMessage`: the inbox keeps one `message` card per
+  inbox does not keep it. With no recipient socket, `ChatRoom` immediately calls
+  `notifyMessage`. Connected recipients get a two-second read-ack grace period,
+  backed by SQLite `message_notice` and a Durable Object alarm; a stale socket
+  cannot suppress an unread message indefinitely. The inbox keeps one `message` card per
   chat, replacing the previous one, and a push carries the first line of text
   (or "Sent a photo") with no sender name. Pushes for one chat share an APNs
-  collapse ID and thread. Reading the chat removes its card.
+  collapse ID and thread. Reading the whole chat removes its card; reading an older
+  message cannot remove a newer unread notice. Coordinator `message_delivery`
+  sequence receipts make retries idempotent and reject delayed older deliveries.
+  Socket-send failures are isolated from push attempts. Blocking clears queued notices.
+- These are internal Durable Object tables created on upgrade, not D1 migrations.
+  The web client only acknowledges reads while visible and focused. Swift receive
+  cancellation closes the captured WebSocket task, including a suspended receive.
 - **Images binding** re-encodes each upload. **R2** (`MEDIA`) keeps the result.
   The bucket is not public.
 

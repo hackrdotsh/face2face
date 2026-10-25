@@ -74,11 +74,44 @@ Notifications UI tests: `apps/ios/Face2FaceUITests/NotificationsUITests.swift`.
 `-notifications-preview-state empty` or `error` to check those states. Signed-in
 sessions load the API, never samples. The town and inbox share the unread count;
 opening marks it seen, rows swipe to delete, and Clear All removes the inbox.
-Connection APNs alerts and foreground arrivals are handled by `PushNotifications`;
+Connection and message APNs alerts are handled by `PushNotifications`;
 delivery requires suitable signing/entitlements and backend APNs configuration.
 Event notices open the corresponding event; connection notices open the
 corresponding town lists. Message inbox rows open the café; message pushes open their exact chat. Message pushes
 dismiss any existing town surface through the same queue as widget links.
+
+### Message push verification
+
+- Settings → Notifications shows permission, Apple registration, server registration,
+  provider configuration, account device count and whether the app topic matches.
+  `pushRetrySetup` retries registration; `pushServerSetup` is the server summary.
+  The API endpoint is authenticated `GET /api/notifications/push-status`; it returns
+  no device tokens, credentials or peer identity. Older Workers show a deployment-needed message.
+- Foreground messages get a banner, sound and badge unless that exact conversation
+  is visible for the signed-in account. Leaving or backgrounding the chat clears
+  suppression. Connection events retain their in-app presentation.
+- Both private and public chats notify immediately with no recipient socket. A
+  connected socket gets a two-second read-ack grace period, backed by a Durable
+  Object alarm. Unread messages still notify if that socket stays stale; disconnecting
+  expedites them. Reading within the grace period cancels the pending notice.
+- A hidden/unfocused web chat no longer acknowledges incoming messages as read.
+  Socket fanout failures do not cancel APNs; delivery sequence receipts prevent
+  stale retries or delayed reads from replacing/removing newer notices.
+- Run `node scripts/control-town.mjs push-doctor` after a device build, or pass
+  another signed `.app` path. Missing `aps-environment` means that signed build
+  cannot receive APNs even if iOS notification permission says Allowed. Local
+  personal-team signing overrides are preserved, not silently changed to enable push.
+- Apple delivery additionally requires a matching provisioning team, app bundle/topic,
+  sandbox/production environment, provider keys, and a registered device. Cloudflare
+  `APNS_KEY_ID` / `APNS_PRIVATE_KEY` values are operator-managed secrets, never repo files.
+  Simulator policy tests and fake APNs senders do not prove physical APNs delivery.
+
+Tests: native `MessagePushPolicyTests.swift`, `PushSetupUITests.swift`, portable
+`NotificationsTests.swift`, Worker `chats.test.ts` / `notifications.test.ts`, and
+web `chat-visibility.test.ts`. `node scripts/chat-smoke.mjs` also exercises cancellation
+of a suspended real Swift WebSocket receive. Verify production with two correctly
+push-signed phones: town foreground → banner; reading the same chat → quiet;
+Home/lock screen → push, including when a web chat was left open in a hidden tab.
 
 ## Public friend visitors
 
@@ -161,7 +194,7 @@ verify the dialogue, not the physical feel of the vibration.
 
 - The café opens `ChatsView`. Only accepted private/public connections are listed.
   `chat-<connectionId>` opens a conversation. Private chats use an anonymous label
-  and generic avatar, even if unexpected identity fields appear in a response.
+  and their seed-only blob, never a private photo or name from unexpected identity fields.
 - A revalidated public profile has `publicProfileMessage`. It dismisses the profile
   and opens the same chat. Pending, blocked and expired connections cannot chat.
 - `chatDraft`, `chatSend`, `chatAttachPhoto` and `chatBack` are the conversation controls.
@@ -171,8 +204,8 @@ verify the dialogue, not the physical feel of the vibration.
   never bearer tokens in URLs. Sends keep their client IDs across retries.
 - Typing expires after eight seconds. Read positions clear server unread counts;
   they are not read receipts shown to the other person. The café reloads on return
-  and every 30 seconds while open. Message notifications and APNs alerts are sent
-  when the recipient's chat is closed, subject to backend push configuration.
+  and every 30 seconds while open. Message push follows the read-ack policy above,
+  subject to signing and backend APNs configuration.
 - Backgrounding closes the socket. Returning revalidates the original credential
   and chat access before reconnecting. Blocking closes and clears the conversation.
   The conversation options menu exposes the existing block action, with confirmation.

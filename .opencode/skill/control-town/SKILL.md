@@ -9,6 +9,7 @@ description: Build, preview, screenshot and deploy the native town landing scree
 For agents verifying the native landing screen. Runtime commands:
 `node scripts/control-town.mjs --help`.
 - `doctor`: connected phones and booted simulators.
+- `push-doctor [path-to.app]`: inspect the built app's signed APNs entitlement. Does not contact Apple or expose tokens.
 - `preview`: build and open the offline Debug town on the booted simulator.
 - `screenshot <path> [device-udid]`: capture visual evidence.
 - `deploy <device-udid> [-town-preview]`: build, install, launch. Prefer Minun.
