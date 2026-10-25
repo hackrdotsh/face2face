@@ -252,10 +252,13 @@ two people answering at once cannot overwrite each other.
 from both lists when it times out or either person declines. The rows stay in
 the table.
 
-Until a connection is public, a participant sees only the shared interests and
-their own choices. They do not see the other person's ID, name, or decision.
-A public connection adds the other person's name, avatar, age, interests, and
-status message.
+Until a connection is public, a participant sees the shared interests, their own
+choices, and `theirAvatar`, the other person's blob seed. They do not see the
+other person's ID, name, photo, or decision. The seed is the same one their
+public profile uses, so a person who later sees that profile can recognize
+them. Expired and blocked rows have no `theirAvatar`. A public connection adds
+the other person's name, avatar with photo, age, interests, and status message
+in `them`.
 
 Routes, all behind `requireOnboarded`:
 - `GET /api/connections`
