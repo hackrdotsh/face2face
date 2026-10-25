@@ -16,7 +16,7 @@ transport does not follow redirects with credentials.
 
 `GET /health` checks the Worker response, not database readiness. `/api/auth/*`
 handles authentication. `GET /api/me` returns the authenticated person's ID, name,
-email, and whether onboarding is complete. `GET /api/coordinator` calls that person's SQLite-backed Durable Object.
+email, avatar, and whether onboarding is complete. `GET /api/coordinator` calls that person's SQLite-backed Durable Object.
 Neither protected route accepts a user ID from the caller.
 
 Swift core tests run on Linux and Mac. Keychain and SwiftUI need Apple's SDKs;
@@ -50,6 +50,8 @@ in separate tables that reference `user.id` and cascade on account deletion.
 - `gender` is a lookup table. `profile.gender_id` references it. A seed
   migration adds Male, Female, and Other. An option with `allows_description`
   accepts free text, which the server stores in `profile.gender_description`.
+- `profile.photo_id` names the current profile photo in R2. It is null when the
+  person has no photo. Better Auth's `user.image` is not used.
 - A field with more than one value gets its own junction table, for example
   `profile_interest(user_id, interest_id)`. Do not store lists in one column.
   The exception is a snapshot written once and never edited, such as
@@ -62,7 +64,7 @@ in separate tables that reference `user.id` and cascade on account deletion.
 ### Onboarding fields
 
 `apps/api/src/onboarding/fields.ts` is the list of onboarding fields. Each entry
-declares a key, a type (`text`, `date`, or `singleChoice`), a label, whether it
+declares a key, a type (`text`, `date`, `singleChoice`, or `image`), a label, whether it
 is required, its validation, and how it reads and writes the database.
 - `GET /api/onboarding` returns every field with its current value.
 - `PATCH /api/onboarding` validates the submitted values with Zod and saves them
@@ -81,6 +83,48 @@ known type needs no app release. To add a field:
 If the new field is required, existing accounts return to onboarding and see
 only that field. A field type that the app does not know makes the app ask the
 person to update it.
+
+An `image` field is optional and has the profile photo as its value. Upload the
+photo to `PUT /api/profile/photo`. `PATCH /api/onboarding` refuses a value for it.
+
+### Profile photos and avatars
+
+A person can add one profile photo. A person without a photo gets a blob
+avatar. Forum members and public connections see it. The person API shape is
+`{ userId, name, avatar }`, and `avatar` is `{ seed, photo }`.
+
+- `PUT /api/profile/photo` takes multipart field `image`, up to 15 MB. It
+  returns `{ avatar }`. Errors are `413 image_too_large` and
+  `415 unsupported_image`. It needs a session, but not finished onboarding.
+- `DELETE /api/profile/photo` removes the photo and returns `{ avatar }`.
+- The client crops the photo to the square around a circle before upload. The
+  server crops the center again to a square, so the result is always square.
+  It makes two WebP variants: `large` is 1024 px and `thumb` is 256 px.
+  Re-encoding removes EXIF, GPS, and other metadata.
+- Each variant goes to R2 at `profiles/<photoId>/<variant>`. The key has no
+  user ID. A new photo or a removal deletes the files of the old photo.
+- `photo` holds signed paths with the same rules as chat images. Clients show
+  each variant as a circle.
+- `seed` is the first 16 bytes of SHA-256 of `face2face-avatar:<userId>`, as
+  base64url. It does not change and does not contain the user ID.
+
+The web client and `Face2FaceCore` both draw the blob from the seed bytes `b`.
+Coordinates are in a unit square:
+1. The point count is `6 + b[0] % 3`. The hue is `(b[1] * 256 + b[2]) % 360`.
+2. Point `i` has radius `0.34 + b[4 + i] / 255 * 0.1` and angle
+   `b[3] / 255 * step + i * step - pi / 2`, where `step` is `2 * pi / count`.
+   The points go around the center `(0.5, 0.5)`.
+3. A closed Catmull-Rom spline joins the points. Each segment becomes a cubic
+   Bezier curve.
+4. The fill is a diagonal gradient from HSL `(hue, 80%, 82%)` to
+   `(hue + 40, 70%, 68%)`.
+5. The eyes are two pills, 0.06 wide and 0.12 high, in HSL `(hue, 40%, 20%)`.
+   `b[12]` sets their distance from the center, `b[13]` sets their height, and
+   `b[14]` moves both to the side.
+
+`docs/fixtures/blob-avatar.json` holds the expected output for some seeds. The
+web and Swift tests both check it. Change the drawing in both clients and the
+fixture together.
 
 ### Passkeys
 
@@ -150,7 +194,7 @@ the table.
 
 Until a connection is public, a participant sees only the shared interests and
 their own choices. They do not see the other person's ID, name, or decision.
-A public connection adds the other person's name, age, and interests.
+A public connection adds the other person's name, avatar, age, and interests.
 
 Routes, all behind `requireOnboarded`:
 - `GET /api/connections`
@@ -302,7 +346,8 @@ is not tested locally.
 Message editing and deletion, read receipts for the other person, push
 notifications, and cleanup of images that were uploaded but not sent. There is
 no account deletion yet. When it exists, it must delete each chat's
-`ChatRoom` storage and its R2 prefix.
+`ChatRoom` storage and its R2 prefix. It must also delete the profile photo
+files in R2.
 
 ## Forums
 
