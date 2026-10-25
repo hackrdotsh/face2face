@@ -12,8 +12,64 @@
     {
       "idx": 1,
       "version": "6",
-      "when": 1792853662209,
-      "tag": "0001_streetpass-discovery",
+      "when": 1792825205561,
+      "tag": "0001_large_ikaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792825214159,
+      "tag": "0002_seed_genders",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792865499563,
+      "tag": "0003_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792865499947,
+      "tag": "0004_interest_member_count",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792865505303,
+      "tag": "0005_seed_interests",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792883836167,
+      "tag": "0006_forums",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792883836561,
+      "tag": "0007_post_attendee_count",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792883836928,
+      "tag": "0008_seed_forums",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792888492384,
+      "tag": "0009_profile_photo",
       "breakpoints": true
     }
   ]

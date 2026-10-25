@@ -31,8 +31,23 @@ targets:
           INFOPLIST_FILE: Face2Face/Info-Debug.plist
         Release:
           INFOPLIST_FILE: Face2Face/Info-Release.plist
+  Face2FaceUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - Face2FaceUITests
+    dependencies:
+      - target: Face2Face
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: sh.hackr.face2face.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
 schemes:
   Face2Face:
     build:
       targets:
         Face2Face: all
+    test:
+      targets:
+        - Face2FaceUITests

@@ -7,14 +7,14 @@ import Testing
     import FoundationNetworking
 #endif
 
-private actor MemoryTokens: TokenStore {
+actor MemoryTokens: TokenStore {
     var token: String?
     init(_ token: String? = nil) { self.token = token }
     func load() -> String? { token }
     func save(_ token: String?) { self.token = token }
 }
 
-private actor StubTransport: HTTPTransport {
+actor StubTransport: HTTPTransport {
     var requests: [URLRequest] = []
     var responses: [HTTPResponse]
     init(_ responses: [HTTPResponse]) { self.responses = responses }
@@ -25,11 +25,18 @@ private actor StubTransport: HTTPTransport {
     }
 }
 
-private func response(_ status: Int = 200, json: String, token: String? = nil) -> HTTPResponse {
-    HTTPResponse(status: status, data: Data(json.utf8), authToken: token)
+func response(
+    _ status: Int = 200, json: String, token: String? = nil, cookies: [String: String] = [:]
+) -> HTTPResponse {
+    HTTPResponse(status: status, data: Data(json.utf8), authToken: token, cookies: cookies)
 }
 
-private func configuration() throws -> APIConfiguration {
+let accountJSON = #"""
+    {"user":{"id":"1","name":"Test","email":"test@example.test",
+    "avatar":{"seed":"AAAAAAAAAAAAAAAAAAAAAA","photo":null}},"onboardingComplete":false}
+    """#
+
+func configuration() throws -> APIConfiguration {
     try APIConfiguration(address: "https://api.example.test")
 }
 
@@ -37,9 +44,9 @@ private func configuration() throws -> APIConfiguration {
     #expect(
         try APIConfiguration(address: " https://api.example.test/ ").baseURL.absoluteString
             == "https://api.example.test")
-    #expect(throws: APIError.insecureServerURL) { try APIConfiguration(address: "http://100.100.20.30:8787") }
+    #expect(throws: APIError.insecureServerURL) { try APIConfiguration(address: "http://100.100.20.30:8080") }
     #expect(
-        try APIConfiguration(address: "http://100.100.20.30:8787", allowInsecureHTTP: true).baseURL.host
+        try APIConfiguration(address: "http://100.100.20.30:8080", allowInsecureHTTP: true).baseURL.host
             == "100.100.20.30")
 }
 
@@ -66,14 +73,15 @@ func rejectsInvalidAddresses(_ address: String) {
         response(
             json: #"{"token":"unsigned-body-token","user":{"id":"1","name":"Test"}}"#,
             token: "signed-header-token"),
-        response(json: #"{"user":{"id":"1","name":"Test"}}"#),
+        response(json: accountJSON),
     ])
     let tokens = MemoryTokens()
     let client = APIClient(configuration: try configuration(), tokens: tokens, transport: transport)
-    let signedIn = try await client.signIn(email: "test@example.test", password: "a-long-password")
-    #expect(signedIn.name == "Test")
+    try await client.signIn(email: "test@example.test", password: "a-long-password")
     #expect(await tokens.load() == "signed-header-token")
-    #expect(try await client.currentUser() == signedIn)
+    let account = try await client.currentAccount()
+    #expect(account.user.email == "test@example.test")
+    #expect(SessionPhase(account: account) == .needsOnboarding(account))
     let requests = await transport.requests
     #expect(requests[0].url?.path == "/api/auth/sign-in/email")
     #expect(requests[0].value(forHTTPHeaderField: "Authorization") == nil)
@@ -88,7 +96,7 @@ func rejectsInvalidAddresses(_ address: String) {
             response(json: #"{"user":{"id":"1","name":"Test"}}"#)
         ]))
     await #expect(throws: APIError.invalidResponse) {
-        try await client.signUp(name: "Test", email: "test@example.test", password: "a-long-password")
+        try await client.signIn(email: "test@example.test", code: "123456")
     }
 }
 
@@ -97,14 +105,14 @@ func rejectsInvalidAddresses(_ address: String) {
     let client = APIClient(
         configuration: try configuration(), tokens: tokens,
         transport: StubTransport([response(401, json: "{}")]))
-    await #expect(throws: APIError.unauthenticated) { try await client.currentUser() }
+    await #expect(throws: APIError.unauthenticated) { try await client.currentAccount() }
     #expect(await tokens.load() == nil)
 }
 
 @Test func missingSessionDoesNotMakeARequest() async throws {
     let transport = StubTransport([])
     let client = APIClient(configuration: try configuration(), tokens: MemoryTokens(), transport: transport)
-    await #expect(throws: APIError.unauthenticated) { try await client.currentUser() }
+    await #expect(throws: APIError.unauthenticated) { try await client.currentAccount() }
     #expect(await transport.requests.isEmpty)
 }
 

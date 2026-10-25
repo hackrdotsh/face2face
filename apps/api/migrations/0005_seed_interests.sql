@@ -1,0 +1,16 @@
+INSERT INTO `interest` (`id`, `name`) VALUES
+	('board-games', 'board games'),
+	('climbing', 'climbing'),
+	('coffee', 'coffee'),
+	('cooking', 'cooking'),
+	('cycling', 'cycling'),
+	('film', 'film'),
+	('hiking', 'hiking'),
+	('jazz', 'jazz'),
+	('live-music', 'live music'),
+	('photography', 'photography'),
+	('reading', 'reading'),
+	('running', 'running'),
+	('travel', 'travel'),
+	('video-games', 'video games'),
+	('yoga', 'yoga');

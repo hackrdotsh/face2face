@@ -1,30 +1,32 @@
 # face2face
 
 An iPhone app for meeting people with shared interests as you pass them in real life.
-The current build has API connection checks, account creation, sign-in, session
-restoration, and sign-out. Debug builds include two foreground Bluetooth experiments:
-an account-free [device test](docs/streetpass-stage1.md), and an authenticated
-[connected test](docs/streetpass-stage2.md) using expiring tokens and reciprocal
-encounter reports. The connected test reveals account names after both sessions
-report an exchange; it creates no friendships. Physical-device discovery remains
-unvalidated. A separate [five-minute Pocket experiment](docs/streetpass-stage3.md)
-adds anonymous background/restoration diagnostics. The separate
-[five-minute Walk experiment](docs/streetpass-stage4.md) adds authenticated background
-upload attempts with credentials held in memory. Its [live Walk flow](docs/streetpass-stage5.md)
-reveals new reciprocal encounters and keeps technical details in diagnostics. Passive discovery
-and locked-screen reliability are not validated or released. The remaining StreetPass
-hackathon gate is two-phone validation and fixes from those trials.
+The current build has sign-in with an emailed code, a verified password, or a
+passkey, password reset, and profile onboarding. The login screen uses the animated
+meadow and glass form; onboarding and account screens remain functional placeholders.
+Proximity discovery is not implemented yet.
+
+The welcome screen is a scrolling pastel meadow. **Login** expands into the
+account form, then the controls pop in sequentially after the glass finishes
+expanding; closing reverses the sequence before the glass shrinks back to the
+Login pill. Reduce Motion uses
+a crossfade instead. The scenery pauses while entering text, in the background,
+and when Reduce Motion is enabled. The sliders button opens Settings, including
+the API server and a saved System / Light / Dark appearance choice. System is the default.
+Dark mode adds a night forest with gently glowing fireflies; Reduce Motion freezes their movement.
+The camera follows one walker, with occasional oncoming walkers and a brief wave
+as they pass. These are decorative animations: no encounters are detected or recorded.
 
 ## Open on your Mac
 
-Install Xcode, launch it once, and install the iOS platform when prompted. Then:
+Install Xcode 26 or newer, launch it once, and install the iOS platform when prompted. Then:
 
 ```sh
 gh repo clone hackrdotsh/face2face
 cd face2face
 direnv allow
 pnpm install --frozen-lockfile
-pnpm run setup
+pnpm setup
 pnpm db:migrate
 nix run .#ios
 ```
@@ -45,6 +47,10 @@ open Face2Face.xcodeproj
 Do not commit the generated Xcode project. `apps/ios/project.yml` is its source.
 No third-party Swift packages, CocoaPods, or JavaScript runtime are used by the app.
 
+The **Face2Face** scheme includes UI tests for account switching, keyboard input,
+connection settings, and accessibility text sizes. Run them with **Product → Test**
+on an iPhone simulator. Layout tests do not contact the API or use saved sessions.
+
 ## Run the backend
 
 From the repository root, after the setup commands above:
@@ -53,8 +59,9 @@ From the repository root, after the setup commands above:
 nix run .#dev
 ```
 
-The Hono Worker listens on port 8787. In the iOS simulator, use
-`http://localhost:8787` in the app's **API URL** field. For a physical iPhone,
+In development, sign-in and verification codes appear in the API log, not in an
+inbox. The Hono Worker listens on port 8080. In the iOS simulator, use
+`http://localhost:8080` in the app's **API URL** field. For a physical iPhone,
 use the Mac's reachable LAN address or run the API over Tailscale:
 
 ```sh
@@ -62,7 +69,7 @@ nix run .#dev-tailscale
 ```
 
 The command prints the API URL. Enter it in the app and connect both devices to
-the same tailnet. TCP 8787 must be allowed by your tailnet policy and host firewall.
+the same tailnet. TCP 8080 must be allowed by your tailnet policy and host firewall.
 The command binds the API to the Tailscale address. It creates no public tunnel
 or firewall rules. `nix run .#tailscale` and `pnpm dev:tailscale` are equivalent.
 
@@ -71,12 +78,40 @@ retain Apple's default transport security. Use an HTTPS API before distribution.
 Sessions are stored in Keychain, scoped to the selected API server. Changing the
 server does not send its saved token to another server.
 
+## Test the backend in a browser
+
+`apps/web` is a React test client for the API. It needs no Apple developer
+account. Start the API, then the web app in a second terminal:
+
+```sh
+nix run .#dev
+nix run .#web
+```
+
+Open `http://localhost:3000`. The web app signs in the same way as the iPhone app:
+it stores a bearer token per API server and sends it in the `Authorization` header.
+It covers every sign-in method, password reset, onboarding, and passkeys. Chrome,
+Safari, and Firefox can create passkeys on `localhost`. The right column shows each
+request and response, the current session, and a console for sending any request.
+
+The **Simulator** tab seeds test people, signs in as any of them, and simulates
+two people passing each other. Seeded people use the password
+`face2face-seed-password`. The signed-in person's connections and live
+notifications appear on the left. To act as both people at once, open a second
+browser profile or a private window, because tabs share the saved session.
+
+The default server is `http://localhost:8080`. Set `VITE_API_URL` to change it,
+or enter another URL in the header. The API only accepts browser requests from the
+origins in `WEB_ORIGINS` and passkeys from `PASSKEY_ORIGINS`. Production allows
+no browser origins yet.
+
 ## Commands
 
 | Task                                | Command                   |
 | ----------------------------------- | ------------------------- |
 | Start local API                     | `nix run .#dev`           |
 | Start API over Tailscale            | `nix run .#dev-tailscale` |
+| Start the web test client           | `nix run .#web`           |
 | Generate and open Xcode project     | `nix run .#ios`           |
 | Generate Xcode project only         | `nix run .#ios-project`   |
 | Build for the iOS simulator on Mac  | `nix run .#ios-build`     |
@@ -103,17 +138,21 @@ SwiftUI or Security.framework. The macOS CI job builds the iPhone simulator targ
 
 ## Backend deployment
 
-No cloud resources are created by development, tests, or builds. To deploy:
-1. Authenticate with Cloudflare and choose the account.
-2. Run `pnpm --filter @face2face/api exec wrangler d1 create face2face`.
-3. Set the returned `database_id` in `apps/api/wrangler.jsonc`.
-4. Set `BETTER_AUTH_URL` to the HTTPS API URL and configure `WEB_ORIGINS` if needed.
-5. Set the secret with `pnpm --filter @face2face/api exec wrangler secret put BETTER_AUTH_SECRET`.
-6. Run `pnpm --filter @face2face/api exec wrangler d1 migrations apply DB --remote`.
-7. Run `pnpm --filter @face2face/api exec wrangler deploy`.
+No cloud resources are created by development, tests, or builds. Production is the
+`production` environment in `apps/api/wrangler.jsonc`. It serves `https://f2f.rocky.systems`
+from the `face2face` D1 database. To update it:
+1. Authenticate with `pnpm --filter @face2face/api exec wrangler login`.
+2. Run `pnpm --filter @face2face/api exec wrangler d1 migrations apply face2face --remote --env production`.
+3. Run `pnpm --filter @face2face/api exec wrangler deploy --env production`.
 
-Before inviting users, add email verification and account recovery, decide the
-registration policy, and review abuse controls. Do not treat the hackathon
+`BETTER_AUTH_SECRET` is already set. Production uses `EMAIL_TRANSPORT` `console` for now, so
+sign-in codes appear in the Worker log (`wrangler tail --env production`). To send real email,
+verify `f2f.rocky.systems` in Resend, run
+`pnpm --filter @face2face/api exec wrangler secret put RESEND_API_KEY --env production`,
+and set `EMAIL_TRANSPORT` to `resend` in the production environment.
+Configure passkeys as described in [architecture](docs/architecture.md#passkeys).
+
+Before inviting users, decide the registration policy and review abuse controls. Do not treat the hackathon
 development configuration as a production-ready public service.
 
 The Swift migration preserves the D1 schema and backend data. The previous

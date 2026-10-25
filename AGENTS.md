@@ -5,10 +5,11 @@ This is a personal-account repository. No organization-specific skill library ap
 
 ## Workflow
 
-- Use jj. Keep commits small, with `subsystem(action): Description` subjects.
-- Use an owned jj workspace. Integrate completed changes into `main`.
+- Keep commits small, with `subsystem(action): Description` subjects.
 - Run `pnpm check` and `pnpm build` before handing off changes.
 - Run `pnpm fmt` and `nix fmt` before verification.
+- After every requested app change, redeploy to the connected target iPhone and
+  launch it. Report connection, signing, or lock-screen blockers explicitly.
 - Biome, nixfmt, and swift-format are approved formatters for this repository.
 - Do not commit secrets, local D1 state, or generated native projects.
 
@@ -16,6 +17,7 @@ This is a personal-account repository. No organization-specific skill library ap
 
 - `apps/ios/Face2Face`: iPhone-only SwiftUI app.
 - `apps/ios/Face2FaceCore`: portable Swift HTTP/auth client, Keychain storage and tests.
+- `apps/web`: React test client for the API. coss ui components and Phosphor icons.
 - `apps/api`: Hono Worker, Better Auth, Drizzle schema/migrations, Durable Objects.
 - `docs`: architecture, privacy constraints, and setup decisions.
 

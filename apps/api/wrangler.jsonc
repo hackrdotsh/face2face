@@ -5,11 +5,17 @@
   "compatibility_date": "2026-10-23",
   "compatibility_flags": ["nodejs_compat"],
   "upload_source_maps": true,
+  "dev": { "port": 8080 },
   "observability": { "enabled": true, "head_sampling_rate": 1 },
   "vars": {
+    "DEV_TOOLS": "true",
     "DEV_WEB_ORIGIN": "",
-    "BETTER_AUTH_URL": "http://localhost:8787",
-    "WEB_ORIGINS": ["http://localhost:8081", "http://127.0.0.1:8081"]
+    "BETTER_AUTH_URL": "http://localhost:8080",
+    "WEB_ORIGINS": ["http://localhost:3000", "http://127.0.0.1:3000"],
+    "EMAIL_TRANSPORT": "console",
+    "EMAIL_FROM": "face2face <onboarding@resend.dev>",
+    "PASSKEY_RP_ID": "localhost",
+    "PASSKEY_ORIGINS": ["http://localhost:8080", "http://localhost:3000"]
   },
   "secrets": { "required": ["BETTER_AUTH_SECRET"] },
   "d1_databases": [
@@ -21,10 +27,45 @@
   ],
   "durable_objects": {
     "bindings": [
-      { "name": "USER_COORDINATORS", "class_name": "UserCoordinator" }
+      { "name": "USER_COORDINATORS", "class_name": "UserCoordinator" },
+      { "name": "CHAT_ROOMS", "class_name": "ChatRoom" }
     ]
   },
   "exports": {
-    "UserCoordinator": { "type": "durable-object", "storage": "sqlite" }
+    "UserCoordinator": { "type": "durable-object", "storage": "sqlite" },
+    "ChatRoom": { "type": "durable-object", "storage": "sqlite" }
+  },
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "face2face-media" }],
+  "images": { "binding": "IMAGES" },
+  "env": {
+    "production": {
+      "routes": [{ "pattern": "f2f.rocky.systems", "custom_domain": true }],
+      "vars": {
+        "DEV_TOOLS": "false",
+        "DEV_WEB_ORIGIN": "",
+        "BETTER_AUTH_URL": "https://f2f.rocky.systems",
+        "WEB_ORIGINS": [],
+        "EMAIL_TRANSPORT": "console",
+        "EMAIL_FROM": "face2face <no-reply@f2f.rocky.systems>",
+        "PASSKEY_RP_ID": "f2f.rocky.systems",
+        "PASSKEY_ORIGINS": ["https://f2f.rocky.systems"]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "face2face",
+          "database_id": "0f2d4fc5-3a0a-4a93-a293-8dfbe66443db",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "USER_COORDINATORS", "class_name": "UserCoordinator" },
+          { "name": "CHAT_ROOMS", "class_name": "ChatRoom" }
+        ]
+      },
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "face2face-media" }],
+      "images": { "binding": "IMAGES" }
+    }
   }
 }
