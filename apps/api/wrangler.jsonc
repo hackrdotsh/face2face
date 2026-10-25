@@ -10,6 +10,7 @@
   "vars": {
     "DEV_TOOLS": "true",
     "DEV_WEB_ORIGIN": "",
+    "APPLE_APP_ID": "",
     "BETTER_AUTH_URL": "http://localhost:8080",
     "WEB_ORIGINS": ["http://localhost:3000", "http://127.0.0.1:3000"],
     "EMAIL_TRANSPORT": "console",
@@ -40,6 +41,7 @@
       "vars": {
         "DEV_TOOLS": "false",
         "DEV_WEB_ORIGIN": "",
+        "APPLE_APP_ID": "GFQG7YBAYY.systems.rocky.face2face",
         "BETTER_AUTH_URL": "https://f2f.rocky.systems",
         "WEB_ORIGINS": [],
         "EMAIL_TRANSPORT": "resend",

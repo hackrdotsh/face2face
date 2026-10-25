@@ -12,18 +12,19 @@ targets:
     platform: iOS
     sources:
       - path: Face2Face
-        excludes: ["Info-*.plist"]
+        excludes: ["Info-*.plist", "*.entitlements"]
     dependencies:
       - package: Face2FaceCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: sh.hackr.face2face
+        PRODUCT_BUNDLE_IDENTIFIER: systems.rocky.face2face
         PRODUCT_NAME: Face2Face
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: Face2Face/Face2Face.entitlements
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
       configs:
@@ -40,7 +41,7 @@ targets:
       - target: Face2Face
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: sh.hackr.face2face.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: systems.rocky.face2face.uitests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
 schemes:

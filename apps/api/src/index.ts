@@ -39,6 +39,15 @@ app.use("/api/*", bodyLimit({ maxSize: 16 * 1024 }));
 app.get("/health", (context) =>
   context.json({ status: "ok", service: "face2face-api" }),
 );
+app.get("/.well-known/apple-app-site-association", (context) => {
+  if (!context.env.APPLE_APP_ID) {
+    return context.json({ error: "not_found" }, 404);
+  }
+  context.header("Cache-Control", "public, max-age=3600");
+  return context.json({
+    webcredentials: { apps: [context.env.APPLE_APP_ID] },
+  });
+});
 app.on(["GET", "POST"], "/api/auth/*", (context) =>
   createAuth(context.env, context.executionCtx).handler(context.req.raw),
 );

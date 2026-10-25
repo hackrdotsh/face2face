@@ -87,13 +87,19 @@ person to update it.
 Passkey challenges travel in a signed cookie. The iPhone transport ignores
 cookies, so `Face2FaceCore` returns that one cookie with the matching verify
 request. `PASSKEY_RP_ID` and `PASSKEY_ORIGINS` configure the relying party.
-The local default is `localhost`, which an iPhone does not accept. Before
-passkeys work on a device:
-1. Choose an HTTPS domain for the relying party.
-2. Serve `/.well-known/apple-app-site-association` from it with a
-   `webcredentials` entry for the app.
-3. Add the `webcredentials:` associated domain entitlement to `project.yml`.
-4. Set `PASSKEY_RP_ID` to the domain and `PASSKEY_ORIGINS` to its HTTPS origin.
+The local default is `localhost`, which an iPhone does not accept. Native passkeys
+use the production relying party, `f2f.rocky.systems`:
+- The Worker serves `/.well-known/apple-app-site-association` without authentication,
+  using the production `APPLE_APP_ID` to identify the signed app.
+- `Face2Face.entitlements`, wired through `project.yml`, declares
+  `webcredentials:f2f.rocky.systems`.
+- `PASSKEY_RP_ID` and `PASSKEY_ORIGINS` match that domain and its HTTPS origin.
+
+When changing the signing team or bundle identifier, update `APPLE_APP_ID` to the
+signed application's identifier (`<Application Identifier Prefix>.<Bundle Identifier>`).
+Associated Domains must be enabled for the app ID and provisioning profile. Deploy
+the association file before installing the app; Apple's association CDN may cache
+the file, so newly published associations can take time to appear on devices.
 
 The web test client lets the browser keep the challenge cookie. It sends cookies
 only on passkey requests and uses the bearer token for everything else. The cookie
