@@ -6,6 +6,8 @@ struct RootView: View {
     @AppStorage("appearance") private var appearance = AppAppearance.system
     @State private var session = SessionModel()
     @State private var passkeys = PasskeyAuthorizer()
+    @State private var discovery = ConnectedDiscoveryModel.backgroundWalk
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -25,6 +27,24 @@ struct RootView: View {
             await session.restore()
         }
         .preferredColorScheme(appearance.colorScheme)
+        .sensoryFeedback(.success, trigger: discovery.matchCount) { previous, current in
+            DiscoveryMatchFeedback.shouldPlay(
+                previousCount: previous, currentCount: current,
+                isActive: scenePhase == .active && discovery.isApplicationActive)
+        }
+        .onChange(of: session.phase) { refreshCompanion() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { refreshCompanion() }
+        }
+    }
+
+    private func refreshCompanion() {
+        guard let phase = session.phase else { return }
+        if case .ready(let account) = phase {
+            BlobCompanionModel.shared.refresh(seed: account.user.avatar.seed)
+        } else {
+            BlobCompanionModel.shared.stop()
+        }
     }
 
     @ViewBuilder private var screen: some View {

@@ -9,6 +9,11 @@ An opt-in [StreetPass discovery](docs/architecture.md#streetpass-discovery) mode
 enabled until you turn it off and
 turns a reciprocal Bluetooth match into an anonymous chance to connect. It is not
 validated on hardware yet, and a match does not prove that two people were near.
+New server-confirmed discovery matches trigger the system's short success haptic
+throughout the foreground app, subject to device support and system settings.
+Repeated receipts and session resets do not trigger feedback. Background matches
+do not buzz or replay a haptic when you reopen the app; background notification
+alerts are not implemented.
 
 On iOS 18 and later, the welcome, onboarding, and profile backgrounds are a 3D forest
 with layered pines and rounded versions of the blob avatars. **Settings → 3D forest**
@@ -24,6 +29,22 @@ The town has an account/avatar button at the top right for profile/photo, discov
 Settings sits immediately to its left for appearance, API, and developer tools.
 Debug tools live inside Settings rather than separate bottom tabs.
 Dark mode adds a night forest with gently glowing fireflies; Reduce Motion freezes their movement.
+**Settings → Blob companion → Blob in Dynamic Island** brings your seeded blob along
+for a one-hour Live Activity, independently of Bluetooth discovery. Supported iPhones
+show it in the Dynamic Island; all supported iPhones get a Lock Screen layout.
+Tap the in-app preview to make it bounce. Breathing, blinking, bobbing, and ripple
+animations pause in the background and respect Reduce Motion. iOS controls Live
+Activity rendering; the Island does not run a continuous animation loop.
+Dismissal, sign-out, and API/account changes stop the companion. After an hour it
+shows a resting state if iOS has suspended the app, and is removed when the app runs
+again. It never restarts without another explicit toggle.
+
+Add **face2face → A little company** from the Home Screen or Lock Screen widget
+gallery. Small, medium, circular, rectangular, and inline layouts are available.
+The widget's decorative blob changes daily (on iOS's refresh schedule); tapping it
+opens the app, with normal authentication still required. It does not show live
+presence, matches, or private account data, and needs no shared Keychain or App Group.
+
 The camera follows one walker, with occasional oncoming walkers and a brief wave
 as they pass. These are decorative animations: no encounters are detected or recorded.
 
@@ -55,6 +76,9 @@ open Face2Face.xcodeproj
 ```
 
 Do not commit the generated Xcode project. `apps/ios/project.yml` is its source.
+The generated project embeds the **Face2FaceWidgets** extension in the app. Use the
+same development team for both targets; keep the extension bundle ID prefixed by
+the app bundle ID if you customize them. Live Activities require no push setup.
 No third-party Swift packages, CocoaPods, or JavaScript runtime are used by the app.
 
 The **Face2Face** scheme includes UI tests for account switching, keyboard input,

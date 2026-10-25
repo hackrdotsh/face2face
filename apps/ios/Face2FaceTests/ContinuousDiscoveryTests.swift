@@ -3,8 +3,10 @@ import XCTest
 
 @testable import Face2Face
 
-private let accountJSON = #"{"user":{"id":"alice","name":"Alice","email":"alice@example.test","avatar":{"seed":"test"}},"onboardingComplete":true}"#
-private let leaseJSON = #"{"sessionId":"00112233-4455-4677-8899-aabbccddeeff","token":"ffeeddcc-bbaa-4988-b766-554433221100","expiresAt":1300000,"sessionExpiresAt":2800000,"serverTime":1000000}"#
+private let accountJSON =
+    #"{"user":{"id":"alice","name":"Alice","email":"alice@example.test","avatar":{"seed":"test"}},"onboardingComplete":true}"#
+private let leaseJSON =
+    #"{"sessionId":"00112233-4455-4677-8899-aabbccddeeff","token":"ffeeddcc-bbaa-4988-b766-554433221100","expiresAt":1300000,"sessionExpiresAt":2800000,"serverTime":1000000}"#
 
 private actor TestTokens: TokenStore {
     var value: String? = "test-credential"
@@ -73,6 +75,29 @@ private actor DiscoveryTransport: HTTPTransport {
 
 @MainActor
 final class ContinuousDiscoveryTests: XCTestCase {
+    func testNewConfirmedMatchRequestsFeedbackWhileActive() {
+        XCTAssertTrue(
+            DiscoveryMatchFeedback.shouldPlay(previousCount: 0, currentCount: 1, isActive: true))
+        XCTAssertTrue(
+            DiscoveryMatchFeedback.shouldPlay(previousCount: 1, currentCount: 2, isActive: true))
+    }
+
+    func testUnchangedMatchCountAndNewSessionResetDoNotRequestFeedback() {
+        XCTAssertFalse(
+            DiscoveryMatchFeedback.shouldPlay(previousCount: 0, currentCount: 0, isActive: true))
+        XCTAssertFalse(
+            DiscoveryMatchFeedback.shouldPlay(previousCount: 1, currentCount: 1, isActive: true))
+        XCTAssertFalse(
+            DiscoveryMatchFeedback.shouldPlay(previousCount: 3, currentCount: 0, isActive: true))
+    }
+
+    func testBackgroundMatchDoesNotRequestFeedbackOrReplayOnReturn() {
+        XCTAssertFalse(
+            DiscoveryMatchFeedback.shouldPlay(previousCount: 0, currentCount: 1, isActive: false))
+        XCTAssertFalse(
+            DiscoveryMatchFeedback.shouldPlay(previousCount: 1, currentCount: 1, isActive: true))
+    }
+
     private func preferences() -> UserDefaults {
         let defaults = UserDefaults(suiteName: "discovery-tests-\(UUID())")!
         defaults.set("https://api.example.test", forKey: "apiAddress")
@@ -121,7 +146,7 @@ final class ContinuousDiscoveryTests: XCTestCase {
         let paths = await transport.paths
         XCTAssertEqual(paths.prefix(2), ["/api/me", "/api/discovery/start"])
         XCTAssertTrue(model.isEnabled)
-        XCTAssertFalse(model.radio.isRequested) // Simulator cannot perform a real Bluetooth exchange.
+        XCTAssertFalse(model.radio.isRequested)  // Simulator cannot perform a real Bluetooth exchange.
         XCTAssertTrue(model.discoveryStatus.hasPrefix("Paused"))
         XCTAssertNotNil(defaults.data(forKey: "discoveryOptIn"))
     }
@@ -131,7 +156,8 @@ final class ContinuousDiscoveryTests: XCTestCase {
         try saveOptIn(defaults)
         let transport = DiscoveryTransport()
         let model = model(defaults, transport)
-        let account = try JSONDecoder().decode(Account.self, from: Data(accountJSON.replacingOccurrences(of: "alice", with: "bob").utf8))
+        let account = try JSONDecoder().decode(
+            Account.self, from: Data(accountJSON.replacingOccurrences(of: "alice", with: "bob").utf8))
         await model.restore(for: account)
         let paths = await transport.paths
         XCTAssertTrue(paths.isEmpty)

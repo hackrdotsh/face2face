@@ -55,14 +55,17 @@ final class ChatModelTests: XCTestCase {
         XCTAssertFalse(model.send(photo: nil))
     }
     func testPhotoPreparationBoundsPixelsAndRemovesGPSAndEXIF() throws {
-        let apps = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let text = try String(contentsOf: apps.appendingPathComponent("api/test/fixtures/photo-with-exif.ts"), encoding: .utf8)
+        let apps = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let text = try String(
+            contentsOf: apps.appendingPathComponent("api/test/fixtures/photo-with-exif.ts"), encoding: .utf8)
         let range = try XCTUnwrap(text.range(of: #"atob\(\s*"([^"]+)""#, options: .regularExpression))
         let original = try XCTUnwrap(Data(base64Encoded: String(text[range].split(separator: "\"")[1])))
         let prepared = try ChatPhoto.jpeg(original)
         let source = try XCTUnwrap(CGImageSourceCreateWithData(prepared as CFData, nil))
         let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any])
-        XCTAssertLessThanOrEqual(try XCTUnwrap(properties[kCGImagePropertyPixelWidth as String] as? Int), 2048)
+        XCTAssertLessThanOrEqual(
+            try XCTUnwrap(properties[kCGImagePropertyPixelWidth as String] as? Int), 2048)
         XCTAssertNil(properties[kCGImagePropertyGPSDictionary as String])
         // The JPEG encoder may synthesize dimensions/color space. No source metadata survives.
         let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any] ?? [:]

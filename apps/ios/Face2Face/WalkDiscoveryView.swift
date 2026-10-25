@@ -149,9 +149,6 @@
             }
             .navigationTitle("Walk")
             .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: model.matchCount)
-            .sensoryFeedback(.success, trigger: model.matchCount) { old, new in
-                new > old && model.isApplicationActive
-            }
             .task { await model.refresh() }
             .onDisappear { model.viewClosed() }
         }

@@ -28,6 +28,7 @@ struct SettingsView: View {
                             .accessibilityIdentifier("forest3DToggle")
                     }
                 }
+                BlobCompanionSection(seed: account?.user.avatar.seed)
                 Section("API server") {
                     TextField("API URL", text: $session.serverAddress)
                         .keyboardType(.URL)

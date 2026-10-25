@@ -29,7 +29,10 @@ private actor PendingFriends {
         if started { return }
         await withCheckedContinuation { waiting = $0 }
     }
-    func finish(_ friends: [PublicTownFriend]) { response?.resume(returning: friends); response = nil }
+    func finish(_ friends: [PublicTownFriend]) {
+        response?.resume(returning: friends)
+        response = nil
+    }
 }
 
 @MainActor
@@ -101,7 +104,8 @@ final class TownFriendsTests: XCTestCase {
                 XCTAssertTrue((0...400).contains(pose.point.x))
                 XCTAssertTrue((0...560).contains(pose.point.y))
             }
-            XCTAssertEqual(TownResidentMotion.pose(slot: slot, time: 0).point,
+            XCTAssertEqual(
+                TownResidentMotion.pose(slot: slot, time: 0).point,
                 TownResidentMotion.pose(slot: slot, time: 0).point)
         }
     }

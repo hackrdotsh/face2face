@@ -13,8 +13,11 @@ targets:
     sources:
       - path: Face2Face
         excludes: ["Info-*.plist", "*.entitlements"]
+      - path: Face2FaceSurfaces
     dependencies:
       - package: Face2FaceCore
+      - target: Face2FaceWidgets
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: systems.rocky.face2face
@@ -33,6 +36,28 @@ targets:
           INFOPLIST_FILE: Face2Face/Info-Debug.plist
         Release:
           INFOPLIST_FILE: Face2Face/Info-Release.plist
+  Face2FaceWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Face2FaceWidgets
+        excludes: ["Info.plist"]
+      - path: Face2FaceSurfaces
+    dependencies:
+      - package: Face2FaceCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: systems.rocky.face2face.widgets
+        PRODUCT_NAME: Face2FaceWidgets
+        INFOPLIST_FILE: Face2FaceWidgets/Info.plist
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
   Face2FaceTests:
     type: bundle.unit-test
     platform: iOS
@@ -66,6 +91,7 @@ schemes:
     build:
       targets:
         Face2Face: all
+        Face2FaceWidgets: all
     test:
       targets:
         - Face2FaceTests

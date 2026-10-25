@@ -3,6 +3,14 @@ import Foundation
 import Observation
 import UIKit
 
+/// `matchCount` only increases for deduplicated, server-recorded reciprocal matches.
+/// Do not buzz on resets or replay matches recorded while the app was inactive.
+enum DiscoveryMatchFeedback {
+    static func shouldPlay(previousCount: Int, currentCount: Int, isActive: Bool) -> Bool {
+        isActive && currentCount > previousCount
+    }
+}
+
 /// Ongoing opt-in discovery; credentials and radio permits remain memory-only.
 @MainActor
 @Observable

@@ -69,10 +69,3 @@ struct BlobAvatarView: View {
         }
     }
 }
-
-extension Color {
-    init(hsl: BlobAvatar.HSL) {
-        let rgb = hsl.rgb
-        self.init(red: rgb.red, green: rgb.green, blue: rgb.blue)
-    }
-}

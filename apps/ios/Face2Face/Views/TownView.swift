@@ -91,6 +91,16 @@ struct TownView: View {
         .background(MeadowPalette.grass.ignoresSafeArea())
         .foregroundStyle(MeadowPalette.ink)
         .fontDesign(.rounded)
+        .onOpenURL { url in
+            guard url == BlobSurface.townURL else { return }
+            destination = nil
+            showingAccount = false
+            showingSettings = false
+            showingNotifications = false
+            queuedChat = nil
+            chatRoute = nil
+            friends.closeProfile()
+        }
         .toolbar(.hidden, for: .navigationBar, .tabBar)
         .sheet(item: $destination) { place in
             TownDestinationView(destination: place, session: session)

@@ -38,7 +38,9 @@ final class Forest3DTests: XCTestCase {
 
     func testPineBoughsKeepThreeDistinctMaterialBands() throws {
         let world = try Forest3DWorld()
-        let boughs = descendants(world.root).compactMap { $0 as? ModelEntity }.filter { $0.name.hasPrefix("needles-") }
+        let boughs = descendants(world.root).compactMap { $0 as? ModelEntity }.filter {
+            $0.name.hasPrefix("needles-")
+        }
         XCTAssertEqual(boughs.count, 240 * 3)
         XCTAssertTrue(boughs.allSatisfy { $0.model?.materials.count == 3 })
     }

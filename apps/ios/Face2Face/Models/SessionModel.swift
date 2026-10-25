@@ -35,6 +35,7 @@ final class SessionModel {
     }
 
     func serverChanged() {
+        BlobCompanionModel.shared.stop()
         ConnectedDiscoveryModel.backgroundWalk.stop(reason: "API changed")
         phase = .signedOut
         connection = "Not checked"
@@ -60,12 +61,14 @@ final class SessionModel {
         do {
             phase = SessionPhase(account: try await client().currentAccount())
         } catch APIError.unauthenticated {
+            BlobCompanionModel.shared.stop()
             ConnectedDiscoveryModel.backgroundWalk.stop(reason: "Authentication ended")
             phase = .signedOut
         }
     }
 
     func signOut() async {
+        BlobCompanionModel.shared.stop()
         ConnectedDiscoveryModel.backgroundWalk.stop(reason: "Signed out")
         await activity.run {
             do { try await self.client().signOut() } catch APIError.unauthenticated {}
