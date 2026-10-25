@@ -31,6 +31,8 @@ Preview account actions and developer tools are disabled so the preview makes no
 UI tests: `apps/ios/Face2FaceUITests/TownUITests.swift`. They check tap targets,
 settings access, sheet dismissal, large text and preview states. Decorative NPCs never represent
 real nearby people. Water animation requires Reduce Motion off and app foreground.
+The waterfront continues below the fitted map through the bottom safe area; no
+grass band should appear above or behind the home indicator.
 
 Notifications UI tests: `apps/ios/Face2FaceUITests/NotificationsUITests.swift`.
 `preview -town-notifications` opens the inbox with labelled sample data. Append
@@ -61,3 +63,38 @@ to open a sample card directly. `-town-friends-preview-state empty`, `error` or
 
 Tests: `PublicTownFriendsTests.swift` (portable filter), `TownFriendsTests.swift`
 (native revalidation/races), and `PublicFriendsUITests.swift` (tap/profile/privacy).
+
+## Messaging
+
+- The café opens `ChatsView`. Only accepted private/public connections are listed.
+  `chat-<connectionId>` opens a conversation. Private chats use an anonymous label
+  and generic avatar, even if unexpected identity fields appear in a response.
+- A revalidated public profile has `publicProfileMessage`. It dismisses the profile
+  and opens the same chat. Pending, blocked and expired connections cannot chat.
+- `chatDraft`, `chatSend`, `chatAttachPhoto` and `chatBack` are the conversation controls.
+  Photos are previewed before sending, resized to 2048 pixels and stripped of
+  EXIF/GPS before upload; the server re-encodes them into its signed variants.
+- History loads over authenticated HTTP. Sockets use fresh short-lived tickets,
+  never bearer tokens in URLs. Sends keep their client IDs across retries.
+- Typing expires after eight seconds. Read positions clear server unread counts;
+  they are not read receipts shown to the other person. The café reloads on return
+  and every 30 seconds while open. No APNs delivery is added.
+- Backgrounding closes the socket. Returning revalidates the original credential
+  and chat access before reconnecting. Blocking closes and clears the conversation.
+  The conversation options menu exposes the existing block action, with confirmation.
+  Unconfirmed sends stay in memory only while the conversation is open; leaving
+  warns before discarding them. Older messages load with the Earlier messages button.
+
+`preview -town-chat preview-ava` opens a sample public conversation;
+`preview -town-chat preview-private` opens an anonymous one. Preview sends are local,
+explicitly labelled, and do not contact the API.
+
+`node scripts/chat-smoke.mjs` provisions an isolated temporary local D1/R2/DO Worker,
+runs the real Swift HTTP/WebSocket clients in both directions (text and photos),
+checks retry deduplication, typing, signed image retrieval, unread clearing and block
+closure, then stops its own Worker. It never resets the shared dev database.
+
+Tests: `ChatTests.swift`, opt-in `LiveChatTests.swift`, native `ChatModelTests.swift`,
+and `ChatUITests.swift`. The native photo test uses the API's EXIF/GPS fixture.
+The photo-picker UI test uses an existing simulator photo, or skips if the library
+is empty. Seed it with `xcrun simctl addmedia booted <test-image>` before running.
