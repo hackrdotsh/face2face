@@ -10,6 +10,7 @@ public enum APIError: Error, LocalizedError, Equatable {
     case onboardingRequired
     case invalidFields([String: String])
     case rateLimited
+    case interestLimitReached
     case invalidResponse
     case server(Int)
 
@@ -24,6 +25,7 @@ public enum APIError: Error, LocalizedError, Equatable {
         case .onboardingRequired: "Finish setting up your profile to continue."
         case .invalidFields: "Check the highlighted fields, then try again."
         case .rateLimited: "Too many attempts. Wait a minute and try again."
+        case .interestLimitReached: "You can pick up to 10 interests. Remove one to add another."
         case .invalidResponse: "The API returned an unexpected response."
         case .server(400): "Check what you entered, then try again."
         case .server(let status): "The API returned HTTP \(status). Try again."
@@ -46,6 +48,7 @@ extension APIError {
         case (401, "INVALID_EMAIL_OR_PASSWORD"): return .invalidCredentials
         case (403, "EMAIL_NOT_VERIFIED"): return .emailNotVerified
         case (403, "onboarding_required"): return .onboardingRequired
+        case (409, "too_many_interests"): return .interestLimitReached
         case (429, _): return .rateLimited
         default: return .server(status)
         }
