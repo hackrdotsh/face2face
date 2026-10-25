@@ -18,7 +18,11 @@ struct HomeView: View {
                 ProfilePhotoEditor(avatar: account.user.avatar, session: session)
                 Text(account.user.name)
                 Text(account.user.email).foregroundStyle(.secondary)
-                Button("Sign out") { Task { await session.signOut() } }
+                Button("Sign out") {
+                    let walk = ConnectedDiscoveryModel.backgroundWalk
+                    if walk.isRunning || walk.isStarting { walk.stop(reason: "Stopped when you signed out") }
+                    Task { await session.signOut() }
+                }
             }
             Section("Passkey") {
                 if passkeyEnrollment.isEnrolled {
@@ -28,9 +32,7 @@ struct HomeView: View {
                     Button("Add a passkey") { Task { await passkeyEnrollment.addPasskey(for: account) } }
                 }
             }
-            Section {
-                Text("Nearby discovery is not available yet.").foregroundStyle(.secondary)
-            }
+            DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk)
         }
         .disabled(session.activity.isBusy || passkeyEnrollment.activity.isBusy)
         .activityAlert(passkeyEnrollment.activity)

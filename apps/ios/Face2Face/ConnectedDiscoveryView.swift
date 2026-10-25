@@ -45,7 +45,7 @@
                     }
                 }
                 Section("Account and API") {
-                    if let user = model.user, model.historyIsVisible {
+                    if let user = model.user {
                         LabeledContent("Signed in", value: user.name)
                     } else {
                         Text("Refresh to confirm the current account.")
@@ -56,7 +56,7 @@
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
-                    Button(model.isRefreshing ? "Refreshing…" : "Refresh account and encounters") {
+                    Button(model.isRefreshing ? "Refreshing…" : "Refresh account") {
                         Task { await model.refresh() }
                     }
                     .disabled(
@@ -113,9 +113,9 @@
                         LabeledContent("App", value: model.isApplicationActive ? "Foreground" : "Background")
                         LabeledContent("Background upload passes", value: "\(model.backgroundPasses)")
                         LabeledContent("Deferred passes", value: "\(model.deferredPasses)")
-                        LabeledContent("New encounters this walk", value: "\(model.walkEncounterCount)")
-                        if let elapsed = model.firstRevealElapsed {
-                            LabeledContent("First foreground reveal") {
+                        LabeledContent("Matches this walk", value: "\(model.matchCount)")
+                        if let elapsed = model.firstMatchElapsed {
+                            LabeledContent("First match") {
                                 Text(String(format: "%.1f seconds after Start", elapsed))
                             }
                         }
@@ -139,28 +139,17 @@
                 }
 
                 Section {
-                    if !model.historyIsVisible || model.encounters.isEmpty {
-                        Text(
-                            "No reciprocal encounters yet. Both signed-in phones must submit an exchange before a name appears."
-                        )
-                        .foregroundStyle(.secondary)
-                    }
-                    ForEach(model.historyIsVisible ? model.encounters : []) { encounter in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(encounter.peer.name).font(.headline)
-                            Text("Both devices reported an exchange")
-                            Text(encounter.lastSeenDate, style: .time)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
-                } header: {
-                    Text("Recent server encounters")
-                } footer: {
+                    LabeledContent("Matches this run", value: "\(model.matchCount)")
                     Text(
-                        "Up to 50 encounters from the last 24 hours. These are encounters, not friendship requests."
+                        model.matchCount == 0
+                            ? "No matches yet. Both signed-in phones must report each other within two minutes."
+                            : "A match can open a chance. Check Passed in the web client."
                     )
+                    .foregroundStyle(.secondary)
+                } header: {
+                    Text("Matches")
+                } footer: {
+                    Text("A match never names the other person. It does not prove you were near each other.")
                 }
             }
             .navigationTitle(model.allowsBackground ? "Walk diagnostics" : "Connected test")
