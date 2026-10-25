@@ -4,6 +4,7 @@ import type { Notifier } from "../notifications/notification";
 import {
   countQuota,
   type DiscoveryLeaseRow,
+  type DiscoveryObservationRow,
   deleteExpiredDiscoveryRows,
   deleteLease,
   findActiveLease,
@@ -38,8 +39,13 @@ export interface DiscoveryLease {
   serverTime: number;
 }
 
-/** A receipt never says who the peer is or whether a block stopped the chance. */
-export type ObservationReceipt = { status: "pending" | "recorded" };
+/**
+ * A receipt never says who the peer is or whether a block stopped the chance.
+ * `matchId` is the same for both phones and stays stable for one pair of leases.
+ */
+export type ObservationReceipt =
+  | { status: "pending" }
+  | { status: "recorded"; matchId: string };
 
 export type DiscoveryError =
   | "rate_limited"
@@ -217,15 +223,17 @@ export async function observePeer(
   return receiptFor(accepted, tokenHash);
 }
 
-function receiptFor(
-  row: { peerTokenHash: string; matchedAt: Date | null },
+async function receiptFor(
+  row: DiscoveryObservationRow,
   tokenHash: string,
-): DiscoveryResult<ObservationReceipt> {
+): Promise<DiscoveryResult<ObservationReceipt>> {
   if (row.peerTokenHash !== tokenHash) {
     return { ok: false, error: "observation_conflict" };
   }
+  if (!row.matchedAt) return { ok: true, value: { status: "pending" } };
+  const leases = [row.observerSessionId, row.peerSessionId].sort();
   return {
     ok: true,
-    value: { status: row.matchedAt ? "recorded" : "pending" },
+    value: { status: "recorded", matchId: await sha256(leases.join(":")) },
   };
 }

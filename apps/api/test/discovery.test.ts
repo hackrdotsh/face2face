@@ -154,7 +154,10 @@ describe("StreetPass discovery", () => {
 
     const reciprocal = await observe(bob, b, a);
     const reciprocalBody = await reciprocal.text();
-    expect(JSON.parse(reciprocalBody)).toEqual({ status: "recorded" });
+    expect(JSON.parse(reciprocalBody)).toMatchObject({ status: "recorded" });
+    const { matchId } = JSON.parse(reciprocalBody) as { matchId: string };
+    expect(matchId).toMatch(/^[0-9a-f]{64}$/);
+    expect(matchId).not.toContain(a.sessionId);
     for (const body of [firstBody, reciprocalBody]) {
       expect(body).not.toContain(ava);
       expect(body).not.toContain(ben);
@@ -180,10 +183,8 @@ describe("StreetPass discovery", () => {
     expect(await receipt(await observe(alice, a, b, id))).toEqual({
       status: "pending",
     });
-    await observe(bob, b, a);
-    expect(await receipt(await observe(alice, a, b, id))).toEqual({
-      status: "recorded",
-    });
+    const theirs = await receipt(await observe(bob, b, a));
+    expect(await receipt(await observe(alice, a, b, id))).toEqual(theirs);
   });
 
   it("creates one chance for simultaneous reports", async () => {
@@ -212,10 +213,10 @@ describe("StreetPass discovery", () => {
       alice.headers,
     );
     expect(decline.status).toBe(200);
-    expect(await receipt(await observe(alice, a, b))).toEqual({
+    expect(await receipt(await observe(alice, a, b))).toMatchObject({
       status: "recorded",
     });
-    expect(await receipt(await observe(bob, b, a))).toEqual({
+    expect(await receipt(await observe(bob, b, a))).toMatchObject({
       status: "recorded",
     });
     expect(await count("connection")).toBe(1);
@@ -232,7 +233,7 @@ describe("StreetPass discovery", () => {
     )
       .bind(b.sessionId)
       .run();
-    expect(await receipt(await observe(alice, a, b, id))).toEqual({
+    expect(await receipt(await observe(alice, a, b, id))).toMatchObject({
       status: "recorded",
     });
     expect(await count("discovery_observation")).toBe(2);
@@ -257,9 +258,11 @@ describe("StreetPass discovery", () => {
     expect(rotated.token).not.toBe(a.token);
     expect(rotated.sessionId).toBe(a.sessionId);
     expect(rotated.sessionExpiresAt).toBe(a.sessionExpiresAt);
-    expect((await observe(bob, b, a)).status).toBe(200);
-    expect((await observe(bob, b, rotated)).status).toBe(200);
-    expect((await observe(alice, rotated, b)).status).toBe(200);
+    const before = await receipt(await observe(bob, b, a));
+    const after = await receipt(await observe(bob, b, rotated));
+    const mine = await receipt(await observe(alice, rotated, b));
+    expect(after).toEqual(before);
+    expect(mine).toEqual(before);
     expect(await count("connection")).toBe(1);
   });
 
@@ -290,7 +293,7 @@ describe("StreetPass discovery", () => {
     expect(await receipt(await observe(bob, b, fresh))).toEqual({
       status: "pending",
     });
-    expect(await receipt(await observe(alice, fresh, b))).toEqual({
+    expect(await receipt(await observe(alice, fresh, b))).toMatchObject({
       status: "recorded",
     });
   });
@@ -370,7 +373,7 @@ describe("StreetPass discovery", () => {
       status: "pending",
     });
     expect(await connections(alice)).toEqual([]);
-    expect(await receipt(await observe(alice, a, b))).toEqual({
+    expect(await receipt(await observe(alice, a, b))).toMatchObject({
       status: "recorded",
     });
   });
@@ -384,7 +387,7 @@ describe("StreetPass discovery", () => {
     const inboxBefore = (await encounterNotifications(ava)).length;
     const { alice, bob, a, b } = await pair();
     await observe(alice, a, b);
-    expect(await receipt(await observe(bob, b, a))).toEqual({
+    expect(await receipt(await observe(bob, b, a))).toMatchObject({
       status: "recorded",
     });
     expect(await count("connection")).toBe(0);
