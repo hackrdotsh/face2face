@@ -1,4 +1,9 @@
-import { birthDateField, singleChoiceField, textField } from "./field-builders";
+import {
+  birthDateField,
+  photoField,
+  singleChoiceField,
+  textField,
+} from "./field-builders";
 import type { OnboardingField } from "./field-types";
 
 export const onboardingFields: OnboardingField[] = [
@@ -39,5 +44,11 @@ export const onboardingFields: OnboardingField[] = [
         genderDescription: gender.description ?? null,
       },
     }),
+  }),
+  photoField({
+    key: "photo",
+    label: "Profile photo",
+    required: false,
+    read: (snapshot) => snapshot.photo,
   }),
 ];

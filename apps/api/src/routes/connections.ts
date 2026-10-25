@@ -12,6 +12,7 @@ import { createDatabase } from "../db/client";
 import { connectionDecisions } from "../db/schema";
 import { requireOnboarded, requireSession } from "../middleware/session";
 import { coordinatorNotifier } from "../notifications/notification";
+import { personViewer } from "../profiles/person";
 
 const decisionRequest = z.object({ decision: z.enum(connectionDecisions) });
 
@@ -21,6 +22,7 @@ export const connectionRoutes = new Hono<AppEnv>()
     context.json({
       connections: await listConnectionViews(
         createDatabase(context.env),
+        personViewer(context.env, new Date()),
         context.var.user.id,
         new Date(),
       ),
@@ -36,6 +38,7 @@ export const connectionRoutes = new Hono<AppEnv>()
       context,
       await decideConnection(
         createDatabase(context.env),
+        personViewer(context.env, new Date()),
         coordinatorNotifier(context.env),
         context.var.user.id,
         context.req.param("id"),
@@ -49,6 +52,7 @@ export const connectionRoutes = new Hono<AppEnv>()
       context,
       await goPublic(
         createDatabase(context.env),
+        personViewer(context.env, new Date()),
         coordinatorNotifier(context.env),
         context.var.user.id,
         context.req.param("id"),
@@ -59,6 +63,7 @@ export const connectionRoutes = new Hono<AppEnv>()
   .post("/:id/block", async (context) => {
     const result = await blockConnection(
       createDatabase(context.env),
+      personViewer(context.env, new Date()),
       coordinatorNotifier(context.env),
       context.var.user.id,
       context.req.param("id"),

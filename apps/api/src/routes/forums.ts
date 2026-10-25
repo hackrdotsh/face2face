@@ -27,6 +27,7 @@ import {
 } from "../forums/forums";
 import { requireOnboarded, requireSession } from "../middleware/session";
 import { coordinatorNotifier } from "../notifications/notification";
+import { personViewer } from "../profiles/person";
 
 const defaultPageSize = 20;
 const maxPageSize = 50;
@@ -130,7 +131,13 @@ export const forumRoutes = new Hono<AppEnv>()
       query.data.limit,
     );
     return context.json({
-      posts: await viewPostRows(db, page.rows, userId, new Date()),
+      posts: await viewPostRows(
+        db,
+        personViewer(context.env, new Date()),
+        page.rows,
+        userId,
+        new Date(),
+      ),
       hasMore: page.hasMore,
     });
   })
@@ -150,6 +157,7 @@ export const forumRoutes = new Hono<AppEnv>()
     }
     const post = await createPost(
       db,
+      personViewer(context.env, new Date()),
       forumId,
       userId,
       request.data,
@@ -178,13 +186,20 @@ export const postRoutes = new Hono<AppEnv>()
       now,
     );
     return context.json({
-      posts: await viewPostRows(db, page.rows, userId, now),
+      posts: await viewPostRows(
+        db,
+        personViewer(context.env, now),
+        page.rows,
+        userId,
+        now,
+      ),
       hasMore: page.hasMore,
     });
   })
   .get("/:id", async (context) => {
     const post = await getPostView(
       createDatabase(context.env),
+      personViewer(context.env, new Date()),
       context.req.param("id"),
       context.var.user.id,
       new Date(),
@@ -201,6 +216,7 @@ export const postRoutes = new Hono<AppEnv>()
       context,
       await editPost(
         createDatabase(context.env),
+        personViewer(context.env, new Date()),
         coordinatorNotifier(context.env),
         context.req.param("id"),
         context.var.user.id,
@@ -214,6 +230,7 @@ export const postRoutes = new Hono<AppEnv>()
       context,
       await cancelPost(
         createDatabase(context.env),
+        personViewer(context.env, new Date()),
         coordinatorNotifier(context.env),
         context.req.param("id"),
         context.var.user.id,
@@ -224,15 +241,26 @@ export const postRoutes = new Hono<AppEnv>()
   .get("/:id/attendees", async (context) => {
     const db = createDatabase(context.env);
     const postId = context.req.param("id");
-    const post = await getPostView(db, postId, context.var.user.id, new Date());
+    const viewPerson = personViewer(context.env, new Date());
+    const post = await getPostView(
+      db,
+      viewPerson,
+      postId,
+      context.var.user.id,
+      new Date(),
+    );
     if (!post) return context.json({ error: "not_found" }, 404);
-    return context.json({ attendees: await listAttendees(db, postId) });
+    const attendees = await listAttendees(db, postId);
+    return context.json({
+      attendees: await Promise.all(attendees.map(viewPerson)),
+    });
   })
   .put("/:id/rsvp", async (context) =>
     respond(
       context,
       await attendPost(
         createDatabase(context.env),
+        personViewer(context.env, new Date()),
         coordinatorNotifier(context.env),
         context.req.param("id"),
         context.var.user.id,
@@ -245,6 +273,7 @@ export const postRoutes = new Hono<AppEnv>()
       context,
       await leavePost(
         createDatabase(context.env),
+        personViewer(context.env, new Date()),
         context.req.param("id"),
         context.var.user.id,
         new Date(),

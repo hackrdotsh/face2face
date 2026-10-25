@@ -1,10 +1,9 @@
 import { Hono } from "hono";
-import { bodyLimit } from "hono/body-limit";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import type { AppEnv } from "../app-env";
 import { findChatAccess } from "../chats/chat-access";
-import { maxImageUploadBytes, storeChatImage } from "../chats/chat-images";
+import { storeChatImage } from "../chats/chat-images";
 import {
   chatAccessHeader,
   defaultPageSize,
@@ -13,12 +12,14 @@ import {
 import type { ChatAccess } from "../chats/chat-types";
 import { getChatSummary, listChatSummaries } from "../chats/chats";
 import { createDatabase } from "../db/client";
+import { imageBodyLimit, readImageUpload } from "../middleware/image-upload";
 import { requireOnboarded, requireSession } from "../middleware/session";
 import {
   createSocketTicket,
   readSocketTicket,
   socketTicketSecret,
 } from "../notifications/socket-ticket";
+import { personViewer } from "../profiles/person";
 
 interface ChatEnv extends AppEnv {
   Variables: AppEnv["Variables"] & { chat: ChatAccess };
@@ -46,16 +47,12 @@ const requireChat = createMiddleware<ChatEnv>(async (context, next) => {
   await next();
 });
 
-const imageBodyLimit = bodyLimit({
-  maxSize: maxImageUploadBytes,
-  onError: (context) => context.json({ error: "image_too_large" }, 413),
-});
-
 export const chatRoutes = new Hono<ChatEnv>()
   .get("/", requireSession, requireOnboarded, async (context) =>
     context.json({
       chats: await listChatSummaries(
         createDatabase(context.env),
+        personViewer(context.env, new Date()),
         context.env.CHAT_ROOMS,
         context.var.user.id,
         new Date(),
@@ -65,6 +62,7 @@ export const chatRoutes = new Hono<ChatEnv>()
   .get("/:id", requireSession, requireOnboarded, async (context) => {
     const chat = await getChatSummary(
       createDatabase(context.env),
+      personViewer(context.env, new Date()),
       context.env.CHAT_ROOMS,
       context.var.user.id,
       context.req.param("id"),
@@ -112,9 +110,8 @@ export const chatRoutes = new Hono<ChatEnv>()
     requireOnboarded,
     requireChat,
     async (context) => {
-      const form = await context.req.formData().catch(() => null);
-      const upload = form?.get("image");
-      if (!(upload instanceof File)) {
+      const upload = await readImageUpload(context.req);
+      if (!upload) {
         return context.json({ error: "invalid_request" }, 400);
       }
       const access = context.var.chat;

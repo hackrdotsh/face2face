@@ -7,6 +7,7 @@ import {
 } from "../connections/store";
 import { viewConnection } from "../connections/view";
 import type { Database } from "../db/client";
+import type { PersonViewer } from "../profiles/person";
 import { chatAccessFor } from "./chat-access";
 import type { ChatRoom } from "./chat-room";
 import type { ChatSummary } from "./chat-types";
@@ -16,12 +17,13 @@ export type ChatRooms = DurableObjectNamespace<ChatRoom>;
 /** Every chat the person can open, most recent activity first. */
 export async function listChatSummaries(
   db: Database,
+  viewPerson: PersonViewer,
   rooms: ChatRooms,
   userId: string,
   now: Date,
 ): Promise<ChatSummary[]> {
   const rows = await listConnectionsFor(db, userId);
-  const summaries = await summarize(db, rooms, rows, userId, now);
+  const summaries = await summarize(db, viewPerson, rooms, rows, userId, now);
   return summaries.sort(
     (first, second) => activityTime(second) - activityTime(first),
   );
@@ -29,6 +31,7 @@ export async function listChatSummaries(
 
 export async function getChatSummary(
   db: Database,
+  viewPerson: PersonViewer,
   rooms: ChatRooms,
   userId: string,
   connectionId: string,
@@ -36,12 +39,13 @@ export async function getChatSummary(
 ): Promise<ChatSummary | null> {
   const row = await findConnectionFor(db, connectionId, userId);
   if (!row) return null;
-  const [summary] = await summarize(db, rooms, [row], userId, now);
+  const [summary] = await summarize(db, viewPerson, rooms, [row], userId, now);
   return summary ?? null;
 }
 
 async function summarize(
   db: Database,
+  viewPerson: PersonViewer,
   rooms: ChatRooms,
   rows: Connection[],
   userId: string,
@@ -50,6 +54,7 @@ async function summarize(
   const chatRows = rows.filter((row) => chatAccessFor(row, userId));
   const profiles = await loadPublicProfiles(
     db,
+    viewPerson,
     publicCounterparts(chatRows, userId),
     now,
   );

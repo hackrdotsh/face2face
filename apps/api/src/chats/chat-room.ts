@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { otherSide } from "../connections/pair";
 import type { ConnectionSide } from "../db/schema";
+import { mediaSecret, signMediaPath } from "../media/signed-path";
 import {
   type ChatAccess,
   type ChatError,
@@ -14,7 +15,7 @@ import {
   type StoredImageVariants,
   type TypingState,
 } from "./chat-types";
-import { chatImageKey, mediaSecret, signMediaPath } from "./media-path";
+import { chatImageKey } from "./media-path";
 
 export const chatAccessHeader = "x-chat-access";
 export const defaultPageSize = 50;

@@ -6,10 +6,13 @@ import { secureHeaders } from "hono/secure-headers";
 import type { AppEnv } from "./app-env";
 import { createAuth } from "./auth";
 import { createDatabase } from "./db/client";
+import { mediaSecret } from "./media/signed-path";
 import { requireOnboarded, requireSession } from "./middleware/session";
 import { onboardingFields } from "./onboarding/fields";
 import { getOnboardingState } from "./onboarding/onboarding";
 import { webOrigins } from "./origins";
+import { photoViewer, viewAvatar } from "./profiles/person";
+import { findPhotoId } from "./profiles/photo-store";
 import { chatRoutes } from "./routes/chats";
 import { connectionRoutes } from "./routes/connections";
 import { devRoutes } from "./routes/dev";
@@ -18,6 +21,7 @@ import { interestRoutes } from "./routes/interests";
 import { mediaRoutes } from "./routes/media";
 import { notificationRoutes } from "./routes/notifications";
 import { onboardingRoutes } from "./routes/onboarding";
+import { profileRoutes } from "./routes/profile";
 
 export { ChatRoom } from "./chats/chat-room";
 export { UserCoordinator } from "./user-coordinator";
@@ -29,7 +33,7 @@ const mediaHeaders = secureHeaders({
   crossOriginResourcePolicy: "cross-origin",
 });
 const jsonBodyLimit = bodyLimit({ maxSize: 16 * 1024 });
-const imageUploadPath = /^\/api\/chats\/[^/]+\/images$/;
+const imageUploadPath = /^\/api\/(chats\/[^/]+\/images|profile\/photo)$/;
 
 app.use("*", (context, next) =>
   context.req.path.startsWith("/media/")
@@ -63,18 +67,26 @@ app.on(["GET", "POST"], "/api/auth/*", (context) =>
 );
 app.get("/api/me", requireSession, async (context) => {
   const { id, name, email } = context.var.user;
-  const onboarding = await getOnboardingState(
-    createDatabase(context.env),
-    onboardingFields,
-    id,
-    new Date(),
-  );
+  const db = createDatabase(context.env);
+  const now = new Date();
+  const [onboarding, photoId] = await Promise.all([
+    getOnboardingState(
+      db,
+      photoViewer(context.env, now),
+      onboardingFields,
+      id,
+      now,
+    ),
+    findPhotoId(db, id),
+  ]);
+  const avatar = await viewAvatar(mediaSecret(context.env), id, photoId, now);
   return context.json({
-    user: { id, name, email },
+    user: { id, name, email, avatar },
     onboardingComplete: onboarding.complete,
   });
 });
 app.route("/api/onboarding", onboardingRoutes);
+app.route("/api/profile", profileRoutes);
 app.route("/api/interests", interestRoutes);
 app.route("/api/connections", connectionRoutes);
 app.route("/api/notifications", notificationRoutes);

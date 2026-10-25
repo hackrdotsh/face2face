@@ -3,6 +3,7 @@ import type {
   NotificationEvent,
   Notifier,
 } from "../notifications/notification";
+import type { Person, PersonRow, PersonViewer } from "../profiles/person";
 import {
   deleteAttendee,
   findPostFor,
@@ -10,7 +11,6 @@ import {
   insertPost,
   listAttendeeIds,
   listAttendeePreviews,
-  type Person,
   type Post,
   type PostFields,
   type PostRow,
@@ -60,13 +60,18 @@ export function timesInOrder(row: Pick<Post, "startsAt" | "endsAt">): boolean {
   return row.endsAt === null || row.endsAt.getTime() >= row.startsAt.getTime();
 }
 
-export function viewPost(
+export async function viewPost(
+  viewPerson: PersonViewer,
   row: PostRow,
   viewerId: string,
-  preview: Person[],
+  preview: PersonRow[],
   now: Date,
-): PostView {
+): Promise<PostView> {
   const { post } = row;
+  const [author, attendeePreview] = await Promise.all([
+    viewPerson(row.author),
+    Promise.all(preview.map(viewPerson)),
+  ]);
   return {
     id: post.id,
     forumId: post.forumId,
@@ -77,9 +82,9 @@ export function viewPost(
     endsAt: post.endsAt?.toISOString() ?? null,
     createdAt: post.createdAt.toISOString(),
     updatedAt: post.updatedAt.toISOString(),
-    author: row.author,
+    author,
     attendeeCount: post.attendeeCount,
-    attendeePreview: preview,
+    attendeePreview,
     attending: row.attending,
     isAuthor: post.authorId === viewerId,
     edited: post.updatedAt.getTime() > post.createdAt.getTime(),
@@ -90,6 +95,7 @@ export function viewPost(
 
 export async function viewPostRows(
   db: Database,
+  viewPerson: PersonViewer,
   rows: PostRow[],
   viewerId: string,
   now: Date,
@@ -98,43 +104,48 @@ export async function viewPostRows(
     db,
     rows.map((row) => row.post.id),
   );
-  return rows.map((row) =>
-    viewPost(row, viewerId, previews.get(row.post.id) ?? [], now),
+  return Promise.all(
+    rows.map((row) =>
+      viewPost(viewPerson, row, viewerId, previews.get(row.post.id) ?? [], now),
+    ),
   );
 }
 
 export async function getPostView(
   db: Database,
+  viewPerson: PersonViewer,
   postId: string,
   viewerId: string,
   now: Date,
 ): Promise<PostView | null> {
   const row = await findPostFor(db, postId, viewerId);
   if (!row) return null;
-  const [view] = await viewPostRows(db, [row], viewerId, now);
+  const [view] = await viewPostRows(db, viewPerson, [row], viewerId, now);
   return view ?? null;
 }
 
 async function respondWithPost(
   db: Database,
+  viewPerson: PersonViewer,
   postId: string,
   viewerId: string,
   now: Date,
 ): Promise<PostActionResult> {
-  const view = await getPostView(db, postId, viewerId, now);
+  const view = await getPostView(db, viewPerson, postId, viewerId, now);
   return view ? { ok: true, post: view } : { ok: false, error: "not_found" };
 }
 
 /** The forum must be one the author can see. */
 export async function createPost(
   db: Database,
+  viewPerson: PersonViewer,
   forumId: string,
   authorId: string,
   fields: PostFields,
   now: Date,
 ): Promise<PostView> {
   const postId = await insertPost(db, { ...fields, forumId, authorId }, now);
-  const view = await getPostView(db, postId, authorId, now);
+  const view = await getPostView(db, viewPerson, postId, authorId, now);
   if (!view) throw new Error("Created post is not visible to its author");
   return view;
 }
@@ -172,6 +183,7 @@ async function notifyAttendees(
 
 export async function editPost(
   db: Database,
+  viewPerson: PersonViewer,
   notifier: Notifier,
   postId: string,
   userId: string,
@@ -190,7 +202,7 @@ export async function editPost(
     updatedAt: now,
   });
   if (!updated) return refusal(db, postId, userId);
-  const result = await respondWithPost(db, postId, userId, now);
+  const result = await respondWithPost(db, viewPerson, postId, userId, now);
   if (result.ok) {
     await notifyAttendees(
       db,
@@ -205,6 +217,7 @@ export async function editPost(
 /** Soft-deletes the post. Attendee rows stay, so attendees can be told. */
 export async function cancelPost(
   db: Database,
+  viewPerson: PersonViewer,
   notifier: Notifier,
   postId: string,
   userId: string,
@@ -212,7 +225,7 @@ export async function cancelPost(
 ): Promise<PostActionResult> {
   const updated = await updateLivePost(db, postId, userId, { deletedAt: now });
   if (!updated) return refusal(db, postId, userId);
-  const result = await respondWithPost(db, postId, userId, now);
+  const result = await respondWithPost(db, viewPerson, postId, userId, now);
   if (result.ok) {
     await notifyAttendees(
       db,
@@ -227,6 +240,7 @@ export async function cancelPost(
 /** Tells the author about a new attendee, unless the author is the attendee. */
 export async function attendPost(
   db: Database,
+  viewPerson: PersonViewer,
   notifier: Notifier,
   postId: string,
   userId: string,
@@ -244,11 +258,12 @@ export async function attendPost(
       forumId: row.post.forumId,
     });
   }
-  return respondWithPost(db, postId, userId, now);
+  return respondWithPost(db, viewPerson, postId, userId, now);
 }
 
 export async function leavePost(
   db: Database,
+  viewPerson: PersonViewer,
   postId: string,
   userId: string,
   now: Date,
@@ -256,5 +271,5 @@ export async function leavePost(
   const row = await findPostFor(db, postId, userId);
   if (!row) return { ok: false, error: "not_found" };
   await deleteAttendee(db, postId, userId);
-  return respondWithPost(db, postId, userId, now);
+  return respondWithPost(db, viewPerson, postId, userId, now);
 }

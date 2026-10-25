@@ -39,6 +39,7 @@ describe("onboarding API", () => {
       ["name", null],
       ["birthDate", null],
       ["gender", null],
+      ["photo", null],
     ]);
     const gender = state.fields.find((field) => field.key === "gender");
     expect(gender?.options?.map((option) => option.id)).toEqual([
@@ -62,6 +63,7 @@ describe("onboarding API", () => {
       ["name", "Sam"],
       ["birthDate", "1995-02-03"],
       ["gender", { optionId: "male" }],
+      ["photo", null],
     ]);
     const me = await callAPI("/api/me", { headers: bearerHeaders(token) });
     expect(await me.json()).toMatchObject({
@@ -139,6 +141,7 @@ describe("onboarding field registry", () => {
     genderId: "male",
     genderDescription: null,
     genderOptions: [],
+    photo: null,
   };
   const context = { snapshot: completedSnapshot, today: "2026-10-24" };
 

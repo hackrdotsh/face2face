@@ -268,6 +268,7 @@ describe("connections API", () => {
     expect(publicView.status).toBe("public");
     expect(publicView.them).toMatchObject({
       name: "Ava",
+      avatar: { seed: expect.any(String), photo: null },
       interests: ["climbing", "coffee", "film", "hiking", "photography"],
     });
     expect((await inbox(ava))[0]).toMatchObject({ kind: "public" });

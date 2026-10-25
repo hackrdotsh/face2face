@@ -17,9 +17,11 @@ import {
   interest,
   post,
   postAttendee,
+  profile,
   profileInterest,
   user,
 } from "../db/schema";
+import type { PersonRow } from "../profiles/person";
 
 export type Post = typeof post.$inferSelect;
 export type PostFields = Pick<
@@ -27,15 +29,9 @@ export type PostFields = Pick<
   "title" | "description" | "location" | "startsAt" | "endsAt"
 >;
 
-export interface Person {
-  userId: string;
-  name: string;
-  image: string | null;
-}
-
 export interface PostRow {
   post: Post;
-  author: Person;
+  author: PersonRow;
   attending: boolean;
 }
 
@@ -91,13 +87,14 @@ function selectPostRows(db: Database, viewerId: string) {
   return db
     .select({
       post,
-      author: { userId: user.id, name: user.name, image: user.image },
+      author: { userId: user.id, name: user.name, photoId: profile.photoId },
       attending: sql<boolean>`${postAttendee.userId} IS NOT NULL`.mapWith(
         Boolean,
       ),
     })
     .from(post)
     .innerJoin(user, eq(user.id, post.authorId))
+    .leftJoin(profile, eq(profile.userId, user.id))
     .leftJoin(
       postAttendee,
       and(eq(postAttendee.postId, post.id), eq(postAttendee.userId, viewerId)),
@@ -192,21 +189,22 @@ export async function listForumPosts(
 export async function listAttendeePreviews(
   db: Database,
   postIds: string[],
-): Promise<Map<string, Person[]>> {
-  const previews = new Map<string, Person[]>();
+): Promise<Map<string, PersonRow[]>> {
+  const previews = new Map<string, PersonRow[]>();
   if (postIds.length === 0) return previews;
   const ranked = db
     .select({
       postId: postAttendee.postId,
       userId: user.id,
       name: user.name,
-      image: user.image,
+      photoId: profile.photoId,
       rank: sql<number>`row_number() OVER (PARTITION BY ${postAttendee.postId} ORDER BY ${postAttendee.createdAt}, ${postAttendee.userId})`.as(
         "rank",
       ),
     })
     .from(postAttendee)
     .innerJoin(user, eq(user.id, postAttendee.userId))
+    .leftJoin(profile, eq(profile.userId, user.id))
     .where(inArray(postAttendee.postId, postIds))
     .as("ranked");
   const rows = await db
@@ -214,19 +212,23 @@ export async function listAttendeePreviews(
     .from(ranked)
     .where(lte(ranked.rank, attendeePreviewSize))
     .orderBy(asc(ranked.postId), asc(ranked.rank));
-  for (const { postId, userId, name, image } of rows) {
+  for (const { postId, userId, name, photoId } of rows) {
     const list = previews.get(postId) ?? [];
-    list.push({ userId, name, image });
+    list.push({ userId, name, photoId });
     previews.set(postId, list);
   }
   return previews;
 }
 
-export function listAttendees(db: Database, postId: string): Promise<Person[]> {
+export function listAttendees(
+  db: Database,
+  postId: string,
+): Promise<PersonRow[]> {
   return db
-    .select({ userId: user.id, name: user.name, image: user.image })
+    .select({ userId: user.id, name: user.name, photoId: profile.photoId })
     .from(postAttendee)
     .innerJoin(user, eq(user.id, postAttendee.userId))
+    .leftJoin(profile, eq(profile.userId, user.id))
     .where(eq(postAttendee.postId, postId))
     .orderBy(asc(postAttendee.createdAt), asc(postAttendee.userId));
 }
