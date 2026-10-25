@@ -32,7 +32,6 @@ struct AccountView: View {
                             DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk, account: account)
                         }
                         MeadowCard { passkeySection }
-                        signOutButton.padding(.top, 8)
                     }
                     .disabled(
                         session.activity.isBusy || passkeyEnrollment.activity.isBusy || session.isTownPreview
@@ -74,6 +73,7 @@ struct AccountView: View {
             }
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
+            signOutButton
         }
         .frame(maxWidth: .infinity)
     }

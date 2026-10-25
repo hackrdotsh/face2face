@@ -44,6 +44,8 @@ final class TownUITests: XCTestCase {
         XCTAssertTrue(search.waitForExistence(timeout: 4))
         XCTAssertTrue(app.buttons["coffee"].exists, "Picked interests show as pills")
         XCTAssertLessThan(search.frame.minY, app.switches["discoveryToggle"].frame.minY)
+        XCTAssertLessThan(
+            app.buttons["homeSignOut"].frame.maxY, search.frame.minY, "Sign Out stays with the profile")
         capture("account-top")
         XCTAssertTrue(app.buttons["homeSignOut"].exists)
         XCTAssertTrue(app.buttons["addPasskey"].exists)
