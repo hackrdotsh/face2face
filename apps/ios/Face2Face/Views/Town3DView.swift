@@ -5,6 +5,7 @@ import SwiftUI
 struct TownScene: View {
     var isMoving = true
     var visitors: [PublicTownFriend] = []
+    var badges: [TownDestination: Int] = [:]
     var session: SessionModel?
     var onSelect: ((TownDestination) -> Void)?
     var onSelectFriend: ((PublicTownFriend) -> Void)?
@@ -14,11 +15,13 @@ struct TownScene: View {
         Group {
             if #available(iOS 18.0, *), scenery3DEnabled {
                 TownRealityScene(
-                    isMoving: isMoving, visitors: visitors, session: session, onSelect: onSelect,
+                    isMoving: isMoving, visitors: visitors, badges: badges, session: session,
+                    onSelect: onSelect,
                     onSelectFriend: onSelectFriend)
             } else {
                 TownCanvasScene(
-                    isMoving: isMoving, visitors: visitors, session: session, onSelect: onSelect,
+                    isMoving: isMoving, visitors: visitors, badges: badges, session: session,
+                    onSelect: onSelect,
                     onSelectFriend: onSelectFriend)
             }
         }
@@ -29,6 +32,7 @@ struct TownScene: View {
 private struct TownRealityScene: View {
     let isMoving: Bool
     let visitors: [PublicTownFriend]
+    let badges: [TownDestination: Int]
     let session: SessionModel?
     let onSelect: ((TownDestination) -> Void)?
     let onSelectFriend: ((PublicTownFriend) -> Void)?
@@ -45,7 +49,8 @@ private struct TownRealityScene: View {
         GeometryReader { geometry in
             if failed {
                 TownCanvasScene(
-                    isMoving: isMoving, visitors: visitors, session: session, onSelect: onSelect,
+                    isMoving: isMoving, visitors: visitors, badges: badges, session: session,
+                    onSelect: onSelect,
                     onSelectFriend: onSelectFriend)
             } else {
                 let scale = min(geometry.size.width / 400, geometry.size.height / 640)
@@ -100,14 +105,7 @@ private struct TownRealityScene: View {
                                 } label: {
                                     VStack {
                                         Spacer(minLength: 0)
-                                        Text(place.title)
-                                            .font(.system(.caption, design: .rounded, weight: .bold))
-                                            .padding(.horizontal, 12).padding(.vertical, 9)
-                                            .background(MeadowPalette.paper.opacity(0.96), in: Capsule())
-                                            .overlay(
-                                                Capsule().strokeBorder(MeadowPalette.glassEdge.opacity(0.7))
-                                            )
-                                            .fixedSize(horizontal: true, vertical: false)
+                                        TownPlaceLabel(title: place.title, unread: badges[place] ?? 0)
                                     }
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     .contentShape(Rectangle())
@@ -119,6 +117,7 @@ private struct TownRealityScene: View {
                                     y: origin.y + frame.midY * scale
                                 )
                                 .accessibilityLabel(place.title)
+                                .accessibilityValue(TownUnreadCount.spoken(badges[place] ?? 0))
                                 .accessibilityHint("Opens \(place.title.lowercased())")
                                 .accessibilityIdentifier("town-\(place.rawValue)")
                             }

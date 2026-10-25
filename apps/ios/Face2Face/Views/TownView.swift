@@ -12,6 +12,7 @@ struct TownView: View {
     @State private var publicConnections = PublicConnectionUpdates.shared
     @State private var inbox: NotificationsModel
     @State private var push = PushNotifications.shared
+    @State private var cafeUnread = 0
     @State private var openedPreviewProfile = false
     @State private var openedLaunchRoutes = false
     @State private var destination: TownDestination?
@@ -52,17 +53,7 @@ struct TownView: View {
                 ScrollView {
                     VStack(spacing: 12) {
                         TownScene(isMoving: false).frame(height: 320).accessibilityHidden(true)
-                        ForEach(TownDestination.allCases) { place in
-                            Button {
-                                destination = place
-                            } label: {
-                                Label(place.title, systemImage: place.symbol)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(20)
-                                    .background(MeadowPalette.paper, in: RoundedRectangle(cornerRadius: 20))
-                            }
-                            .accessibilityIdentifier("town-\(place.rawValue)")
-                        }
+                        ForEach(TownDestination.allCases) { place in placeRow(place) }
                         ForEach(friends.visitors) { friend in
                             Button {
                                 friends.select(friend)
@@ -86,7 +77,7 @@ struct TownView: View {
                     isMoving: destination == nil && !showingAccount && !showingSettings
                         && !showingNotifications
                         && friends.selectedID == nil && chatRoute == nil,
-                    visitors: friends.visitors, session: session,
+                    visitors: friends.visitors, badges: [.connections: cafeUnread], session: session,
                     onSelect: { destination = $0 }, onSelectFriend: { friends.select($0) }
                 )
                 .ignoresSafeArea(.container, edges: .bottom)
@@ -165,11 +156,19 @@ struct TownView: View {
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             while !Task.isCancelled {
-                await inbox.refreshUnreadCount()
+                await refreshBadges()
                 do { try await Task.sleep(for: .seconds(30)) } catch { return }
             }
         }
-        .onChange(of: push.foregroundArrivals) { Task { await inbox.refreshUnreadCount() } }
+        .onChange(of: push.foregroundArrivals) { Task { await refreshBadges() } }
+        .onChange(of: chatRoute == nil && destination == nil) { _, closed in
+            if closed { Task { await refreshBadges() } }
+        }
+        .onChange(of: push.requestedChatID, initial: true) {
+            guard let chatID = push.requestedChatID else { return }
+            push.requestedChatID = nil
+            Task { await openChat(chatID) }
+        }
         .onChange(of: push.inboxRequested, initial: true) {
             guard push.inboxRequested else { return }
             push.inboxRequested = false
@@ -201,6 +200,44 @@ struct TownView: View {
         #endif
     }
 
+    private func placeRow(_ place: TownDestination) -> some View {
+        let unread = place == .connections ? cafeUnread : 0
+        return Button {
+            destination = place
+        } label: {
+            HStack {
+                Label(place.title, systemImage: place.symbol)
+                Spacer(minLength: 8)
+                if unread > 0 { TownUnreadCount(count: unread) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .background(MeadowPalette.paper, in: RoundedRectangle(cornerRadius: 20))
+        }
+        .accessibilityValue(TownUnreadCount.spoken(unread))
+        .accessibilityIdentifier("town-\(place.rawValue)")
+    }
+
+    private func refreshBadges() async {
+        await inbox.refreshUnreadCount()
+        if session.isTownPreview {
+            cafeUnread = 1
+            return
+        }
+        guard let chats = try? await session.client().chats() else { return }
+        cafeUnread = chats.reduce(0) { $0 + $1.unreadCount }
+    }
+
+    /// Covers present one at a time, so anything already open closes before the chat opens.
+    private func openChat(_ chatID: String) async {
+        let covered = showingNotifications || destination != nil || chatRoute != nil
+        showingNotifications = false
+        destination = nil
+        chatRoute = nil
+        if covered { try? await Task.sleep(for: .milliseconds(500)) }
+        chatRoute = ChatRoute(id: chatID)
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             headerControls
@@ -229,12 +266,14 @@ struct TownView: View {
                     .background(MeadowPalette.paper.opacity(0.85), in: Circle())
                     .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
                     .overlay(alignment: .topTrailing) {
-                        if inbox.unreadCount > 0 { UnreadBadge(count: inbox.unreadCount) }
+                        if inbox.unreadCount > 0 {
+                            TownUnreadCount(count: inbox.unreadCount).offset(x: 4, y: -4)
+                        }
                     }
             }
             .buttonStyle(MeadowPressStyle())
             .accessibilityLabel("Notifications")
-            .accessibilityValue(inbox.unreadCount > 0 ? "\(inbox.unreadCount) new" : "")
+            .accessibilityValue(TownUnreadCount.spoken(inbox.unreadCount))
             .accessibilityIdentifier("townNotifications")
             Button {
                 showingSettings = true
@@ -392,6 +431,7 @@ enum TownDestination: String, CaseIterable, Identifiable {
 struct TownCanvasScene: View {
     var isMoving = true
     var visitors: [PublicTownFriend] = []
+    var badges: [TownDestination: Int] = [:]
     var session: SessionModel?
     var onSelect: ((TownDestination) -> Void)?
     var onSelectFriend: ((PublicTownFriend) -> Void)?
@@ -437,13 +477,7 @@ struct TownCanvasScene: View {
                             } label: {
                                 VStack {
                                     Spacer(minLength: 0)
-                                    Text(place.title)
-                                        .font(.system(.caption, design: .rounded, weight: .bold))
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 9)
-                                        .background(MeadowPalette.paper.opacity(0.96), in: Capsule())
-                                        .overlay(Capsule().strokeBorder(MeadowPalette.glassEdge.opacity(0.7)))
-                                        .fixedSize(horizontal: true, vertical: false)
+                                    TownPlaceLabel(title: place.title, unread: badges[place] ?? 0)
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .contentShape(Rectangle())
@@ -455,6 +489,7 @@ struct TownCanvasScene: View {
                                 y: origin.y + place.frame.midY * scale
                             )
                             .accessibilityLabel(place.title)
+                            .accessibilityValue(TownUnreadCount.spoken(badges[place] ?? 0))
                             .accessibilityHint("Opens \(place.title.lowercased())")
                             .accessibilityIdentifier("town-\(place.rawValue)")
                         }
@@ -491,9 +526,17 @@ struct TownCanvasScene: View {
     }
 }
 
-/// The count of notifications that arrived since the inbox was last opened.
-private struct UnreadBadge: View {
+/// A small count pill for unseen notifications or unread messages.
+struct TownUnreadCount: View {
     let count: Int
+
+    static func spoken(_ count: Int) -> String {
+        switch count {
+        case 0: ""
+        case 1: "1 new"
+        default: "\(count) new"
+        }
+    }
 
     var body: some View {
         Text(count > 99 ? "99+" : "\(count)")
@@ -504,7 +547,25 @@ private struct UnreadBadge: View {
             .frame(minWidth: 20, minHeight: 20)
             .background(MeadowPalette.errorInk, in: Capsule())
             .overlay(Capsule().strokeBorder(MeadowPalette.paper, lineWidth: 2))
-            .offset(x: 4, y: -4)
             .accessibilityHidden(true)
+    }
+}
+
+/// The name tag over a town place, with an unread count when there is one.
+struct TownPlaceLabel: View {
+    let title: String
+    var unread = 0
+
+    var body: some View {
+        Text(title)
+            .font(.system(.caption, design: .rounded, weight: .bold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(MeadowPalette.paper.opacity(0.96), in: Capsule())
+            .overlay(Capsule().strokeBorder(MeadowPalette.glassEdge.opacity(0.7)))
+            .overlay(alignment: .topTrailing) {
+                if unread > 0 { TownUnreadCount(count: unread).offset(x: 6, y: -8) }
+            }
+            .fixedSize(horizontal: true, vertical: false)
     }
 }
