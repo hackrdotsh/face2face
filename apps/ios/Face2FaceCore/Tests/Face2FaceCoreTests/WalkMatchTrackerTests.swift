@@ -25,3 +25,13 @@ import Testing
     #expect(tracker.ingest(ObservationReceipt(status: .recorded, matchId: "one-more")) == false)
     #expect(tracker.matchIds.count == WalkMatchTracker.limit)
 }
+
+@Test func walkMatchTrackerCountsOnlyItsStatus() {
+    var matches = WalkMatchTracker()
+    var unshared = WalkMatchTracker(counting: .noSharedInterests)
+    let receipt = ObservationReceipt(status: .noSharedInterests, matchId: "match-a")
+    #expect(matches.ingest(receipt) == false)
+    #expect(unshared.ingest(receipt) == true)
+    #expect(unshared.ingest(receipt) == false)
+    #expect(unshared.ingest(ObservationReceipt(status: .recorded, matchId: "match-b")) == false)
+}

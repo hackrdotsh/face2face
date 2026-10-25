@@ -41,7 +41,7 @@ extension APIClient {
                     sessionId: sessionId, peerToken: peerToken.identifier,
                     observationId: observationId.uuidString.lowercased()),
                 authenticated: true))
-        guard (receipt.status == .recorded) == (receipt.matchId != nil) else {
+        guard (receipt.status != .pending) == (receipt.matchId != nil) else {
             throw APIError.invalidResponse
         }
         return receipt

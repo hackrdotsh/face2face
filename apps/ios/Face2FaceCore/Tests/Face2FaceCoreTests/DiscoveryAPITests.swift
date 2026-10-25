@@ -91,16 +91,20 @@ private let leaseJSON =
 @Test func discoveryReceiptCarriesOnlyAnOpaqueMatchAndRejectsInconsistentReceipts() async throws {
     let transport = DiscoveryTestTransport([
         discoveryResponse(#"{"status":"recorded","matchId":"opaque-match"}"#),
+        discoveryResponse(#"{"status":"noSharedInterests","matchId":"opaque-match"}"#),
         discoveryResponse(#"{"status":"recorded"}"#),
+        discoveryResponse(#"{"status":"noSharedInterests"}"#),
         discoveryResponse(#"{"status":"pending","matchId":"opaque-match"}"#),
     ])
     let client = APIClient(
         configuration: try APIConfiguration(address: "https://api.example.test"),
         tokens: DiscoveryTestTokens(), transport: transport)
-    let receipt = try await client.observeEncounter(
-        sessionId: "s1", peerToken: DiscoveryToken(), observationId: UUID())
-    #expect(receipt == ObservationReceipt(status: .recorded, matchId: "opaque-match"))
-    for _ in 0..<2 {
+    for status in [ObservationReceipt.Status.recorded, .noSharedInterests] {
+        let receipt = try await client.observeEncounter(
+            sessionId: "s1", peerToken: DiscoveryToken(), observationId: UUID())
+        #expect(receipt == ObservationReceipt(status: status, matchId: "opaque-match"))
+    }
+    for _ in 0..<3 {
         await #expect(throws: APIError.invalidResponse) {
             try await client.observeEncounter(
                 sessionId: "s1", peerToken: DiscoveryToken(), observationId: UUID())

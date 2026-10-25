@@ -30,7 +30,10 @@ final class ConnectedDiscoveryModel {
     /// Matches recorded during the current run. Receipts never say who the peer was.
     private(set) var matchCount = 0
     private(set) var firstMatchElapsed: TimeInterval?
+    /// Reciprocal reports that opened no chance because the two people share no interests.
+    private(set) var noSharedInterestCount = 0
     @ObservationIgnored private var matches = WalkMatchTracker()
+    @ObservationIgnored private var unshared = WalkMatchTracker(counting: .noSharedInterests)
     @ObservationIgnored private var startedUptime: TimeInterval = 0
 
     @ObservationIgnored private var client: APIClient?
@@ -274,6 +277,8 @@ final class ConnectedDiscoveryModel {
             backgroundPolicy = BackgroundUploadPolicy()
             matches = WalkMatchTracker()
             matchCount = 0
+            unshared = WalkMatchTracker(counting: .noSharedInterests)
+            noSharedInterestCount = 0
             firstMatchElapsed = nil
             startedUptime = requestStartedUptime
             isRunning = true
@@ -576,10 +581,14 @@ final class ConnectedDiscoveryModel {
                     sessionId: activeLease.sessionId, peerToken: pending.peerToken, observationId: pending.id)
                 guard isRunning, generation == operation, !Task.isCancelled else { return }
                 if pending.awaitingMatchUntil == nil { submittedReports += 1 }
-                if receipt.status == .recorded {
+                switch receipt.status {
+                case .recorded:
                     outbox.acknowledge(pending.id)
                     recordMatch(receipt)
-                } else {
+                case .noSharedInterests:
+                    outbox.acknowledge(pending.id)
+                    if unshared.ingest(receipt) { noSharedInterestCount += 1 }
+                case .pending:
                     outbox.awaitMatch(pending.id)
                 }
                 errorMessage = nil
@@ -630,6 +639,7 @@ final class ConnectedDiscoveryModel {
             "Submitted: \(submittedReports); queued: \(pendingUploads); discarded: \(discardedReports)",
             "Remaining permit: \(Int(ceil(walkRemaining))) seconds",
             "Matches this run: \(matchCount)",
+            "Passed without shared interests: \(noSharedInterestCount)",
             "First match: \(firstMatchElapsed.map { String(format: "%.1f seconds after Start", $0) } ?? "none")",
             "Status: \(status)",
             "",

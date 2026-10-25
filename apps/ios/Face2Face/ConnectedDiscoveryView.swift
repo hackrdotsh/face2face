@@ -140,6 +140,8 @@
 
                 Section {
                     LabeledContent("Matches this run", value: "\(model.matchCount)")
+                    LabeledContent(
+                        "Passed without shared interests", value: "\(model.noSharedInterestCount)")
                     Text(
                         model.matchCount == 0
                             ? "No matches yet. Both signed-in phones must report each other within two minutes."

@@ -30,8 +30,9 @@ public struct DiscoveryLease: Codable, Sendable, Equatable {
 }
 
 /// A receipt never names the peer. `matchId` is opaque, shared by both phones, and stable for one pair of leases.
+/// `noSharedInterests` means both phones reported each other, but no chance opened.
 public struct ObservationReceipt: Codable, Sendable, Equatable {
-    public enum Status: String, Codable, Sendable { case pending, recorded }
+    public enum Status: String, Codable, Sendable { case pending, recorded, noSharedInterests }
     public let status: Status
     public let matchId: String?
 
