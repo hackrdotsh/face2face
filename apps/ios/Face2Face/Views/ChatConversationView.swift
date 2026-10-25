@@ -9,6 +9,7 @@ struct ChatConversationView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var pickedPhoto: PhotosPickerItem?
+    @State private var showingPhotoPicker = false
     @State private var attachment: Data?
     @State private var preparing = false
     @State private var photoError: String?
@@ -68,6 +69,9 @@ struct ChatConversationView: View {
         }
         .task(id: pickedPhoto) { await preparePickedPhoto() }
         .onChange(of: model.draft) { model.changeDraft() }
+        .onChange(of: session.celebrations.presented?.id) {
+            if session.celebrations.presented != nil { focused = false }
+        }
         .onChange(of: model.state) {
             if model.state == .closed {
                 attachment = nil
@@ -121,6 +125,11 @@ struct ChatConversationView: View {
         ) {
             CompactPublicProfileView(model: profile, session: session)
         }
+        .connectionCelebrations(
+            session.celebrations,
+            available: model.state == .live && profile.selectedID == nil && selectedImage == nil
+                && !showingPhotoPicker && !preparing && !showLeaveWarning && !showBlockWarning
+                && !showShareConfirmation)
     }
 
     @ViewBuilder private var profileSharingCard: some View {
@@ -364,13 +373,16 @@ struct ChatConversationView: View {
                     MeadowPalette.secondaryInk)
             }
             HStack(alignment: .bottom, spacing: 10) {
-                PhotosPicker(selection: $pickedPhoto, matching: .images) {
+                Button {
+                    showingPhotoPicker = true
+                } label: {
                     Image(systemName: preparing ? "hourglass" : "photo.badge.plus")
                         .font(.system(size: 21)).frame(width: 44, height: 44)
                         .background(MeadowPalette.field, in: Circle())
                 }
                 .disabled(preparing || model.summary == nil)
                 .accessibilityLabel("Attach photo").accessibilityIdentifier("chatAttachPhoto")
+                .photosPicker(isPresented: $showingPhotoPicker, selection: $pickedPhoto, matching: .images)
                 TextField("A little hello…", text: $model.draft, axis: .vertical)
                     .lineLimit(1...5).focused($focused).padding(.vertical, 12)
                     .accessibilityIdentifier("chatDraft")

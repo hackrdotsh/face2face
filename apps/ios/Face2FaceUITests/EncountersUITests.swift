@@ -11,6 +11,12 @@ final class EncountersUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(accept.frame.height, 44)
         capture("encounters-cards")
         accept.tap()
+        let celebration = app.buttons["connectionCelebrationDismiss"]
+        XCTAssertTrue(celebration.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["connectionCelebrationTitle"].label, "You both said hello!")
+        XCTAssertFalse(app.staticTexts["Must stay hidden"].exists)
+        capture("private-connection-celebration")
+        celebration.tap()
         let open = app.buttons["encounterOpenChat"]
         XCTAssertTrue(open.waitForExistence(timeout: 5))
         reveal(open, in: app)

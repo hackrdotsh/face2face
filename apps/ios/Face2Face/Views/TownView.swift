@@ -75,6 +75,7 @@ struct TownView: View {
             requestSurface(route)
         }
         .toolbar(.hidden, for: .navigationBar, .tabBar)
+        .connectionCelebrations(session.celebrations, available: townIsUncovered)
         .sheet(item: $destination, onDismiss: finishSurfaceRoute) { place in
             TownDestinationView(destination: place, session: session)
                 .presentationDragIndicator(.visible)
@@ -164,6 +165,13 @@ struct TownView: View {
             }
         }
         .onChange(of: push.foregroundArrivals) { Task { await refreshBadges() } }
+        .task(id: townIsUncovered && scenePhase == .active) {
+            guard townIsUncovered, scenePhase == .active else { return }
+            while !Task.isCancelled {
+                await refreshConnectionMilestones()
+                do { try await Task.sleep(for: .seconds(5)) } catch { return }
+            }
+        }
         .onChange(of: chatRoute == nil && destination == nil) { _, closed in
             if closed { Task { await refreshBadges() } }
         }
@@ -186,6 +194,15 @@ struct TownView: View {
             .onAppear {
                 guard !openedLaunchRoutes else { return }
                 openedLaunchRoutes = true
+                if session.isTownPreview,
+                    let index = ProcessInfo.processInfo.arguments.firstIndex(
+                        of: "-connection-celebration-preview"),
+                    ProcessInfo.processInfo.arguments.indices.contains(index + 1)
+                {
+                    session.celebrations.preview(
+                        ProcessInfo.processInfo.arguments[index + 1] == "public"
+                            ? .publicProfiles : .privateChat)
+                }
                 if let index = ProcessInfo.processInfo.arguments.firstIndex(of: "-town-chat"),
                     ProcessInfo.processInfo.arguments.indices.contains(index + 1)
                 {
@@ -273,6 +290,19 @@ struct TownView: View {
         }
         .accessibilityValue(TownUnreadCount.spoken(unread))
         .accessibilityIdentifier("town-\(place.rawValue)")
+    }
+
+    private var townIsUncovered: Bool {
+        destination == nil && !showingSettings && !showingAccount && !showingNotifications
+            && chatRoute == nil && friends.selectedID == nil && !showingCampfire
+    }
+
+    private func refreshConnectionMilestones() async {
+        let context = session.celebrations.context
+        let revision = session.celebrations.revision
+        guard !session.isTownPreview else { return }
+        guard let rows = try? await session.client().townConnections(), !Task.isCancelled else { return }
+        session.celebrations.observeSnapshot(rows, context: context, revision: revision)
     }
 
     private func refreshBadges() async {

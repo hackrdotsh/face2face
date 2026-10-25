@@ -8,6 +8,7 @@ final class ChatConversationModel {
     enum State: String { case connecting, live, reconnecting, paused, closed }
     let chatID: String
     let session: SessionModel
+    private let feedbackContext: UUID?
     private(set) var summary: ChatSummary?
     private(set) var transcript = ChatTranscript()
     private(set) var state: State = .connecting
@@ -44,6 +45,7 @@ final class ChatConversationModel {
     ) {
         self.chatID = chatID
         self.session = session
+        feedbackContext = session.celebrations.context
         metadataLoader = loadSummary
         consentRecorder = recordProfileConsent
     }
@@ -304,6 +306,7 @@ final class ChatConversationModel {
             return
         }
         summary = value
+        session.celebrations.observe(value.connection, context: feedbackContext)
         if value.connection.status == "private" { hasSeenPrivate = true }
         if value.connection.publicTownFriend != nil && hasSeenPrivate && !announcedPublic {
             announcedPublic = true
@@ -490,6 +493,7 @@ final class ChatConversationModel {
     }
     private func closePermanently() {
         guard state != .closed else { return }
+        session.celebrations.cancel(chatID, context: feedbackContext)
         generation += 1
         state = .closed
         draft = ""

@@ -127,6 +127,36 @@ The inbox shares the town's `NotificationsModel` so marking it seen updates the 
 `face2face://notifications` exercises the inbox route, including dismissal of the
 campfire/profile/settings surface. Authentication is still required before routing.
 
+## Connection celebrations
+
+- Mutual acceptance shows **You both said hello!**; mutual profile sharing shows
+  **A familiar face!**. Both use decorative fixed-seed blobs, a one-shot confetti
+  burst and a success notification haptic. They never display a private peer's
+  name, avatar, or profile. One-sided answers and one-sided profile consent do not celebrate.
+- Town checks connection state every five seconds while uncovered. Encounters and
+  chat use their existing authenticated refresh/action responses; the café observes
+  its chat list. Only confirmed server states trigger feedback, not speculative taps.
+- One visible screen owns each dialogue. Other sheets, photo pickers, confirmation
+  alerts, and backgrounded screens do not claim it or vibrate. **Lovely!** dismisses
+  it without navigating or discarding a message draft.
+- First snapshots silently seed existing friendships. Local account/server-scoped
+  hashed stage receipts suppress replay across refreshes and relaunches; preview
+  receipts stay in memory. They contain no credentials or peer identity and grant
+  no access. Queued feedback is not a durable notification history; the inbox is.
+- Reduce Motion removes the burst and spring/movement; large text can scroll the
+  dialogue. VoiceOver focuses its heading and hides underlying controls until dismissal.
+
+`node scripts/control-town.mjs preview -connection-celebration-preview private`
+opens the private dialogue; use `public` for shared-profile art review. Real-flow
+previews also work: accept the first encounter or add
+`-chat-sharing-preview-state peer-agreed` to an anonymous chat and share profiles.
+These fixtures do not change real accounts.
+
+Tests: `ConnectionCelebrationsTests.swift`, `ConnectionCelebrationUITests.swift`,
+`EncountersUITests.swift`, and `ProfileSharingUITests.swift`. Native tests inject a
+haptic recorder to check that only the visible owner fires once. Simulator screenshots
+verify the dialogue, not the physical feel of the vibration.
+
 ## Messaging
 
 - The café opens `ChatsView`. Only accepted private/public connections are listed.

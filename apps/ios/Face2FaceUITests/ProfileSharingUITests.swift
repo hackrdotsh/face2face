@@ -16,6 +16,7 @@ final class ProfileSharingUITests: XCTestCase {
         share.tap()
         alert.buttons["Agree to share"].tap()
         XCTAssertTrue(app.staticTexts["chatSharingWaiting"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["connectionCelebrationDismiss"].exists)
         XCTAssertFalse(share.exists)
         XCTAssertFalse(app.buttons["chatViewProfile"].exists)
         XCTAssertEqual(app.staticTexts["chatTitle"].label, "Anonymous connection")
@@ -34,6 +35,7 @@ final class ProfileSharingUITests: XCTestCase {
         XCTAssertTrue(app.buttons["chatShareProfiles"].waitForExistence(timeout: 8))
         app.buttons["chatShareProfiles"].tap()
         app.alerts.buttons["Agree to share"].tap()
+        dismissCelebration(app)
         XCTAssertTrue(app.staticTexts["chatProfilesPublic"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["chatTitle"].label, "Rowan")
         capture("sharing-public-chat")
@@ -56,7 +58,8 @@ final class ProfileSharingUITests: XCTestCase {
         app.buttons["chatShareProfiles"].tap()
         app.alerts.buttons["Agree to share"].tap()
         XCTAssertTrue(app.staticTexts["chatSharingWaiting"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["chatProfilesPublic"].waitForExistence(timeout: 10))
+        dismissCelebration(app)
+        XCTAssertTrue(app.staticTexts["chatProfilesPublic"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["chatTitle"].label, "Rowan")
         XCTAssertTrue(app.buttons["chatViewProfile"].exists)
     }
@@ -67,6 +70,13 @@ final class ProfileSharingUITests: XCTestCase {
         if let mode { app.launchArguments += ["-chat-sharing-preview-state", mode] }
         app.launch()
         return app
+    }
+
+    private func dismissCelebration(_ app: XCUIApplication) {
+        XCTAssertTrue(app.buttons["connectionCelebrationDismiss"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["connectionCelebrationTitle"].label, "A familiar face!")
+        capture("public-connection-celebration")
+        app.buttons["connectionCelebrationDismiss"].tap()
     }
 
     private func capture(_ name: String) {

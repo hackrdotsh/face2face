@@ -73,6 +73,21 @@ and all authorization continue through the existing models and routes.
 animation windows. Compare the same build configuration and device, retain the
 sample spread, and do not interpret simulator timings as battery-life measurements.
 
+## Connection feedback
+
+`SessionModel` owns `ConnectionCelebrations`, scoped to the signed-in account and
+normalized API server. Confirmed pending → private and private → public transitions
+queue celebratory feedback. The first full snapshot establishes existing friendships
+silently; first-time loads of an old chat do not celebrate it. Encounters, chats and
+the uncovered town feed the same state so navigation does not duplicate the milestone.
+
+Only a visible, active screen claims a dialogue and emits its success haptic.
+Signed-out/server/account changes clear queued presentation state and invalidate
+older responses. Blocked or missing connections cancel pending feedback. Local
+hashed connection-stage receipts suppress repeat celebrations, not authorization;
+they contain no profile, discovery token or bearer credential. This queue is ephemeral:
+the server inbox remains the notification record.
+
 ## Accounts and onboarding
 
 Better Auth owns sign-in. A person can use any of these methods:

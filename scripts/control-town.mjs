@@ -158,6 +158,7 @@ try {
 Preview never creates an account, saves a bearer token or contacts the API.
 Use preview -town-chat preview-private for anonymous profile-sharing consent;
 add -chat-sharing-preview-state peer-agreed or peer-later for mutual consent.
+Use preview -connection-celebration-preview private or public for celebration art review.
 Use -start-signed-out to test login without restoring or deleting saved credentials.
 Omit -town-preview when verifying a real sign-in. Builds fail fast before install.`);
   }

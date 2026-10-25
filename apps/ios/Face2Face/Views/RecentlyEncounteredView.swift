@@ -22,6 +22,7 @@ struct RecentlyEncounteredView: View {
     @State private var model: EncountersModel
     @State private var confirmation: EncounterConfirmation?
     @State private var showingChats = false
+    @State private var path: [ChatRoute] = []
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -31,7 +32,7 @@ struct RecentlyEncounteredView: View {
         _model = State(initialValue: EncountersModel(session: session))
     }
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 header
                 ScrollView {
@@ -116,6 +117,9 @@ struct RecentlyEncounteredView: View {
             }
         }
         .foregroundStyle(MeadowPalette.ink).fontDesign(.rounded)
+        .connectionCelebrations(
+            session.celebrations,
+            available: path.isEmpty && !showingChats && confirmation == nil)
     }
 
     private var header: some View {
