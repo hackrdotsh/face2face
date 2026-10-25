@@ -2,11 +2,13 @@
 
 | Feature              | Entry                                   | Expected behavior                                                               |
 | -------------------- | --------------------------------------- | ------------------------------------------------------------------------------- |
-| Landing              | Finish onboarding, or Debug map button  | Three spaced destinations; shoreline below town                                 |
+| Landing              | Finish onboarding, or Settings → Preview town | Three spaced destinations; shoreline below town                            |
 | Recently encountered | Upper-left venue, `town-encounters`     | Pending `/api/connections` only; no hidden identity                             |
 | Connections          | Middle-right café, `town-connections`   | Private/public connections; identity only when server reveals it                |
 | Forums               | Lower-left board, `town-forums`         | `/api/forums` for the signed-in person's interests                              |
-| Account              | Header avatar, `townAccount`            | Existing profile, passkey and discovery controls                                |
+| Account              | Top-right avatar, `townAccount`         | Separate profile/photo and sign-out page                                        |
+| Settings             | Left of account, `appSettings`          | Passkey, discovery, appearance, API and developer tools                          |
+| Discovery status     | Header badge, `townDiscovery`           | Status indicator; opens discovery controls in Settings                          |
 | Notifications        | Header bell, `townNotifications`        | Themed `/api/notifications` inbox; refresh on opening, foreground and pull-down |
 | Preview              | `node scripts/control-town.mjs preview` | No API requests; destination sheets identify preview mode                       |
 | Reduced motion       | iOS Accessibility → Motion              | No resident, water or sign animation                                            |
@@ -24,8 +26,10 @@ For a destination sheet, append `-town-destination forums`, `connections` or
 `encounters` to `preview`. Use real sign-in to verify loading, retry, empty and
 populated states. Preview does not exercise authentication.
 
+Preview account actions and developer tools are disabled so the preview makes no authenticated requests.
+
 UI tests: `apps/ios/Face2FaceUITests/TownUITests.swift`. They check tap targets,
-sheet dismissal, large text and preview states. Decorative NPCs never represent
+settings access, sheet dismissal, large text and preview states. Decorative NPCs never represent
 real nearby people. Water animation requires Reduce Motion off and app foreground.
 
 Notifications UI tests: `apps/ios/Face2FaceUITests/NotificationsUITests.swift`.

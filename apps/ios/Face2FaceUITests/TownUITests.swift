@@ -22,10 +22,63 @@ final class TownUITests: XCTestCase {
             app.buttons["Done"].tap()
             XCTAssertTrue(button.waitForExistence(timeout: 4))
         }
-        app.buttons["townAccount"].tap()
+    }
+
+    func testHeaderKeepsAccountAndSettingsSeparateWithoutTabs() {
+        let app = launch()
+        let settings = app.buttons["appSettings"]
+        let account = app.buttons["townAccount"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        XCTAssertTrue(account.exists)
+        XCTAssertLessThan(settings.frame.maxX, account.frame.minX)
+        XCTAssertEqual(settings.frame.midY, account.frame.midY, accuracy: 4)
+        XCTAssertTrue(app.tabBars.allElementsBoundByIndex.isEmpty)
+        account.tap()
         XCTAssertTrue(app.otherElements["accountHome"].waitForExistence(timeout: 4))
-        app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["Hey, Preview Walker."].exists)
+        XCTAssertTrue(app.buttons["homeSignOut"].exists)
+        XCTAssertFalse(app.buttons["addPasskey"].exists)
+        XCTAssertFalse(app.switches["discoveryToggle"].exists)
+        capture("account")
+        app.navigationBars["Account"].buttons["Done"].tap()
+        XCTAssertTrue(settings.waitForExistence(timeout: 4))
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["homeSignOut"].exists)
+        XCTAssertTrue(app.buttons["addPasskey"].exists)
+        XCTAssertFalse(app.buttons["addPasskey"].isEnabled)
+        XCTAssertTrue(app.switches["discoveryToggle"].exists)
+        XCTAssertFalse(app.switches["discoveryToggle"].isEnabled)
+        XCTAssertFalse(app.otherElements["accountHome"].exists)
+        capture("settings-discovery")
+
+        reveal(app.segmentedControls["appearancePicker"], in: app)
+        XCTAssertTrue(app.segmentedControls["appearancePicker"].isHittable)
+        reveal(app.textFields["API URL"], in: app)
+        XCTAssertTrue(app.textFields["API URL"].isHittable)
+        reveal(app.buttons["Device test"], in: app)
+        for label in ["Walk test", "Connected test", "Pocket test", "Device test"] {
+            XCTAssertTrue(app.buttons[label].exists)
+        }
+        capture("settings-preferences")
+        app.navigationBars["Settings"].buttons["Done"].tap()
         XCTAssertTrue(app.buttons["town-forums"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.tabBars.allElementsBoundByIndex.isEmpty)
+    }
+
+    func testLargeTextCanReachSettingsAndReturnToTown() {
+        let app = launch(extra: [
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+        ])
+        let settings = app.buttons["appSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 8))
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 4))
+        reveal(app.segmentedControls["appearancePicker"], in: app)
+        XCTAssertTrue(app.segmentedControls["appearancePicker"].isHittable)
+        capture("settings-large-text")
+        app.navigationBars["Settings"].buttons["Done"].tap()
+        XCTAssertTrue(settings.waitForExistence(timeout: 4))
     }
 
     func testDiscoveryToggleIsOffAndDisabledWithoutBluetooth() {
@@ -66,5 +119,12 @@ final class TownUITests: XCTestCase {
         attachment.name = "town-\(name)"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<10 {
+            if element.isHittable { return }
+            app.swipeUp()
+        }
     }
 }

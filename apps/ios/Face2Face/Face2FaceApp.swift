@@ -10,32 +10,7 @@ struct Face2FaceApp: App {
 
     var body: some Scene {
         WindowGroup {
-            #if DEBUG
-                TabView {
-                    RootView()
-                        .tabItem { Label("Account", systemImage: "person.crop.circle") }
-                    NavigationStack {
-                        WalkDiscoveryView(model: walk)
-                    }
-                    .tabItem { Label("Walk test", systemImage: "person.crop.circle.badge.clock") }
-                    .badge(walk.isRunning ? "On" : nil)
-                    NavigationStack {
-                        ConnectedDiscoveryView()
-                    }
-                    .tabItem { Label("Connected test", systemImage: "person.2.wave.2") }
-                    NavigationStack {
-                        PocketDiscoveryView(model: pocket)
-                    }
-                    .tabItem { Label("Pocket test", systemImage: "figure.walk") }
-                    .badge(pocket.radio.isRequested ? "On" : nil)
-                    NavigationStack {
-                        DiscoveryDiagnosticView()
-                    }
-                    .tabItem { Label("Device test", systemImage: "antenna.radiowaves.left.and.right") }
-                }
-            #else
-                RootView()
-            #endif
+            RootView()
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active || phase == .background else { return }

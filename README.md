@@ -3,7 +3,7 @@
 An iPhone app for meeting people with shared interests as you pass them in real life.
 The current build has sign-in with an emailed code, a verified password, or a
 passkey, password reset, and profile onboarding. The login screen uses the animated
-meadow and glass form; the account screen shares this style. Profile onboarding is server-driven,
+meadow and glass form; profile onboarding shares this style and is server-driven,
 with one field per step.
 An opt-in [StreetPass discovery](docs/architecture.md#streetpass-discovery) mode stays
 enabled until you turn it off and
@@ -17,6 +17,9 @@ welcome pill. Reduce Motion uses
 a crossfade instead. The scenery pauses while entering text, in the background,
 and when Reduce Motion is enabled. The sliders button opens Settings, including
 the API server and a saved System / Light / Dark appearance choice. System is the default.
+The town has an account/avatar button at the top right for profile/photo and sign-out.
+Settings sits immediately to its left for passkeys, discovery, appearance, API, and developer tools.
+Debug tools live inside Settings rather than separate bottom tabs.
 Dark mode adds a night forest with gently glowing fireflies; Reduce Motion freezes their movement.
 The camera follows one walker, with occasional oncoming walkers and a brief wave
 as they pass. These are decorative animations: no encounters are detected or recorded.

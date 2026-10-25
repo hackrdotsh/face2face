@@ -70,28 +70,14 @@ struct ContentView: View {
         .foregroundStyle(MeadowPalette.ink)
         .fontDesign(.rounded)
         .sheet(isPresented: $showingSettings) {
-            SettingsView(session: session)
+            SettingsView(session: session, passkeys: passkeys)
         }
     }
 
     private var toolbar: some View {
-        HStack(spacing: 8) {
-            MeadowHeader {
-                focusedField = nil
-                showingSettings = true
-            }
-            #if DEBUG
-                Button {
-                    session.enterTownPreview()
-                } label: {
-                    Image(systemName: "map")
-                        .frame(width: 44, height: 44)
-                        .background(MeadowPalette.paper, in: Circle())
-                }
-                .accessibilityLabel("Skip to town (debug)")
-                .buttonStyle(MeadowPressStyle())
-                .font(.system(.subheadline, weight: .semibold))
-            #endif
+        MeadowHeader {
+            focusedField = nil
+            showingSettings = true
         }
     }
 

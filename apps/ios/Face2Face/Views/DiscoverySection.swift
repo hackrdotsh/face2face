@@ -19,10 +19,7 @@ struct DiscoverySection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Discovery")
-                .font(.system(.headline, design: .rounded, weight: .heavy))
-                .accessibilityAddTraits(.isHeader)
+        Section {
             Toggle("Discover people nearby", isOn: isOn)
                 .accessibilityIdentifier("discoveryToggle")
                 .disabled(
@@ -47,11 +44,12 @@ struct DiscoverySection: View {
                 Button(model.isRevoking ? "Stopping…" : "Finish stopping") { model.retryRevocation() }
                     .disabled(model.isRevoking)
             }
+        } header: {
+            Text("Discovery")
+        } footer: {
             Text(
                 "Stays on until you turn it off. Background discovery may pause; reopen the app to resume. Matches are anonymous and do not prove physical proximity."
             )
-            .font(.footnote)
-            .foregroundStyle(MeadowPalette.secondaryInk)
         }
     }
 }

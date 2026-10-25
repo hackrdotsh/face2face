@@ -470,7 +470,7 @@ Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required
 
 ### iPhone
 
-- Release builds show a **Discover people nearby** toggle on the home screen. It
+- Settings, opened from the town's top button, contains the **Discover people nearby** toggle. It
   saves an opt-in for that account and API, and shows the current status and match count.
   There is no fixed consent timeout. Turning it off, signing out, changing the API,
   or losing Bluetooth permission clears the opt-in and stops the radio immediately.
@@ -486,8 +486,8 @@ Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required
   credentials, peer observations, and authenticated radio state remain memory-only.
   After process death, reopening the app resumes only after confirming the same
   signed-in account. No authenticated Bluetooth restoration or force-quit wakeup is promised.
-- Debug builds add Walk, Connected, Pocket, and Device test tabs beside the
-  account screen. The Device and Pocket tests are anonymous and never reach the API.
+- Debug builds add Walk, Connected, Pocket, and Device links under **Developer tools**
+  in Settings. The Device and Pocket tests are anonymous and never reach the API.
 - In the background, Bluetooth callbacks may request token renewal and uploads within
   the existing finite execution budget. There are no timer-driven background renewals.
   Without callbacks or an execution grant, discovery pauses when the token expires.

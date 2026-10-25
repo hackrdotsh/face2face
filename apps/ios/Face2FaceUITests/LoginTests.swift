@@ -2,6 +2,19 @@ import XCTest
 
 @MainActor
 final class LoginTests: XCTestCase {
+    func testDeveloperToolsAreInsideSettings() {
+        let app = launchApp(openLogin: false)
+        XCTAssertTrue(app.tabBars.allElementsBoundByIndex.isEmpty)
+        app.buttons["appSettings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 3))
+        reveal(app.buttons["Device test"], in: app)
+        app.buttons["Device test"].tap()
+        XCTAssertTrue(app.navigationBars["StreetPass test"].waitForExistence(timeout: 3))
+        app.navigationBars.buttons["Settings"].tap()
+        app.navigationBars["Settings"].buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["loginStart"].waitForExistence(timeout: 3))
+    }
+
     func testAppearanceSwitchingAndPersistence() {
         let app = launchApp(openLogin: false, appearance: nil)
         app.buttons["appSettings"].tap()

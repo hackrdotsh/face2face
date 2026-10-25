@@ -12,6 +12,7 @@ struct TownView: View {
     @State private var openedPreviewProfile = false
     @State private var destination: TownDestination?
     @State private var showingAccount = false
+    @State private var showingSettings = false
     @State private var showingNotifications = false
 
     init(account: Account, session: SessionModel, passkeys: PasskeyAuthorizer) {
@@ -75,7 +76,7 @@ struct TownView: View {
                 }
             } else {
                 TownScene(
-                    isMoving: destination == nil && !showingAccount && !showingNotifications
+                    isMoving: destination == nil && !showingAccount && !showingSettings && !showingNotifications
                         && friends.selectedID == nil,
                     visitors: friends.visitors, session: session,
                     onSelect: { destination = $0 }, onSelectFriend: { friends.select($0) })
@@ -89,31 +90,12 @@ struct TownView: View {
             TownDestinationView(destination: place, session: session)
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(session: session, passkeys: passkeys)
+        }
         .sheet(isPresented: $showingAccount) {
             NavigationStack {
-                HomeView(account: account, session: session, passkeys: passkeys)
-                    .navigationTitle("Account")
-                    .toolbar {
-                        #if DEBUG
-                            ToolbarItem(placement: .topBarLeading) {
-                                Menu {
-                                    NavigationLink("Walk test") {
-                                        WalkDiscoveryView(model: ConnectedDiscoveryModel.backgroundWalk)
-                                    }
-                                    NavigationLink("Connected test") { ConnectedDiscoveryView() }
-                                    NavigationLink("Pocket test") {
-                                        PocketDiscoveryView(model: PocketDiscoveryModel.shared)
-                                    }
-                                    NavigationLink("Device test") { DiscoveryDiagnosticView() }
-                                } label: {
-                                    Label("Developer tools", systemImage: "hammer")
-                                }
-                            }
-                        #endif
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { showingAccount = false }
-                        }
-                    }
+                AccountView(account: account, session: session)
             }
         }
         .fullScreenCover(isPresented: $showingNotifications) {
@@ -154,6 +136,7 @@ struct TownView: View {
             friends.closeProfile()
         }
         .task(id: account.user.id) {
+            guard !session.isTownPreview else { return }
             await ConnectedDiscoveryModel.backgroundWalk.restore(for: account)
         }
         #if DEBUG
@@ -171,18 +154,24 @@ struct TownView: View {
     }
 
     private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            headerControls
+            Text("Your little town")
+                .font(.system(.title, design: .rounded, weight: .bold))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
+
+    private var headerControls: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("FACE2FACE")
-                    .font(.system(size: 10, weight: .heavy, design: .rounded))
-                    .tracking(3)
-                    .foregroundStyle(MeadowPalette.secondaryInk)
-                Text("Your little town")
-                    .font(.system(.title, design: .rounded, weight: .bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .accessibilityAddTraits(.isHeader)
-            }
+            Text("FACE2FACE")
+                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                .tracking(3)
+                .foregroundStyle(MeadowPalette.secondaryInk)
             Spacer(minLength: 0)
             DiscoveryButton(model: ConnectedDiscoveryModel.backgroundWalk, account: account) {
                 showingAccount = true
@@ -200,6 +189,18 @@ struct TownView: View {
             .accessibilityLabel("Notifications")
             .accessibilityIdentifier("townNotifications")
             Button {
+                showingSettings = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(.headline, weight: .semibold))
+                    .frame(width: 52, height: 52)
+                    .background(MeadowPalette.paper.opacity(0.85), in: Circle())
+                    .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
+            }
+            .buttonStyle(MeadowPressStyle())
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier("appSettings")
+            Button {
                 showingAccount = true
             } label: {
                 AvatarView(avatar: account.user.avatar, session: session, side: 42)
@@ -207,12 +208,10 @@ struct TownView: View {
                     .background(MeadowPalette.paper.opacity(0.85), in: Circle())
                     .overlay(Circle().strokeBorder(MeadowPalette.glassEdge.opacity(0.8)))
             }
-            .accessibilityLabel("Account and settings")
+            .buttonStyle(MeadowPressStyle())
+            .accessibilityLabel("Account")
             .accessibilityIdentifier("townAccount")
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
     }
 }
 
