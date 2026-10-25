@@ -11,13 +11,7 @@ final class SessionModel {
     private(set) var connection = "Not checked"
     let activity = Activity()
 
-    private static var defaultAddress: String {
-        #if DEBUG
-            "https://f2f.rocky.systems"
-        #else
-            ""
-        #endif
-    }
+    private static let defaultAddress = "https://f2f.rocky.systems"
 
     func client() throws -> APIClient {
         let configuration = try self.configuration()
