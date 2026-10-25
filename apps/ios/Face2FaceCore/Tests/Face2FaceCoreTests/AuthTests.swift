@@ -63,7 +63,8 @@ func mapsServerErrors(status: Int, body: String, expected: APIError) async throw
 }
 
 @Test func mapsSignedOutAndOnboardedAccountsToPhases() {
-    let user = User(id: "1", name: "Sam", email: "sam@example.test")
+    let avatar = Avatar(seed: "AAAAAAAAAAAAAAAAAAAAAA", photo: nil)
+    let user = User(id: "1", name: "Sam", email: "sam@example.test", avatar: avatar)
     let ready = Account(user: user, onboardingComplete: true)
     #expect(SessionPhase(account: nil) == .signedOut)
     #expect(SessionPhase(account: ready) == .ready(ready))

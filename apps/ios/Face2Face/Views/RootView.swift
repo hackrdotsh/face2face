@@ -24,8 +24,8 @@ struct RootView: View {
             ProgressView().accessibilityLabel("Loading")
         case .signedOut:
             ContentView(session: session, passkeys: passkeys)
-        case .needsOnboarding:
-            OnboardingView(session: session)
+        case .needsOnboarding(let account):
+            OnboardingView(account: account, session: session)
         case .ready(let account):
             HomeView(account: account, session: session, passkeys: passkeys)
         }

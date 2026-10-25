@@ -22,6 +22,11 @@ public struct APIConfiguration: Sendable {
         guard let url = components.url else { throw APIError.invalidServerURL }
         baseURL = url
     }
+
+    /// Resolves a signed media path, which carries its own query, against the API server.
+    public func mediaURL(for path: String) -> URL? {
+        URL(string: path, relativeTo: baseURL)?.absoluteURL
+    }
 }
 
 public struct HTTPResponse: Sendable {
@@ -52,6 +57,8 @@ struct APIRequest {
     var method = "GET"
     var query: [URLQueryItem] = []
     var body: Data?
+    var contentType = "application/json"
+    var timeout: TimeInterval = 10
     var authenticated = false
     var cookie: String?
 }
@@ -88,10 +95,12 @@ public actor APIClient {
         var urlRequest = URLRequest(url: try url(for: request))
         urlRequest.httpMethod = request.method
         urlRequest.httpBody = request.body
-        urlRequest.timeoutInterval = 10
+        urlRequest.timeoutInterval = request.timeout
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         urlRequest.setValue("face2face://", forHTTPHeaderField: "Origin")
-        if request.body != nil { urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type") }
+        if request.body != nil {
+            urlRequest.setValue(request.contentType, forHTTPHeaderField: "Content-Type")
+        }
         if let cookie = request.cookie { urlRequest.setValue(cookie, forHTTPHeaderField: "Cookie") }
         if request.authenticated {
             guard let token = try await tokens.load() else { throw APIError.unauthenticated }

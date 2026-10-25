@@ -9,6 +9,8 @@ public enum FieldType: Equatable, Sendable {
     case text
     case date
     case singleChoice
+    /// Set by uploading a profile photo, never by an onboarding update.
+    case image
     /// A field type this build of the app does not know how to render.
     case unsupported(String)
 
@@ -17,6 +19,7 @@ public enum FieldType: Equatable, Sendable {
         case "text": self = .text
         case "date": self = .date
         case "singleChoice": self = .singleChoice
+        case "image": self = .image
         default: self = .unsupported(rawValue)
         }
     }
@@ -43,6 +46,8 @@ public enum FieldValue: Encodable, Sendable, Equatable {
     /// A calendar date as `YYYY-MM-DD`.
     case date(String)
     case choice(ChoiceValue)
+    /// The uploaded photo of an `image` field. The server never accepts it as an update.
+    case photo(ProfilePhoto)
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
@@ -50,6 +55,7 @@ public enum FieldValue: Encodable, Sendable, Equatable {
         case .text(let text): try container.encode(text)
         case .date(let date): try container.encode(date)
         case .choice(let choice): try container.encode(choice)
+        case .photo(let photo): try container.encode(photo)
         }
     }
 }
@@ -94,6 +100,7 @@ public struct OnboardingField: Decodable, Sendable, Equatable, Identifiable {
         case .date: try container.decodeIfPresent(String.self, forKey: .value).map(FieldValue.date)
         case .singleChoice:
             try container.decodeIfPresent(ChoiceValue.self, forKey: .value).map(FieldValue.choice)
+        case .image: try container.decodeIfPresent(ProfilePhoto.self, forKey: .value).map(FieldValue.photo)
         case .unsupported: nil
         }
     }

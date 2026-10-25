@@ -6,6 +6,9 @@ struct OnboardingFieldView: View {
     let field: OnboardingField
     @Binding var form: OnboardingForm
     let error: String?
+    /// The signed-in person's avatar, for `image` fields.
+    let avatar: Avatar
+    let session: SessionModel
 
     var body: some View {
         input
@@ -31,6 +34,8 @@ struct OnboardingFieldView: View {
             if form.selectedOption(for: field)?.allowsDescription == true {
                 TextField("Describe", text: draft.description)
             }
+        case .image:
+            ProfilePhotoEditor(avatar: avatar, session: session)
         case .unsupported:
             EmptyView()
         }

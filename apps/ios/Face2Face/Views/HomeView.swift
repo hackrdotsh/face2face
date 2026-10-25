@@ -15,6 +15,7 @@ struct HomeView: View {
     var body: some View {
         Form {
             Section("Account") {
+                ProfilePhotoEditor(avatar: account.user.avatar, session: session)
                 Text(account.user.name)
                 Text(account.user.email).foregroundStyle(.secondary)
                 Button("Sign out") { Task { await session.signOut() } }

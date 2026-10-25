@@ -57,7 +57,7 @@ private var tokyo: Calendar {
         {"complete":false,"fields":[
           {"key":"name","type":"text","label":"Name","required":true,"value":"Sam"},
           {"key":"pronouns","type":"text","label":"Pronouns","required":true,"value":null},
-          {"key":"photo","type":"image","label":"Photo","required":true,"value":null}
+          {"key":"voice","type":"audio","label":"Voice note","required":true,"value":null}
         ]}
         """#)
     let form = OnboardingForm(state: returning)

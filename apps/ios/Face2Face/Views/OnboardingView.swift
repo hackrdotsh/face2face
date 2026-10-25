@@ -2,9 +2,13 @@ import Face2FaceCore
 import SwiftUI
 
 struct OnboardingView: View {
+    let account: Account
+    private let session: SessionModel
     @State private var model: OnboardingModel
 
-    init(session: SessionModel) {
+    init(account: Account, session: SessionModel) {
+        self.account = account
+        self.session = session
         _model = State(initialValue: OnboardingModel(session: session))
     }
 
@@ -16,7 +20,11 @@ struct OnboardingView: View {
                 }
                 ForEach(form.wrappedValue.fields) { field in
                     Section {
-                        OnboardingFieldView(field: field, form: form, error: model.fieldErrors[field.key])
+                        OnboardingFieldView(
+                            field: field, form: form, error: model.fieldErrors[field.key],
+                            avatar: account.user.avatar, session: session)
+                    } header: {
+                        if field.type == .image { Text(field.label) }
                     }
                 }
                 Section {

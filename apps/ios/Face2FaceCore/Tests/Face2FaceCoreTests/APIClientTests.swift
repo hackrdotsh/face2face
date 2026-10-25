@@ -31,7 +31,10 @@ func response(
     HTTPResponse(status: status, data: Data(json.utf8), authToken: token, cookies: cookies)
 }
 
-let accountJSON = #"{"user":{"id":"1","name":"Test","email":"test@example.test"},"onboardingComplete":false}"#
+let accountJSON = #"""
+    {"user":{"id":"1","name":"Test","email":"test@example.test",
+    "avatar":{"seed":"AAAAAAAAAAAAAAAAAAAAAA","photo":null}},"onboardingComplete":false}
+    """#
 
 func configuration() throws -> APIConfiguration {
     try APIConfiguration(address: "https://api.example.test")
