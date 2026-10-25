@@ -22,6 +22,7 @@ public struct User: Codable, Sendable, Equatable {
     public let name: String
     public let email: String
     public let avatar: Avatar
+    public let statusMessage: String?
 }
 
 public struct Account: Codable, Sendable, Equatable {

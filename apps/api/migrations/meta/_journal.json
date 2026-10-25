@@ -92,6 +92,13 @@
       "when": 1792926568230,
       "tag": "0012_push_device",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1792932498942,
+      "tag": "0013_profile_status_message",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,8 @@ final class PublicFriendsUITests: XCTestCase {
             XCTAssertFalse(app.buttons["town-friend-hidden-\(status)"].exists)
             XCTAssertFalse(app.staticTexts["Hidden \(status)"].exists)
         }
+        XCTAssertEqual(ava.value as? String, "Status: Looking for a hiking buddy this weekend")
+        XCTAssertEqual(app.buttons["town-friend-preview-cleo"].value as? String, "")
         XCTAssertGreaterThanOrEqual(ava.frame.width, 44)
         XCTAssertGreaterThanOrEqual(ava.frame.height, 44)
         capture("public-friend-npcs")
@@ -20,6 +22,9 @@ final class PublicFriendsUITests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         XCTAssertEqual(name.label, "Ava, 26")
         XCTAssertTrue(app.staticTexts["Public connection"].exists)
+        let statusMessage = app.staticTexts["publicProfileStatusMessage"]
+        XCTAssertTrue(statusMessage.exists)
+        XCTAssertEqual(statusMessage.label, "Status: Looking for a hiking buddy this weekend")
         capture("compact-public-profile")
         app.buttons["publicProfileClose"].tap()
         XCTAssertTrue(ava.waitForExistence(timeout: 5))

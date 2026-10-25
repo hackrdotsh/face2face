@@ -86,7 +86,7 @@ final class ForumsUITests: XCTestCase {
     }
     func testCanLeavePastEventButCannotJoinAgain() {
         let app = launch()
-        app.segmentedControls["forumTabs"].buttons["Your forums"].tap()
+        app.segmentedControls["forumTabs"].buttons["Your Forums"].tap()
         app.buttons["forum-coffee"].tap()
         let past = app.buttons["forum-post-preview-past"]
         XCTAssertTrue(past.waitForExistence(timeout: 5))

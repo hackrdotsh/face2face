@@ -19,6 +19,7 @@ export const profile = sqliteTable("profile", {
   genderId: text("gender_id").references(() => gender.id),
   genderDescription: text("gender_description"),
   photoId: text("photo_id"),
+  statusMessage: text("status_message"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });

@@ -77,9 +77,16 @@ final class ChatUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["chatTitle"].label, "Ava")
         capture("profile-to-chat")
     }
-    private func launch() -> XCUIApplication {
+    func testPrivateChatShowsTheirBlobThinking() {
+        let app = launch(extra: ["-town-chat", "preview-private", "-chat-preview-typing"])
+        XCTAssertTrue(app.staticTexts["chatTitle"].waitForExistence(timeout: 8))
+        XCTAssertEqual(app.staticTexts["chatTitle"].label, "Anonymous connection")
+        XCTAssertTrue(app.otherElements["chatTyping"].waitForExistence(timeout: 5))
+        capture("private-chat-typing")
+    }
+    private func launch(extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-town-preview", "-appearance", "light"]
+        app.launchArguments = ["-town-preview", "-appearance", "light"] + extra
         app.launch()
         return app
     }

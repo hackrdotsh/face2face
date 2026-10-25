@@ -82,7 +82,7 @@ struct ForumsView: View {
                             }
                             Picker("Notice board", selection: $tab) {
                                 Text("Upcoming").tag(0)
-                                Text("Your forums").tag(1)
+                                Text("Your Forums").tag(1)
                             }.pickerStyle(.segmented).accessibilityIdentifier("forumTabs")
                             if tab == 0 {
                                 ForumPostList(model: upcoming, session: session, forums: model.forums)

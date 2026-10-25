@@ -108,17 +108,19 @@ final class TownFriendsModel {
             if state == "error" { throw APIError.server(503) }
             if state == "empty" { return [] }
             let status = state == "revoked" && request > 1 ? "private" : "public"
-            let people = [
-                ("ava", "Ava", 26, ["music", "coffee", "hiking"]),
-                ("cleo", "Cleo", 24, ["art", "coffee"]), ("noor", "Noor", 28, ["music", "books"]),
+            let people: [(String, String, Int, [String], String?)] = [
+                ("ava", "Ava", 26, ["music", "coffee", "hiking"], "Looking for a hiking buddy this weekend"),
+                ("cleo", "Cleo", 24, ["art", "coffee"], nil),
+                ("noor", "Noor", 28, ["music", "books"], "Ask me about the book I just finished"),
             ]
-            var rows: [[String: Any]] = people.map { id, name, age, interests in
+            var rows: [[String: Any]] = people.map { id, name, age, interests, statusMessage in
                 [
                     "id": "preview-\(id)", "status": status, "sharedInterests": ["coffee"],
                     "expiresAt": "2026-10-26T00:00:00Z",
                     "them": [
                         "userId": id, "name": name, "age": age, "interests": interests,
                         "avatar": ["seed": id == "ava" ? "AAAAAAAAAAAAAAAAAAAAAA" : "AQIDBAUGBwgJCgsMDQ4PEA"],
+                        "statusMessage": statusMessage.map { $0 as Any } ?? NSNull(),
                     ],
                 ]
             }

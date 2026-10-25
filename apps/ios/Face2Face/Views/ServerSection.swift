@@ -4,7 +4,7 @@ struct ServerSection: View {
     @Bindable var session: SessionModel
 
     var body: some View {
-        Section("API server") {
+        Section("API Server") {
             TextField("API URL", text: $session.serverAddress)
                 .keyboardType(.URL)
                 .textInputAutocapitalization(.never)

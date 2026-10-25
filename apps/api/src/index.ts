@@ -13,6 +13,7 @@ import { getOnboardingState } from "./onboarding/onboarding";
 import { webOrigins } from "./origins";
 import { photoViewer, viewAvatar } from "./profiles/person";
 import { findPhotoId } from "./profiles/photo-store";
+import { findStatusMessage } from "./profiles/status-store";
 import { chatRoutes } from "./routes/chats";
 import { connectionRoutes } from "./routes/connections";
 import { devRoutes } from "./routes/dev";
@@ -79,7 +80,7 @@ app.get("/api/me", requireSession, async (context) => {
   const { id, name, email } = context.var.user;
   const db = createDatabase(context.env);
   const now = new Date();
-  const [onboarding, photoId] = await Promise.all([
+  const [onboarding, photoId, statusMessage] = await Promise.all([
     getOnboardingState(
       db,
       photoViewer(context.env, now),
@@ -88,10 +89,11 @@ app.get("/api/me", requireSession, async (context) => {
       now,
     ),
     findPhotoId(db, id),
+    findStatusMessage(db, id),
   ]);
   const avatar = await viewAvatar(mediaSecret(context.env), id, photoId, now);
   return context.json({
-    user: { id, name, email, avatar },
+    user: { id, name, email, avatar, statusMessage },
     onboardingComplete: onboarding.complete,
   });
 });

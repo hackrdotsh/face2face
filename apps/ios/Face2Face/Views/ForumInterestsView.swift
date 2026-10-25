@@ -19,7 +19,7 @@ struct ForumInterestsView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Your interests").font(.headline)
+                Text("Your Interests").font(.headline)
                 Spacer()
                 Button("Done") {
                     dismiss()

@@ -1,10 +1,6 @@
-import { publicCounterparts } from "../connections/connections";
+import { loadCounterparts } from "../connections/connections";
 import type { Connection } from "../connections/lifecycle";
-import {
-  findConnectionFor,
-  listConnectionsFor,
-  loadPublicProfiles,
-} from "../connections/store";
+import { findConnectionFor, listConnectionsFor } from "../connections/store";
 import { viewConnection } from "../connections/view";
 import type { Database } from "../db/client";
 import type { PersonViewer } from "../profiles/person";
@@ -52,16 +48,17 @@ async function summarize(
   now: Date,
 ): Promise<ChatSummary[]> {
   const chatRows = rows.filter((row) => chatAccessFor(row, userId));
-  const profiles = await loadPublicProfiles(
+  const counterparts = await loadCounterparts(
     db,
     viewPerson,
-    publicCounterparts(chatRows, userId),
+    chatRows,
+    userId,
     now,
   );
   return Promise.all(
     chatRows.flatMap((row) => {
       const access = chatAccessFor(row, userId);
-      const connection = viewConnection(row, userId, profiles);
+      const connection = viewConnection(row, userId, counterparts);
       if (!access || !connection) return [];
       return rooms
         .getByName(row.id)

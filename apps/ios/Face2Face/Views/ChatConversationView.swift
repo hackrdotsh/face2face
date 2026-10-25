@@ -310,7 +310,7 @@ struct ChatConversationView: View {
                         }
                     }
                     if model.theyAreTyping {
-                        Text("Typing…").font(.caption).foregroundStyle(MeadowPalette.secondaryInk)
+                        TypingThought(avatar: model.summary?.connection.avatar, session: session)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     Color.clear.frame(height: 1).id("chatBottom")
@@ -471,5 +471,59 @@ private struct ChatRemotePhoto: View {
                 image = decoded
             } catch { if !Task.isCancelled { failed = true } }
         }
+    }
+}
+
+/// The other person's blob with a thought bubble while they type.
+struct TypingThought: View {
+    let avatar: Avatar?
+    let session: SessionModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 4) {
+            Group {
+                if let avatar {
+                    AvatarView(avatar: avatar, session: session, side: 30)
+                } else {
+                    Circle().fill(MeadowPalette.accent).frame(width: 30, height: 30)
+                }
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                cloud
+                HStack(alignment: .bottom, spacing: 3) {
+                    Circle().frame(width: 5, height: 5)
+                    Circle().frame(width: 8, height: 8)
+                }
+                .foregroundStyle(MeadowPalette.paper)
+                .padding(.leading, 2)
+            }
+            .offset(y: -18)
+        }
+        .padding(.top, 18)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Typing")
+        .accessibilityIdentifier("chatTyping")
+    }
+
+    private var cloud: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 20, paused: reduceMotion)) { timeline in
+            let phase = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 5) {
+                ForEach(0..<3) { index in
+                    Circle()
+                        .fill(MeadowPalette.secondaryInk)
+                        .frame(width: 7, height: 7)
+                        .opacity(reduceMotion ? 0.7 : 0.35 + 0.65 * pulse(phase, index))
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(MeadowPalette.paper, in: Capsule())
+            .overlay(Capsule().strokeBorder(MeadowPalette.glassEdge.opacity(0.6)))
+        }
+    }
+
+    private func pulse(_ time: TimeInterval, _ index: Int) -> Double {
+        (sin(time * 5 - Double(index) * 0.9) + 1) / 2
     }
 }

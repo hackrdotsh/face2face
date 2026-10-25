@@ -532,7 +532,7 @@ describe("message notifications", () => {
       badge: 1,
       data: { kind: "message", chatId },
     });
-    expect(JSON.stringify(alerts)).not.toMatch(/seed-|Ava|Ben/);
+    expect(JSON.stringify(alerts)).not.toMatch(/seed-|\bAva\b|\bBen\b/);
     const { notifications, unreadCount } = await inbox(benHeaders);
     expect(notifications.filter((n) => n.kind === "message")).toEqual([
       expect.objectContaining({ kind: "message", chatId }),

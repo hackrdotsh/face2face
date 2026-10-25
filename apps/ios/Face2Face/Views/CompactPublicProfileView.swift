@@ -10,7 +10,7 @@ struct CompactPublicProfileView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Public profile").font(.headline)
+                Text("Public Profile").font(.headline)
                 Spacer()
                 Button {
                     dismiss()
@@ -65,6 +65,21 @@ struct CompactPublicProfileView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(MeadowPalette.secondaryInk)
                 }
+            }
+            if let statusMessage = friend.statusMessage {
+                Label {
+                    Text(statusMessage)
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "text.bubble.fill").foregroundStyle(MeadowPalette.secondaryInk)
+                }
+                .font(.body.weight(.medium))
+                .padding(.horizontal, 16).padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(MeadowPalette.paper, in: RoundedRectangle(cornerRadius: MeadowRadius.control))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Status: \(statusMessage)")
+                .accessibilityIdentifier("publicProfileStatusMessage")
             }
             if !friend.interests.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {

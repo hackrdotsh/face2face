@@ -27,7 +27,7 @@ struct CircleCropView: View {
             }
             .padding(.bottom, 24)
             .background(Color.black)
-            .navigationTitle("Move and scale")
+            .navigationTitle("Move and Scale")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {

@@ -67,6 +67,7 @@ import Foundation
                 "connection": [
                     "id": connection.id, "status": "private", "sharedInterests": connection.sharedInterests,
                     "expiresAt": connection.expiresAt, "them": NSNull(),
+                    "theirAvatar": connection.theirAvatar.map { ["seed": $0.seed] as Any } ?? NSNull(),
                     "you": ["decision": "accepted", "decidedAt": NSNull(), "publicAt": NSNull()],
                 ],
                 "lastMessage": NSNull(), "unreadCount": 0,
@@ -81,7 +82,7 @@ import Foundation
                 "them":{"userId":"ava","name":"Ava","age":26,"interests":["music","coffee"],"avatar":{"seed":"AAAAAAAAAAAAAAAAAAAAAA"}},
                 "expiresAt":"2026-10-26T00:00:00Z"},"lastMessage":null,"unreadCount":2},
                 {"id":"preview-private","connection":{"id":"preview-private","status":"private","sharedInterests":["hiking"],
-                "them":null,"you":{"decision":"accepted","decidedAt":null,"publicAt":null},"expiresAt":"2026-10-26T00:00:00Z"},"lastMessage":null,"unreadCount":0},
+                "them":null,"theirAvatar":{"seed":"EBEREhMUFRYXGBkaGxwdHg"},"you":{"decision":"accepted","decidedAt":null,"publicAt":null},"expiresAt":"2026-10-26T00:00:00Z"},"lastMessage":null,"unreadCount":0},
                 {"id":"preview-cleo","connection":{"id":"preview-cleo","status":"public","sharedInterests":["coffee"],
                 "them":{"userId":"cleo","name":"Cleo","age":24,"interests":["coffee"],"avatar":{"seed":"AQIDBAUGBwgJCgsMDQ4PEA"}},
                 "expiresAt":"2026-10-26T00:00:00Z"},"lastMessage":null,"unreadCount":0},

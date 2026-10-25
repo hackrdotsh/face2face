@@ -183,6 +183,13 @@ final class EncountersModel {
             let index = args.firstIndex(of: "-encounters-preview-state")
             self.state = state ?? index.flatMap { args.indices.contains($0 + 1) ? args[$0 + 1] : nil }
         }
+        private func previewSeed(_ id: String) -> String {
+            switch id {
+            case "preview-chance": "AQIDBAUGBwgJCgsMDQ4PEA"
+            case "preview-decline": "EBEREhMUFRYXGBkaGxwdHg"
+            default: "ICEiIyQlJicoKSorLC0uLw"
+            }
+        }
         private func seed() {
             guard rows.isEmpty else { return }
             let formatter = ISO8601DateFormatter()
@@ -201,6 +208,7 @@ final class EncountersModel {
                         "decidedAt": answer.isEmpty ? NSNull() : formatter.string(from: Date()) as Any,
                         "publicAt": NSNull(),
                     ],
+                    "theirAvatar": ["seed": previewSeed(id)],
                     // Adversarial identity-shaped data: the pending UI must never render it.
                     "them": [
                         "userId": "hidden-peer", "name": "Must stay hidden", "age": 27,

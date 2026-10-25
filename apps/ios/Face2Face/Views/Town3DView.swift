@@ -141,6 +141,14 @@ private struct TownRealityScene: View {
                                     }
                                     .frame(width: 76, height: 66)
                                     .contentShape(Rectangle())
+                                    .overlay(alignment: .top) {
+                                        if let statusMessage = friend.statusMessage {
+                                            TownSpeechBubble(
+                                                text: statusMessage, seed: friend.userId, time: time
+                                            )
+                                            .offset(y: -44)
+                                        }
+                                    }
                                 }
                                 .buttonStyle(.plain)
                                 .scaleEffect(scale)
@@ -149,6 +157,7 @@ private struct TownRealityScene: View {
                                     y: origin.y + (pose.point.y - 4) * scale
                                 )
                                 .accessibilityLabel("\(friend.name), public friend")
+                                .accessibilityValue(friend.statusMessage.map { "Status: \($0)" } ?? "")
                                 .accessibilityHint(
                                     "Opens their public profile. Not live location or online status."
                                 )

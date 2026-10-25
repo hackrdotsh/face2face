@@ -58,6 +58,10 @@ struct TownFriendNPC: View {
                 .overlay(Capsule().strokeBorder(MeadowPalette.accentShadow.opacity(0.55)))
                 .frame(maxWidth: 72)
                 .position(x: 36, y: 49)
+            if let statusMessage = friend.statusMessage {
+                TownSpeechBubble(text: statusMessage, seed: friend.userId, time: time)
+                    .position(x: 36, y: -24)
+            }
         }
         .frame(width: 72, height: 64)
         .accessibilityHidden(true)

@@ -90,6 +90,7 @@ struct TownView: View {
                                     MeadowPalette.paper, in: RoundedRectangle(cornerRadius: 20))
                             }
                             .accessibilityLabel("\(friend.name), public friend")
+                            .accessibilityValue(friend.statusMessage.map { "Status: \($0)" } ?? "")
                             .accessibilityIdentifier("town-friend-\(friend.id)")
                         }
                     }.padding(.horizontal, 20)
@@ -274,7 +275,7 @@ struct TownView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             headerControls
-            Text("Your little town")
+            Text("Your Little Town")
                 .font(.system(.title, design: .rounded, weight: .bold))
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
@@ -484,7 +485,7 @@ enum TownDestination: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .encounters: "Recently encountered"
+        case .encounters: "Recently Encountered"
         case .connections: "Connections"
         case .forums: "Forums"
         }

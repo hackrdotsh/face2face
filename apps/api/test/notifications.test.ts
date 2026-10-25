@@ -191,7 +191,7 @@ describe("push devices", () => {
         data: { kind: "encounter", connectionId: connection.id },
       },
     });
-    expect(JSON.stringify(sent)).not.toMatch(/seed-|Ava|Ben/);
+    expect(JSON.stringify(sent)).not.toMatch(/seed-|\bAva\b|\bBen\b/);
   });
 
   it("sends when both people say yes", async () => {
