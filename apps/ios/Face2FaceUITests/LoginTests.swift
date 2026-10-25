@@ -2,6 +2,29 @@ import XCTest
 
 @MainActor
 final class LoginTests: XCTestCase {
+    func testForestRendererCanSwitchWithoutLosingLogin() {
+        let app = launchApp(openLogin: false)
+        app.buttons["appSettings"].tap()
+        let forest = app.switches["forest3DToggle"]
+        XCTAssertTrue(forest.waitForExistence(timeout: 4))
+        XCTAssertTrue(forest.isEnabled)
+        capture("Forest renderer settings")
+        if forest.value as? String == "1" {
+            forest.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        }
+        XCTAssertEqual(forest.value as? String, "0")
+        app.navigationBars.buttons["Done"].tap()
+        capture("2D forest fallback")
+        XCTAssertTrue(app.buttons["loginStart"].isHittable)
+        app.buttons["appSettings"].tap()
+        forest.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        XCTAssertEqual(forest.value as? String, "1")
+        app.navigationBars.buttons["Done"].tap()
+        capture("3D forest")
+        app.buttons["loginStart"].tap()
+        XCTAssertTrue(app.textFields["emailField"].waitForExistence(timeout: 5))
+    }
+
     func testDeveloperToolsAreInsideSettings() {
         let app = launchApp(openLogin: false)
         XCTAssertTrue(app.tabBars.allElementsBoundByIndex.isEmpty)

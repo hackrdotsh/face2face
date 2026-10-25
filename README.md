@@ -10,7 +10,10 @@ enabled until you turn it off and
 turns a reciprocal Bluetooth match into an anonymous chance to connect. It is not
 validated on hardware yet, and a match does not prove that two people were near.
 
-The welcome screen is a scrolling pastel meadow. **Get Started** expands into the
+On iOS 18 and later, the welcome, onboarding, and profile backgrounds are a 3D forest
+with layered pines and rounded versions of the blob avatars. **Settings → 3D forest**
+switches back to the original 2D meadow; iOS 17 uses it automatically. The town is unchanged.
+**Get Started** expands into the
 account form, then the controls pop in sequentially after the glass finishes
 expanding; closing reverses the sequence before the glass shrinks back to the
 welcome pill. Reduce Motion uses

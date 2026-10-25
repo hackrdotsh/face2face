@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A decorative walking scene. Greetings are animation, not recorded encounters.
-struct MeadowScene: View {
+struct MeadowCanvasScene: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase

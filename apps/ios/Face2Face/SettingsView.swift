@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearance = AppAppearance.system
+    @AppStorage("forest3DEnabled") private var forest3DEnabled = true
     @Bindable var session: SessionModel
 
     private var account: Account? {
@@ -22,6 +23,10 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("appearancePicker")
+                    if #available(iOS 18.0, *) {
+                        Toggle("3D forest", isOn: $forest3DEnabled)
+                            .accessibilityIdentifier("forest3DToggle")
+                    }
                 }
                 Section("API server") {
                     TextField("API URL", text: $session.serverAddress)

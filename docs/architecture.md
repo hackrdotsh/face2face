@@ -23,6 +23,25 @@ Swift core tests run on Linux and Mac. Keychain and SwiftUI need Apple's SDKs;
 the macOS CI job builds the simulator target. Physical-device behavior still
 requires Xcode and an iPhone. Generated projects and local build output are ignored.
 
+## Decorative forest
+
+`MeadowScene` chooses the RealityKit forest on iOS 18+ when the saved **3D forest**
+appearance preference is on. iOS 17, an explicit opt-out, or an asset-generation
+failure uses `MeadowCanvasScene`. Login, onboarding, and profile share this wrapper;
+the town and its real public-friend visitors are not part of this prototype.
+
+The camera is orthographic and virtual, not AR: there is no camera permission,
+tracking session, downloaded model, or new dependency. Pine meshes are generated
+once and shared by a finite repeating grid. The three decorative blobs use the
+existing `BlobAvatar` silhouette, gradients, pill eyes, and idle timing;
+`BlobVolume` supplies portable, tested mesh geometry.
+
+A view-owned task updates transforms approximately 30 times per second while the
+screen is moving and active. It cancels on disappearance, backgrounding, or Reduce
+Motion; paused frames retain their pose. Light/dark changes repaint the scene
+without rebuilding geometry. Long-running battery usage and frame pacing still
+need measurement on hardware. Decorative crossings never record encounters.
+
 ## Accounts and onboarding
 
 Better Auth owns sign-in. A person can use any of these methods:
