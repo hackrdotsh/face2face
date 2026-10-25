@@ -17,11 +17,18 @@ struct TownView: View {
     @State private var showingNotifications = false
     @State private var chatRoute: ChatRoute?
     @State private var queuedChat: ChatRoute?
+    @State private var showingCampfire = false
+    @State private var pendingSurfaceURL: URL?
+    @Binding private var incomingSurfaceURL: URL?
 
-    init(account: Account, session: SessionModel, passkeys: PasskeyAuthorizer) {
+    init(
+        account: Account, session: SessionModel, passkeys: PasskeyAuthorizer,
+        incomingSurfaceURL: Binding<URL?> = .constant(nil)
+    ) {
         self.account = account
         self.session = session
         self.passkeys = passkeys
+        _incomingSurfaceURL = incomingSurfaceURL
         _friends = State(initialValue: TownFriendsModel(session: session))
     }
 
@@ -81,7 +88,7 @@ struct TownView: View {
                 TownScene(
                     isMoving: destination == nil && !showingAccount && !showingSettings
                         && !showingNotifications
-                        && friends.selectedID == nil && chatRoute == nil,
+                        && friends.selectedID == nil && chatRoute == nil && !showingCampfire,
                     visitors: friends.visitors, session: session,
                     onSelect: { destination = $0 }, onSelectFriend: { friends.select($0) }
                 )
@@ -91,33 +98,44 @@ struct TownView: View {
         .background(MeadowPalette.grass.ignoresSafeArea())
         .foregroundStyle(MeadowPalette.ink)
         .fontDesign(.rounded)
-        .onOpenURL { url in
-            guard url == BlobSurface.townURL else { return }
+        .onChange(of: incomingSurfaceURL, initial: true) { _, incoming in
+            guard let url = incoming else { return }
+            incomingSurfaceURL = nil
+            guard url == BlobSurface.townURL || url == BlobSurface.connectionsURL else { return }
+            let presented =
+                destination != nil || showingAccount || showingSettings || showingNotifications
+                || showingCampfire || friends.selectedID != nil || chatRoute != nil
+            pendingSurfaceURL = url
             destination = nil
             showingAccount = false
             showingSettings = false
             showingNotifications = false
+            showingCampfire = false
             queuedChat = nil
             chatRoute = nil
             friends.closeProfile()
+            if !presented { finishSurfaceRoute() }
         }
         .toolbar(.hidden, for: .navigationBar, .tabBar)
-        .sheet(item: $destination) { place in
+        .sheet(item: $destination, onDismiss: finishSurfaceRoute) { place in
             TownDestinationView(destination: place, session: session)
                 .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $showingSettings) {
+        .sheet(isPresented: $showingCampfire, onDismiss: finishSurfaceRoute) {
+            CampfireCircleView(account: account, session: session)
+        }
+        .sheet(isPresented: $showingSettings, onDismiss: finishSurfaceRoute) {
             SettingsView(session: session)
         }
-        .sheet(isPresented: $showingAccount) {
+        .sheet(isPresented: $showingAccount, onDismiss: finishSurfaceRoute) {
             NavigationStack {
                 AccountView(account: account, session: session, passkeys: passkeys)
             }
         }
-        .fullScreenCover(isPresented: $showingNotifications) {
+        .fullScreenCover(isPresented: $showingNotifications, onDismiss: finishSurfaceRoute) {
             NotificationsView(session: session)
         }
-        .fullScreenCover(item: $chatRoute) { route in
+        .fullScreenCover(item: $chatRoute, onDismiss: finishSurfaceRoute) { route in
             NavigationStack { ChatConversationView(chatID: route.id, session: session) }
         }
         .sheet(
@@ -129,6 +147,7 @@ struct TownView: View {
                     chatRoute = queuedChat
                     self.queuedChat = nil
                 }
+                finishSurfaceRoute()
             }
         ) {
             CompactPublicProfileView(
@@ -144,6 +163,9 @@ struct TownView: View {
                 return
             }
             await friends.refresh()
+            if UserDefaults.standard.bool(forKey: CampfireStore.preferenceKey) {
+                await CampfireWidgetModel.shared.refresh(session: session)
+            }
             #if DEBUG
                 if !openedPreviewProfile, ProcessInfo.processInfo.arguments.contains("-town-friend-profile"),
                     let friend = friends.visitors.first
@@ -155,6 +177,9 @@ struct TownView: View {
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(60)) } catch { return }
                 await friends.refresh()
+                if UserDefaults.standard.bool(forKey: CampfireStore.preferenceKey) {
+                    await CampfireWidgetModel.shared.refresh(session: session)
+                }
             }
         }
         .onDisappear {
@@ -197,10 +222,34 @@ struct TownView: View {
                 .font(.system(.title, design: .rounded, weight: .bold))
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
+            Button {
+                showingCampfire = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "flame.fill").foregroundStyle(Color.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Around the campfire").font(.subheadline.weight(.bold))
+                        Text("Your circle. One little fire.").font(.caption).foregroundStyle(
+                            MeadowPalette.secondaryInk)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.caption.bold())
+                }
+                .padding(12).background(
+                    MeadowPalette.paper.opacity(0.9), in: RoundedRectangle(cornerRadius: 18))
+            }
+            .buttonStyle(MeadowPressStyle())
+            .accessibilityIdentifier("townCampfire")
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)
         .padding(.bottom, 8)
+    }
+
+    private func finishSurfaceRoute() {
+        guard let url = pendingSurfaceURL else { return }
+        pendingSurfaceURL = nil
+        if url == BlobSurface.connectionsURL { destination = .connections }
     }
 
     private var headerControls: some View {

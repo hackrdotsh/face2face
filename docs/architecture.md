@@ -114,7 +114,12 @@ photo to `PUT /api/profile/photo`. `PATCH /api/onboarding` refuses a value for i
 
 ### Profile photos and avatars
 
-A person can add one profile photo. A person without a photo gets a blob
+The native app now renders seeded blobs for every avatar and offers no profile
+photo picker in account or onboarding. Existing photo records and the HTTP upload/
+delete APIs described below remain intact for compatibility; this is not a data
+deletion migration. Chat photo attachments are unchanged.
+
+A person can add one profile photo through the API. A person without a photo gets a blob
 avatar. Forum members and public connections see it. The person API shape is
 `{ userId, name, avatar }`, and `avatar` is `{ seed, photo }`.
 - `PUT /api/profile/photo` takes multipart field `image`, up to 15 MB. It

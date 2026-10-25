@@ -29,6 +29,7 @@ struct SettingsView: View {
                     }
                 }
                 BlobCompanionSection(seed: account?.user.avatar.seed)
+                CampfireSettingsSection(session: session)
                 Section("API server") {
                     TextField("API URL", text: $session.serverAddress)
                         .keyboardType(.URL)

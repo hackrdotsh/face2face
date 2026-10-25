@@ -25,7 +25,10 @@ welcome pill. Reduce Motion uses
 a crossfade instead. The scenery pauses while entering text, in the background,
 and when Reduce Motion is enabled. The sliders button opens Settings, including
 the API server and a saved System / Light / Dark appearance choice. System is the default.
-The town has an account/avatar button at the top right for profile/photo, discovery, passkeys, and sign-out.
+The town has an account/avatar button at the top right for your blob profile, discovery, passkeys, and sign-out.
+Native profiles are blob-only: no photo picker is offered, and existing uploaded
+photos are left untouched on the server. Blobs squish, sway, hop, blink and glance;
+tap your profile blob for a happy jump. Reduce Motion freezes decorative movement.
 Settings sits immediately to its left for appearance, API, and developer tools.
 Debug tools live inside Settings rather than separate bottom tabs.
 Dark mode adds a night forest with gently glowing fireflies; Reduce Motion freezes their movement.
@@ -35,15 +38,37 @@ show it in the Dynamic Island; all supported iPhones get a Lock Screen layout.
 Tap the in-app preview to make it bounce. Breathing, blinking, bobbing, and ripple
 animations pause in the background and respect Reduce Motion. iOS controls Live
 Activity rendering; the Island does not run a continuous animation loop.
+**Anonymous signal graph** is a separate opt-in under Blob companion. It only uses
+observations from discovery you have already enabled; it never starts scanning on
+its own. Quantized bars represent a short, aggregate Bluetooth signal history, not
+metres, direction, verified proximity, microphone audio, or a particular person.
+The graph never logs, persists, or uploads raw RSSI, or links samples to devices/accounts. The Island uses
+short, coalesced update animations; iOS controls delivery, especially in the background.
+Signal bars expire after 12 seconds without a fresh sample. A stale signal does
+not end the one-hour companion.
+The hand-wave button on the expanded Island or Lock Screen makes your blob react
+with a short update animation, without enabling discovery or extending the session.
 Dismissal, sign-out, and API/account changes stop the companion. After an hour it
 shows a resting state if iOS has suspended the app, and is removed when the app runs
 again. It never restarts without another explicit toggle.
 
-Add **face2face → A little company** from the Home Screen or Lock Screen widget
-gallery. Small, medium, circular, rectangular, and inline layouts are available.
-The widget's decorative blob changes daily (on iOS's refresh schedule); tapping it
-opens the app, with normal authentication still required. It does not show live
-presence, matches, or private account data, and needs no shared Keychain or App Group.
+Open **Around the campfire** in town to see your accepted connections as blobs.
+The fire is symbolic, not live attendance, location, or online status. Private
+connections use anonymous names and decorative blobs even if an unexpected response
+contains identity-shaped fields. Only mutually public friends get names and their
+own seeded avatars. Larger circles have readable pages, not silently omitted friends.
+
+Enable **Settings → Around the campfire → Friends in campfire widget**, then add
+**face2face → Around the campfire** from the widget gallery. Small, medium, and large
+Home Screen widgets have campfire artwork and next/previous pages (4, 6, and 10
+friends per page). Lock Screen layouts show a saved count, not identities.
+The app writes a minimal, opt-in App Group snapshot: drawing slots, display names
+when public, blob seeds, and a timestamp. No account/connection IDs, credentials,
+photos, interests, or discovery observations are shared. It expires after 15
+minutes without an authenticated refresh; sign-out, API/account changes, disabled
+sharing, or refresh failures replace it with a redacted state and request a widget
+reload. Widget refreshes remain subject to iOS scheduling, not instant server revocation.
+Tapping a widget opens Connections with normal authentication required.
 
 The camera follows one walker, with occasional oncoming walkers and a brief wave
 as they pass. These are decorative animations: no encounters are detected or recorded.
@@ -79,6 +104,17 @@ Do not commit the generated Xcode project. `apps/ios/project.yml` is its source.
 The generated project embeds the **Face2FaceWidgets** extension in the app. Use the
 same development team for both targets; keep the extension bundle ID prefixed by
 the app bundle ID if you customize them. Live Activities require no push setup.
+Both targets also need the **group.systems.rocky.face2face** App Group for campfire
+sharing. Keep that group identical in both entitlements files if you customize it.
+To preserve local signing across project generation, create the ignored
+`apps/ios/signing.local.yml`:
+
+```yaml
+settings:
+  base:
+    DEVELOPMENT_TEAM: YOUR_TEAM_ID
+```
+
 No third-party Swift packages, CocoaPods, or JavaScript runtime are used by the app.
 
 The **Face2Face** scheme includes UI tests for account switching, keyboard input,

@@ -6,7 +6,8 @@
 | Recently encountered | Upper-left venue, `town-encounters`           | Pending `/api/connections` only; no hidden identity                             |
 | Connections          | Middle-right café, `town-connections`         | Private/public connections; identity only when server reveals it                |
 | Forums               | Lower-left board, `town-forums`               | `/api/forums` for the signed-in person's interests                              |
-| Account              | Top-right avatar, `townAccount`               | Profile/photo, discovery, passkey and sign-out page                             |
+| Account              | Top-right avatar, `townAccount`               | Blob-only profile with tap reaction, discovery, passkey and sign-out page       |
+| Campfire             | Header card, `townCampfire`                   | All accepted friends in readable pages; private connections stay anonymous      |
 | Settings             | Left of account, `appSettings`                | Appearance, API and developer tools                                             |
 | Discovery status     | Header beacon, `townDiscovery`                | Quick on/off toggle for the same discovery preference on the profile page       |
 | Notifications        | Header bell, `townNotifications`              | Themed `/api/notifications` inbox; refresh on opening, foreground and pull-down |
@@ -46,7 +47,7 @@ corresponding town lists.
 - Only `status == "public"` with a disclosed `them` profile and public user ID can
   become `PublicTownFriend`. Private, pending, blocked, expired and unknown statuses
   never create NPCs, even if a response unexpectedly includes identity-shaped data.
-- Up to three visitors use the login walker, with a small avatar and first-name tag.
+- Up to three visitors are expressive seeded blobs with a first-name tag.
   Tap `town-friend-<connectionId>` for the compact profile. Large-text mode uses
   stationary friend buttons below the destinations.
 - Opening a profile fetches `/api/connections` again before showing identity. A
@@ -63,6 +64,25 @@ to open a sample card directly. `-town-friends-preview-state empty`, `error` or
 
 Tests: `PublicTownFriendsTests.swift` (portable filter), `TownFriendsTests.swift`
 (native revalidation/races), and `PublicFriendsUITests.swift` (tap/profile/privacy).
+
+## Campfire and Island
+
+`townCampfire` opens a full animated campfire room. Preview uses labelled sample
+public friends; signed-in sessions use accepted `/api/connections` records only.
+This room and the companion/widget artwork never indicate live presence.
+
+Campfire widget sharing is an explicit Settings opt-in and needs the same App Group
+in the app and extension. Every accepted connection appears across pages; private
+friends use anonymous art, not their undisclosed profile. Snapshots contain no
+server identifiers or credentials, expire after 15 minutes, and clear on account/
+API changes, sign-out, disabled sharing, or failed refreshes. The widget is static
+between system timeline/intent updates; it does not run the app's fire animation.
+
+The companion's optional signal graph shows quantized anonymous radio samples,
+not distance or identity. It never starts discovery. Samples expire after 12 seconds;
+background delivery is best effort and needs hardware validation. Only real updates
+animate the Island. Tests: `CampfireTests`, `CampfireUITests`,
+`AnonymousSignalMeterTests`, and `BlobCompanionTests`.
 
 ## Messaging
 

@@ -35,6 +35,7 @@ final class SessionModel {
     }
 
     func serverChanged() {
+        CampfireWidgetModel.shared.clear(.signedOut)
         BlobCompanionModel.shared.stop()
         ConnectedDiscoveryModel.backgroundWalk.stop(reason: "API changed")
         phase = .signedOut
@@ -61,6 +62,7 @@ final class SessionModel {
         do {
             phase = SessionPhase(account: try await client().currentAccount())
         } catch APIError.unauthenticated {
+            CampfireWidgetModel.shared.clear(.signedOut)
             BlobCompanionModel.shared.stop()
             ConnectedDiscoveryModel.backgroundWalk.stop(reason: "Authentication ended")
             phase = .signedOut
@@ -68,6 +70,7 @@ final class SessionModel {
     }
 
     func signOut() async {
+        CampfireWidgetModel.shared.clear(.signedOut)
         BlobCompanionModel.shared.stop()
         ConnectedDiscoveryModel.backgroundWalk.stop(reason: "Signed out")
         await activity.run {

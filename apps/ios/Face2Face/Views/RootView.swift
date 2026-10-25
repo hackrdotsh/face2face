@@ -7,6 +7,10 @@ struct RootView: View {
     @State private var session = SessionModel()
     @State private var passkeys = PasskeyAuthorizer()
     @State private var discovery = ConnectedDiscoveryModel.backgroundWalk
+    @State private var companion = BlobCompanionModel.shared
+    @AppStorage(BlobSurface.signalPreferenceKey) private var islandSignalEnabled = false
+    @AppStorage(CampfireStore.preferenceKey) private var campfireEnabled = false
+    @State private var incomingSurfaceURL: URL?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -27,15 +31,54 @@ struct RootView: View {
             await session.restore()
         }
         .preferredColorScheme(appearance.colorScheme)
+        .onOpenURL { url in
+            guard url == BlobSurface.townURL || url == BlobSurface.connectionsURL else { return }
+            // Retain cold-launch/widget routes until authentication and onboarding resolve.
+            incomingSurfaceURL = url
+        }
         .sensoryFeedback(.success, trigger: discovery.matchCount) { previous, current in
             DiscoveryMatchFeedback.shouldPlay(
                 previousCount: previous, currentCount: current,
                 isActive: scenePhase == .active && discovery.isApplicationActive)
         }
-        .onChange(of: session.phase) { refreshCompanion() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { refreshCompanion() }
+        .onChange(of: session.phase) {
+            refreshCompanion()
+            Task { await CampfireWidgetModel.shared.refresh(session: session) }
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                refreshCompanion()
+                Task { await CampfireWidgetModel.shared.refresh(session: session) }
+            }
+        }
+        .onChange(of: islandSignalEnabled, initial: true) {
+            discovery.radio.setSignalEnabled(islandSignalEnabled)
+            publishSignal()
+        }
+        .onChange(of: discovery.radio.signalSample) { publishSignal() }
+        .onChange(of: discovery.discoveryState) { publishSignal() }
+        .onChange(of: companion.session?.id) { publishSignal(force: true) }
+        .onChange(of: campfireEnabled) {
+            if campfireEnabled {
+                Task { await CampfireWidgetModel.shared.refresh(session: session, force: true) }
+            } else {
+                CampfireWidgetModel.shared.clear(.disabled)
+            }
+        }
+    }
+
+    private func publishSignal(force: Bool = false) {
+        let signal: BlobSignal
+        if !islandSignalEnabled || !discovery.isEnabled {
+            signal = .off
+        } else if discovery.discoveryState == .paused {
+            signal = BlobSignal(mode: .paused)
+        } else if discovery.radio.signalSample.levels.isEmpty {
+            signal = BlobSignal(mode: .waiting)
+        } else {
+            signal = BlobSignal(mode: .receiving, sample: discovery.radio.signalSample)
+        }
+        companion.updateSignal(signal, force: force)
     }
 
     private func refreshCompanion() {
@@ -56,7 +99,9 @@ struct RootView: View {
         case .needsOnboarding(let account):
             OnboardingView(account: account, session: session)
         case .ready(let account):
-            TownView(account: account, session: session, passkeys: passkeys)
+            TownView(
+                account: account, session: session, passkeys: passkeys,
+                incomingSurfaceURL: $incomingSurfaceURL)
         }
     }
 }
