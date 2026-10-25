@@ -1,8 +1,16 @@
 import { UserIcon } from "@phosphor-icons/react";
-import { useId, useMemo } from "react";
+import { type CSSProperties, useEffect, useId, useMemo, useRef } from "react";
 import { mediaURL } from "@/api/chats";
 import type { Avatar as AvatarValue, Person } from "@/api/types";
-import { blobAvatar, blobPath, cssColor, decodeSeed } from "@/lib/blob-avatar";
+import {
+  blobAvatar,
+  blobBreath,
+  blobIdlePhase,
+  blobOutline,
+  blobPath,
+  cssColor,
+  decodeSeed,
+} from "@/lib/blob-avatar";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/session/session";
 
@@ -35,11 +43,28 @@ export function Avatar({
 
 function BlobAvatar({ seed, className }: { seed: string; className: string }) {
   const gradientId = useId();
-  const blob = useMemo(() => blobAvatar(decodeSeed(seed)), [seed]);
+  const outline = useRef<SVGPathElement>(null);
+  const { bytes, blob, phase } = useMemo(() => {
+    const bytes = decodeSeed(seed);
+    return { bytes, blob: blobAvatar(bytes), phase: blobIdlePhase(bytes) };
+  }, [seed]);
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = requestAnimationFrame(function breathe(now) {
+      const shape = blobOutline(bytes, blobBreath(now / 1000, phase));
+      outline.current?.setAttribute(
+        "d",
+        blobPath({ ...blob, ...shape }, viewBoxSize),
+      );
+      frame = requestAnimationFrame(breathe);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [bytes, blob, phase]);
   return (
     <svg
       className={className}
       viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
+      style={{ "--blob-phase": phase } as CSSProperties}
       aria-hidden="true"
     >
       <defs>
@@ -48,18 +73,25 @@ function BlobAvatar({ seed, className }: { seed: string; className: string }) {
           <stop offset="1" stopColor={cssColor(blob.fill[1])} />
         </linearGradient>
       </defs>
-      <path d={blobPath(blob, viewBoxSize)} fill={`url(#${gradientId})`} />
-      {blob.eyes.map((eye) => (
-        <rect
-          key={eye.x}
-          x={eye.x * viewBoxSize}
-          y={eye.y * viewBoxSize}
-          width={eye.width * viewBoxSize}
-          height={eye.height * viewBoxSize}
-          rx={(eye.width * viewBoxSize) / 2}
-          fill={cssColor(blob.eyeColor)}
-        />
-      ))}
+      <path
+        ref={outline}
+        d={blobPath(blob, viewBoxSize)}
+        fill={`url(#${gradientId})`}
+      />
+      <g className="blob-look">
+        {blob.eyes.map((eye) => (
+          <rect
+            key={eye.x}
+            className="blob-blink"
+            x={eye.x * viewBoxSize}
+            y={eye.y * viewBoxSize}
+            width={eye.width * viewBoxSize}
+            height={eye.height * viewBoxSize}
+            rx={(eye.width * viewBoxSize) / 2}
+            fill={cssColor(blob.eyeColor)}
+          />
+        ))}
+      </g>
     </svg>
   );
 }

@@ -3,6 +3,7 @@ import fixtures from "../../../../docs/fixtures/blob-avatar.json";
 import {
   type BlobAvatar,
   blobAvatar,
+  blobOutline,
   blobPath,
   decodeSeed,
 } from "./blob-avatar";
@@ -47,5 +48,21 @@ describe("blob avatars", () => {
     );
     expect(path).toMatch(/^M50 16C.*Z$/);
     expect(path.match(/C/g)).toHaveLength(6);
+  });
+
+  it("breathes by nudging the outline slightly", () => {
+    for (const { seed } of fixtures) {
+      const bytes = decodeSeed(seed);
+      const rest = blobAvatar(bytes);
+      const shape = blobOutline(bytes, Math.PI / 2);
+      expect(shape.curves).toHaveLength(rest.curves.length);
+      expect(shape.curves.at(-1)?.end).toEqual(shape.start);
+      shape.curves.forEach((curve, index) => {
+        const end = rest.curves[index]?.end ?? { x: 0, y: 0 };
+        expect(
+          Math.hypot(curve.end.x - end.x, curve.end.y - end.y),
+        ).toBeLessThanOrEqual(0.012 + 1e-9);
+      });
+    }
   });
 });

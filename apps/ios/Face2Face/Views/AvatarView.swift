@@ -21,8 +21,8 @@ struct AvatarView: View {
                 Color.secondary.opacity(0.15)
             }
             .clipShape(Circle())
-        } else if let blob = BlobAvatar(seed: avatar.seed) {
-            BlobAvatarView(blob: blob)
+        } else if let blob = BlobAvatar(seed: avatar.seed), let motion = BlobIdleMotion(seed: avatar.seed) {
+            BlobAvatarView(blob: blob, motion: motion)
         } else {
             Circle().fill(.secondary.opacity(0.15))
         }
@@ -31,30 +31,41 @@ struct AvatarView: View {
 
 struct BlobAvatarView: View {
     let blob: BlobAvatar
+    let motion: BlobIdleMotion
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Canvas { context, size in
-            let side = min(size.width, size.height)
-            let point = { (point: BlobAvatar.Point) in CGPoint(x: point.x * side, y: point.y * side) }
-            var outline = Path()
-            outline.move(to: point(blob.start))
-            for curve in blob.curves {
-                outline.addCurve(
-                    to: point(curve.end), control1: point(curve.control1), control2: point(curve.control2))
-            }
-            outline.closeSubpath()
+        TimelineView(.animation(paused: reduceMotion)) { timeline in
+            let pose = reduceMotion ? nil : motion.pose(at: timeline.date.timeIntervalSinceReferenceDate)
+            Canvas { context, size in draw(in: &context, side: min(size.width, size.height), pose: pose) }
+        }
+    }
+
+    private func draw(in context: inout GraphicsContext, side: CGFloat, pose: BlobIdleMotion.Pose?) {
+        let shape = pose.map { blob.outline(breath: $0.breath) } ?? (blob.start, blob.curves)
+        let point = { (point: BlobAvatar.Point) in CGPoint(x: point.x * side, y: point.y * side) }
+        var outline = Path()
+        outline.move(to: point(shape.start))
+        for curve in shape.curves {
+            outline.addCurve(
+                to: point(curve.end), control1: point(curve.control1), control2: point(curve.control2))
+        }
+        outline.closeSubpath()
+        context.fill(
+            outline,
+            with: .linearGradient(
+                Gradient(colors: blob.fill.map(Color.init(hsl:))), startPoint: .zero,
+                endPoint: CGPoint(x: side, y: side)))
+        let gaze = pose?.gaze ?? 0
+        let openness = pose?.eyeOpenness ?? 1
+        for eye in blob.eyes {
+            let height = eye.height * openness
+            let rect = CGRect(
+                x: (eye.x + gaze) * side, y: (eye.y + (eye.height - height) / 2) * side,
+                width: eye.width * side, height: height * side)
             context.fill(
-                outline,
-                with: .linearGradient(
-                    Gradient(colors: blob.fill.map(Color.init(hsl:))), startPoint: .zero,
-                    endPoint: CGPoint(x: side, y: side)))
-            for eye in blob.eyes {
-                let rect = CGRect(
-                    x: eye.x * side, y: eye.y * side, width: eye.width * side, height: eye.height * side)
-                context.fill(
-                    Path(roundedRect: rect, cornerRadius: rect.width / 2),
-                    with: .color(Color(hsl: blob.eyeColor)))
-            }
+                Path(roundedRect: rect, cornerRadius: min(rect.width, rect.height) / 2),
+                with: .color(Color(hsl: blob.eyeColor)))
         }
     }
 }

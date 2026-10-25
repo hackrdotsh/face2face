@@ -278,3 +278,49 @@
     @apply font-sans;
   }
 }
+
+/* Blob avatar blink and glance. Keep in step with BlobIdleMotion.swift. */
+@layer components {
+  .blob-look {
+    animation: blob-look 8s ease-in-out infinite;
+    animation-delay: calc(var(--blob-phase, 0) * -8s);
+  }
+  .blob-blink {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: blob-blink 5s ease-in-out infinite;
+    animation-delay: calc(var(--blob-phase, 0) * -5s);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .blob-look,
+    .blob-blink {
+      animation: none;
+    }
+  }
+  @keyframes blob-look {
+    0%,
+    30%,
+    93%,
+    to {
+      transform: translateX(0);
+    }
+    38%,
+    58% {
+      transform: translateX(-2.5px);
+    }
+    66%,
+    85% {
+      transform: translateX(2.5px);
+    }
+  }
+  @keyframes blob-blink {
+    0%,
+    92%,
+    to {
+      transform: scaleY(1);
+    }
+    96% {
+      transform: scaleY(0.1);
+    }
+  }
+}

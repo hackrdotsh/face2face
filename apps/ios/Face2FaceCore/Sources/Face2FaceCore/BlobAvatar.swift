@@ -55,6 +55,9 @@ public struct BlobAvatar: Equatable, Sendable {
     public let fill: [HSL]
     public let eyeColor: HSL
 
+    private let angles: [Double]
+    private let radii: [Double]
+
     private static let center = 0.5
     private static let minPointCount = 6
     private static let pointCountChoices = 3
@@ -68,6 +71,7 @@ public struct BlobAvatar: Equatable, Sendable {
     private static let eyeTopRange = 0.04
     private static let gazeRange = 0.04
     private static let gradientHueShift = 40
+    private static let breatheAmplitude = 0.012
 
     /// Returns nil when the seed is not base64url.
     public init?(seed: String) {
@@ -82,11 +86,9 @@ public struct BlobAvatar: Equatable, Sendable {
         let hue = (rawByte(1) * 256 + rawByte(2)) % 360
         let step = 2 * Double.pi / Double(pointCount)
         let rotation = byte(3) * step
-        let points = (0..<pointCount).map { index in
-            let radius = Self.minRadius + byte(4 + index) * Self.radiusRange
-            let angle = rotation + Double(index) * step - Double.pi / 2
-            return Point(x: Self.center + radius * cos(angle), y: Self.center + radius * sin(angle))
-        }
+        angles = (0..<pointCount).map { rotation + Double($0) * step - Double.pi / 2 }
+        radii = (0..<pointCount).map { Self.minRadius + byte(4 + $0) * Self.radiusRange }
+        let points = Self.points(angles: angles, radii: radii)
         let gap = Self.minEyeGap + byte(12) * Self.eyeGapRange
         let top = Self.minEyeTop + byte(13) * Self.eyeTopRange
         let gaze = (byte(14) - 0.5) * Self.gazeRange
@@ -101,6 +103,23 @@ public struct BlobAvatar: Equatable, Sendable {
             HSL(hue: Double((hue + Self.gradientHueShift) % 360), saturation: 0.7, lightness: 0.68),
         ]
         eyeColor = HSL(hue: Double(hue), saturation: 0.4, lightness: 0.2)
+    }
+
+    /// The outline at a point in its breathing wave, in radians. A wave travels around the shape and
+    /// pushes each point in or out.
+    public func outline(breath: Double) -> (start: Point, curves: [Curve]) {
+        let step = 2 * Double.pi / Double(radii.count)
+        let swollen = radii.indices.map { index in
+            radii[index] + Self.breatheAmplitude * sin(breath + 2 * Double(index) * step)
+        }
+        let points = Self.points(angles: angles, radii: swollen)
+        return (points[0], Self.smoothClosedCurves(through: points))
+    }
+
+    private static func points(angles: [Double], radii: [Double]) -> [Point] {
+        zip(angles, radii).map { angle, radius in
+            Point(x: center + radius * cos(angle), y: center + radius * sin(angle))
+        }
     }
 
     /// A closed Catmull-Rom spline through every point, as cubic Béziers.

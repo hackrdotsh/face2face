@@ -52,21 +52,13 @@ const minEyeTop = 0.39;
 const eyeTopRange = 0.04;
 const gazeRange = 0.04;
 const gradientHueShift = 40;
+const breathePeriod = 4;
+const breatheAmplitude = 0.012;
 
 export function blobAvatar(seed: Uint8Array): BlobAvatar {
   const byte = (index: number) => (seed[index] ?? 0) / 255;
-  const pointCount = minPointCount + ((seed[0] ?? 0) % pointCountChoices);
   const hue = ((seed[1] ?? 0) * 256 + (seed[2] ?? 0)) % 360;
-  const step = (2 * Math.PI) / pointCount;
-  const rotation = byte(3) * step;
-  const points = Array.from({ length: pointCount }, (_, index) => {
-    const radius = minRadius + byte(4 + index) * radiusRange;
-    const angle = rotation + index * step - Math.PI / 2;
-    return {
-      x: center + radius * Math.cos(angle),
-      y: center + radius * Math.sin(angle),
-    };
-  });
+  const points = outlinePoints(seed);
   const gap = minEyeGap + byte(12) * eyeGapRange;
   const top = minEyeTop + byte(13) * eyeTopRange;
   const gaze = (byte(14) - 0.5) * gazeRange;
@@ -89,6 +81,46 @@ export function blobAvatar(seed: Uint8Array): BlobAvatar {
       },
     ],
     eyeColor: { hue, saturation: 0.4, lightness: 0.2 },
+  };
+}
+
+/**
+ * The outline points, pushed in and out by a wave that travels around the
+ * shape when `breath` is set. Without it they rest where `blobAvatar` puts them.
+ */
+function outlinePoints(seed: Uint8Array, breath?: number): Point[] {
+  const byte = (index: number) => (seed[index] ?? 0) / 255;
+  const pointCount = minPointCount + ((seed[0] ?? 0) % pointCountChoices);
+  const step = (2 * Math.PI) / pointCount;
+  const rotation = byte(3) * step;
+  return Array.from({ length: pointCount }, (_, index) => {
+    const swell =
+      breath === undefined
+        ? 0
+        : breatheAmplitude * Math.sin(breath + 2 * index * step);
+    const radius = minRadius + byte(4 + index) * radiusRange + swell;
+    const angle = rotation + index * step - Math.PI / 2;
+    return {
+      x: center + radius * Math.cos(angle),
+      y: center + radius * Math.sin(angle),
+    };
+  });
+}
+
+/** Where the breathing wave is `seconds` into the idle loop, in radians. */
+export function blobBreath(seconds: number, phase: number): number {
+  return 2 * Math.PI * (seconds / breathePeriod + phase);
+}
+
+/** The blob outline at a point in its breathing wave. */
+export function blobOutline(
+  seed: Uint8Array,
+  breath: number,
+): Pick<BlobAvatar, "start" | "curves"> {
+  const points = outlinePoints(seed, breath);
+  return {
+    start: points[0] ?? { x: center, y: center },
+    curves: smoothClosedCurves(points),
   };
 }
 
@@ -137,4 +169,9 @@ export function decodeSeed(seed: string): Uint8Array {
 
 function round(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+/** Where a blob starts in its idle loop, from 0 to 1, so blobs side by side move out of step. */
+export function blobIdlePhase(seed: Uint8Array): number {
+  return (seed[15] ?? 0) / 255;
 }
