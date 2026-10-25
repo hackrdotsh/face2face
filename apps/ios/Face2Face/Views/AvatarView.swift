@@ -33,9 +33,11 @@ struct BlobAvatarView: View {
     let blob: BlobAvatar
     let motion: BlobIdleMotion
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        TimelineView(.animation(paused: reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || scenePhase != .active)) {
+            timeline in
             let pose = reduceMotion ? nil : motion.pose(at: timeline.date.timeIntervalSinceReferenceDate)
             Canvas { context, size in draw(in: &context, side: min(size.width, size.height), pose: pose) }
         }

@@ -44,16 +44,22 @@ enum Forest3DAssets {
                 simd_quatf(angle: heading, axis: [0, 1, 0])
                 * simd_quatf(angle: wiggle, axis: [0, 0, 1])
             shadow.orientation = root.orientation.inverse
-            halo.orientation = root.orientation.inverse
-            halo.scale = SIMD3(repeating: 1 + Float(greetingProgress ?? 0) * 0.35)
-            greeting.position = [-facing * 0.42, 2.05 + hello * 0.12, 0]
-            greeting.isEnabled = hello > 0.001
-            halo.isEnabled = hello > 0.001
-            greeting.components.set(OpacityComponent(opacity: hello))
-            halo.components.set(OpacityComponent(opacity: hello * 0.7))
+            let greetingVisible = hello > 0.001
+            if greeting.isEnabled != greetingVisible {
+                greeting.isEnabled = greetingVisible
+                halo.isEnabled = greetingVisible
+            }
+            if greetingVisible {
+                halo.orientation = root.orientation.inverse
+                halo.scale = SIMD3(repeating: 1 + Float(greetingProgress ?? 0) * 0.35)
+                greeting.position = [-facing * 0.42, 2.05 + hello * 0.12, 0]
+                greeting.components.set(OpacityComponent(opacity: hello))
+                halo.components.set(OpacityComponent(opacity: hello * 0.7))
+            }
             for (eye, position) in zip(eyes, eyePositions) {
                 eye.position = position + [Float(pose.gaze) * 2, 0, 0]
-                eye.scale.y = Float(pose.eyeOpenness)
+                let openness = Float(pose.eyeOpenness)
+                if eye.scale.y != openness { eye.scale.y = openness }
             }
         }
     }

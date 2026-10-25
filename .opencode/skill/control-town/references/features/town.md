@@ -36,6 +36,12 @@ The profile stress test rapidly taps `townAccount`, closes the sheet, and repeat
 explicitly; do not reintroduce `BillboardComponent`, which crashed RealityKit when
 profile scenes were repeatedly presented and destroyed.
 
+Performance checks: `SceneryPerformanceTests` measures scene setup, and
+`SceneryPerformanceUITests` measures idle animated town CPU/memory. Keep the static
+RealityView and destination controls outside the frame timeline. Verify visitor
+tap targets, light/dark changes, Reduce Motion, and the repeated-profile test after
+changing animation or resource lifetimes; shared meshes must not share entity state.
+
 ## Evidence commands
 
 ```sh

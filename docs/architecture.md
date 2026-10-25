@@ -31,8 +31,9 @@ failure uses `MeadowCanvasScene`. Login, onboarding, and profile share this wrap
 The same preference controls the matching 3D town, with `TownCanvasScene` as its fallback.
 
 The camera is orthographic and virtual, not AR: there is no camera permission,
-tracking session, downloaded model, or new dependency. Pine meshes are generated
-once and shared by a finite repeating grid. The three decorative blobs use the
+tracking session, downloaded model, or new dependency. Pine meshes, shadow textures,
+and greeting artwork are cached once and shared across scene instances. Mutable
+entities, transforms, and visitor data remain scene-owned. The three decorative blobs use the
 existing `BlobAvatar` silhouette, gradients, pill eyes, and idle timing;
 `BlobVolume` supplies portable, tested mesh geometry. Pines use the original
 four-tier shape with four green color bands, getting lighter toward the tip.
@@ -46,8 +47,11 @@ repeated profile-sheet presentation and teardown.
 For deterministic Debug screenshots, `-forest-preview-time 4` freezes a greeting.
 
 A view-owned task updates forest transforms approximately 30 times per second;
-the town uses a matching SwiftUI animation timeline. Both pause when inactive or
-with Reduce Motion; paused frames retain their pose. Light/dark changes repaint the scene
+the town uses one matching timeline for transforms and moving visitor hit targets.
+Its RealityView and fixed destination controls stay outside that timeline, so frame
+ticks do not refresh the roster or configure the scene. Avatar animation is capped
+at 30 Hz and pauses when inactive or with Reduce Motion. Hidden greeting effects
+do not update transforms or opacity. Light/dark changes repaint the scene
 without rebuilding geometry. Long-running battery usage and frame pacing still
 need measurement on hardware. Decorative crossings never record encounters.
 
@@ -63,6 +67,11 @@ Only the existing public-friend filter supplies identified visitors. Clearing th
 list replaces their 3D shapes with anonymous decorative residents; no scene data is
 stored or interpreted as real location. Profile revalidation, chats, notifications,
 and all authorization continue through the existing models and routes.
+
+`SceneryPerformanceTests` measures repeated scene construction over five samples;
+`SceneryPerformanceUITests` measures CPU and memory during five three-second town
+animation windows. Compare the same build configuration and device, retain the
+sample spread, and do not interpret simulator timings as battery-life measurements.
 
 ## Accounts and onboarding
 
