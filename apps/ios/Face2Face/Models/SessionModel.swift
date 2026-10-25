@@ -76,6 +76,11 @@ final class SessionModel {
     }
 
     #if DEBUG
+        /// Starts the real login UI without restoring a session or deleting saved credentials.
+        func showSignInForTesting() {
+            phase = .signedOut
+        }
+
         /// Prototype bypass: enter the town without a session. Scratch only — never ship.
         func enterTownPreview() {
             let json = """

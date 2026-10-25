@@ -17,6 +17,10 @@ struct RootView: View {
         .background { KeyboardDismissOnTap().frame(width: 0, height: 0) }
         .task {
             #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-start-signed-out") {
+                    session.showSignInForTesting()
+                    return
+                }
                 if ProcessInfo.processInfo.arguments.contains("-town-preview") {
                     session.enterTownPreview()
                     return
