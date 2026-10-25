@@ -18,6 +18,8 @@ final class InterestsModel {
     private var saved: InterestCatalog?
     /// The picks on screen, which run ahead of `saved` while a save is in flight.
     private var selectedIDs: Set<String> = []
+    private var saveTask: Task<Void, Never>?
+    private var saveFailed = false
     private let session: SessionModel
 
     init(session: SessionModel) {
@@ -79,7 +81,12 @@ final class InterestsModel {
             }
             selectedIDs.insert(choice.id)
         }
-        Task { await save() }
+        if saveTask == nil {
+            saveTask = Task {
+                await save()
+                saveTask = nil
+            }
+        }
     }
 
     /// Picks the interest the query names, creating it when it is new.
@@ -109,10 +116,17 @@ final class InterestsModel {
         }
     }
 
+    /// Waits for picks still being saved. Returns false when the last save failed.
+    func finishSaving() async -> Bool {
+        await saveTask?.value
+        return !saveFailed
+    }
+
     private func save() async {
         guard !isSaving else { return }
         isSaving = true
         defer { isSaving = false }
+        saveFailed = false
         while let saved, selectedIDs != Set(saved.selected.map(\.id)) {
             let wanted = selectedIDs
             do {
@@ -120,6 +134,7 @@ final class InterestsModel {
                 self.saved = result
             } catch {
                 selectedIDs = Set(saved.selected.map(\.id))
+                saveFailed = true
                 errorMessage = error.localizedDescription
                 return
             }

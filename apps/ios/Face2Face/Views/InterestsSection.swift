@@ -4,6 +4,8 @@ import SwiftUI
 /// Picks interests with a search that ranks name matches first, then by how many people share them.
 struct InterestsSection: View {
     @Bindable var model: InterestsModel
+    /// Off where the screen already titles and explains the picker, as in onboarding.
+    var showsHeader = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var searchFocused: Bool
 
@@ -12,9 +14,11 @@ struct InterestsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            MeadowSectionHeader(
-                title: "Interests",
-                detail: model.catalog.map { "\($0.selected.count) of \($0.maxSelected)" })
+            if showsHeader {
+                MeadowSectionHeader(
+                    title: "Interests",
+                    detail: model.catalog.map { "\($0.selected.count) of \($0.maxSelected)" })
+            }
             if let catalog = model.catalog {
                 picks(catalog)
                 search
@@ -41,10 +45,14 @@ struct InterestsSection: View {
 
     @ViewBuilder private func picks(_ catalog: InterestCatalog) -> some View {
         if catalog.selected.isEmpty {
-            Text("Pick what you love. Shared interests open chances to meet and the forums you see in town.")
+            if showsHeader {
+                Text(
+                    "Pick what you love. Shared interests open chances to meet and the forums you see in town."
+                )
                 .font(.subheadline)
                 .foregroundStyle(MeadowPalette.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
+            }
         } else {
             ChipFlow(spacing: 8) {
                 ForEach(catalog.selected) { choice in

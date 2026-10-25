@@ -6,12 +6,14 @@ struct OnboardingView: View {
     let account: Account
     private let session: SessionModel
     @State private var model: OnboardingModel
+    @State private var interests: InterestsModel
     @FocusState private var textFocused: Bool
 
     init(account: Account, session: SessionModel) {
         self.account = account
         self.session = session
         _model = State(initialValue: OnboardingModel(session: session))
+        _interests = State(initialValue: InterestsModel(session: session))
     }
 
     var body: some View {
@@ -114,7 +116,8 @@ struct OnboardingView: View {
                 if let field = model.currentField {
                     OnboardingStepView(
                         field: field, form: form, error: model.fieldErrors[field.key],
-                        avatar: account.user.avatar, session: session, textFocused: $textFocused,
+                        avatar: account.user.avatar, session: session, interests: interests,
+                        textFocused: $textFocused,
                         onSubmit: advance
                     )
                     .id(field.key)
@@ -142,6 +145,7 @@ struct OnboardingView: View {
 
     private func hasValue(for field: OnboardingField) -> Bool {
         if field.type == .image { return account.user.avatar.photo != nil }
+        if field.type == .interests { return !(interests.catalog?.selected.isEmpty ?? true) }
         return model.form?.values()[field.key] != nil
     }
 
@@ -150,6 +154,7 @@ struct OnboardingView: View {
         Task {
             textFocused = false
             await Keyboard.waitUntilHidden()
+            if model.currentField?.type == .interests, !(await interests.finishSaving()) { return }
             guard await model.saveCurrentStep() else { return }
             withAnimation(stepAnimation) { model.forward() }
             AccessibilityNotification.Announcement("Step \(model.step + 1) of \(model.stepCount)").post()

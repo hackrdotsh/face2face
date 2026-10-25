@@ -9,6 +9,7 @@ struct OnboardingStepView: View {
     /// The signed-in person's avatar, for `image` fields.
     let avatar: Avatar
     let session: SessionModel
+    let interests: InterestsModel
     let textFocused: FocusState<Bool>.Binding
     let onSubmit: () -> Void
 
@@ -44,6 +45,11 @@ struct OnboardingStepView: View {
         case "name": ("What should we call you?", "This is the name people see.")
         case "birthDate": ("When's your birthday?", "You need to be 18 or older.")
         case "gender": ("What's your gender?", nil)
+        case "interests":
+            (
+                "What are you into?",
+                "Pick up to 10. Shared interests open chances to meet. You can change them later."
+            )
         case "photo": ("Add a profile photo", "Optional. Without one, you get a blob.")
         default: (field.label, nil)
         }
@@ -95,6 +101,8 @@ struct OnboardingStepView: View {
         case .image:
             ProfilePhotoEditor(avatar: avatar, session: session, prominent: true)
                 .frame(maxWidth: .infinity)
+        case .interests:
+            InterestsSection(model: interests, showsHeader: false)
         case .unsupported:
             EmptyView()
         }
