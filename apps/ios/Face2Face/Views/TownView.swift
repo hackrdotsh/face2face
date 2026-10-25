@@ -76,7 +76,8 @@ struct TownView: View {
                 }
             } else {
                 TownScene(
-                    isMoving: destination == nil && !showingAccount && !showingSettings && !showingNotifications
+                    isMoving: destination == nil && !showingAccount && !showingSettings
+                        && !showingNotifications
                         && friends.selectedID == nil,
                     visitors: friends.visitors, session: session,
                     onSelect: { destination = $0 }, onSelectFriend: { friends.select($0) })
@@ -91,11 +92,11 @@ struct TownView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showingSettings) {
-            SettingsView(session: session, passkeys: passkeys)
+            SettingsView(session: session)
         }
         .sheet(isPresented: $showingAccount) {
             NavigationStack {
-                AccountView(account: account, session: session)
+                AccountView(account: account, session: session, passkeys: passkeys)
             }
         }
         .fullScreenCover(isPresented: $showingNotifications) {

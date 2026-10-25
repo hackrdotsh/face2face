@@ -17,8 +17,8 @@ welcome pill. Reduce Motion uses
 a crossfade instead. The scenery pauses while entering text, in the background,
 and when Reduce Motion is enabled. The sliders button opens Settings, including
 the API server and a saved System / Light / Dark appearance choice. System is the default.
-The town has an account/avatar button at the top right for profile/photo and sign-out.
-Settings sits immediately to its left for passkeys, discovery, appearance, API, and developer tools.
+The town has an account/avatar button at the top right for profile/photo, passkeys, and sign-out.
+Settings sits immediately to its left for discovery, appearance, API, and developer tools.
 Debug tools live inside Settings rather than separate bottom tabs.
 Dark mode adds a night forest with gently glowing fireflies; Reduce Motion freezes their movement.
 The camera follows one walker, with occasional oncoming walkers and a brief wave

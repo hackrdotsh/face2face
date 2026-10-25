@@ -5,12 +5,19 @@ struct AccountView: View {
     let account: Account
     @Bindable var session: SessionModel
     @Environment(\.dismiss) private var dismiss
+    @State private var passkeyEnrollment: PasskeyEnrollmentModel
+
+    init(account: Account, session: SessionModel, passkeys: PasskeyAuthorizer) {
+        self.account = account
+        self.session = session
+        _passkeyEnrollment = State(initialValue: PasskeyEnrollmentModel(session: session, passkeys: passkeys))
+    }
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 MeadowScene(
-                    isMoving: !session.activity.isBusy,
+                    isMoving: !session.activity.isBusy && !passkeyEnrollment.activity.isBusy,
                     encounterBottomInset: geometry.safeAreaInsets.bottom + 104
                 )
                 .ignoresSafeArea()
@@ -30,6 +37,9 @@ struct AccountView: View {
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
 
+                        Divider()
+                        passkeySection
+
                         Button {
                             Task {
                                 await session.signOut()
@@ -48,7 +58,9 @@ struct AccountView: View {
                         .accessibilityIdentifier("homeSignOut")
                     }
                     .frame(maxWidth: .infinity)
-                    .disabled(session.activity.isBusy || session.isTownPreview)
+                    .disabled(
+                        session.activity.isBusy || passkeyEnrollment.activity.isBusy || session.isTownPreview
+                    )
                     .padding(24)
                     .background {
                         MeadowGlass(shape: RoundedRectangle(cornerRadius: 32))
@@ -65,6 +77,7 @@ struct AccountView: View {
         }
         .foregroundStyle(MeadowPalette.ink)
         .fontDesign(.rounded)
+        .activityAlert(passkeyEnrollment.activity)
         .accessibilityIdentifier("accountHome")
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
@@ -73,5 +86,35 @@ struct AccountView: View {
                 Button("Done") { dismiss() }
             }
         }
+    }
+
+    private var passkeySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Passkey")
+                .font(.system(.headline, design: .rounded, weight: .heavy))
+                .accessibilityAddTraits(.isHeader)
+            if passkeyEnrollment.isEnrolled {
+                Label("Passkey added", systemImage: "checkmark.shield")
+            } else {
+                Text("Use Face ID or Touch ID instead of typing a password.")
+                    .font(.subheadline)
+                    .foregroundStyle(MeadowPalette.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    Task { await passkeyEnrollment.addPasskey(for: account) }
+                } label: {
+                    Text("Add a passkey")
+                        .font(.system(.headline, design: .rounded, weight: .heavy))
+                        .foregroundStyle(MeadowPalette.accentInk)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(MeadowPalette.accent, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(MeadowPressStyle())
+                .accessibilityIdentifier("addPasskey")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

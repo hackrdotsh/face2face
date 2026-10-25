@@ -70,7 +70,7 @@ struct ContentView: View {
         .foregroundStyle(MeadowPalette.ink)
         .fontDesign(.rounded)
         .sheet(isPresented: $showingSettings) {
-            SettingsView(session: session, passkeys: passkeys)
+            SettingsView(session: session)
         }
     }
 
