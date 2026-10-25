@@ -1,15 +1,17 @@
+import Face2FaceCore
 import SwiftUI
 
-/// Turns a five-minute discovery walk on and off. Matches never name the other person.
+/// Saved opt-in and current radio status are distinct. Matches never identify the peer.
 struct DiscoverySection: View {
     @Bindable var model: ConnectedDiscoveryModel
+    let account: Account
 
     private var isOn: Binding<Bool> {
         Binding(
-            get: { model.isRunning || model.isStarting },
+            get: { model.isEnabled || model.isStarting },
             set: { on in
                 if on {
-                    Task { await model.start() }
+                    model.enable(for: account)
                 } else {
                     model.stop()
                 }
@@ -22,15 +24,14 @@ struct DiscoverySection: View {
                 .font(.system(.headline, design: .rounded, weight: .heavy))
                 .accessibilityAddTraits(.isHeader)
             Toggle("Discover people nearby", isOn: isOn)
-                .disabled(model.revocationPending || BluetoothDiscoveryService.isSimulator)
-            if model.isRunning {
+                .accessibilityIdentifier("discoveryToggle")
+                .disabled(
+                    (model.revocationPending && !model.isEnabled) || BluetoothDiscoveryService.isSimulator)
+            if model.isEnabled {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    LabeledContent("Time left") {
-                        Text(
-                            Duration.seconds(ceil(model.walkRemaining)), format: .time(pattern: .minuteSecond)
-                        )
-                        .monospacedDigit()
-                    }
+                    Text(model.discoveryStatus)
+                        .foregroundStyle(MeadowPalette.secondaryInk)
+                        .accessibilityIdentifier("discoveryStatus")
                 }
             }
             if model.isRunning || model.matchCount > 0 {
@@ -47,7 +48,7 @@ struct DiscoverySection: View {
                     .disabled(model.isRevoking)
             }
             Text(
-                "Runs for up to five minutes. When two phones find each other, you both get a chance to connect. A match never names either person and does not prove you were near each other."
+                "Stays on until you turn it off. Background discovery may pause; reopen the app to resume. Matches are anonymous and do not prove physical proximity."
             )
             .font(.footnote)
             .foregroundStyle(MeadowPalette.secondaryInk)

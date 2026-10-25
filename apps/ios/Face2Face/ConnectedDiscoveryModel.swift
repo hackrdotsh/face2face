@@ -3,7 +3,7 @@ import Foundation
 import Observation
 import UIKit
 
-/// Foreground diagnostics plus an explicitly started, memory-only authenticated Walk test.
+/// Ongoing opt-in discovery; credentials and radio permits remain memory-only.
 @MainActor
 @Observable
 final class ConnectedDiscoveryModel {
@@ -26,6 +26,7 @@ final class ConnectedDiscoveryModel {
     private(set) var backgroundPasses = 0
     private(set) var deferredPasses = 0
     private(set) var tokenExpiresAt: Date?
+    private(set) var optIn: DiscoveryOptIn?
     /// Matches recorded during the current run. Receipts never say who the peer was.
     private(set) var matchCount = 0
     private(set) var firstMatchElapsed: TimeInterval?
@@ -35,7 +36,7 @@ final class ConnectedDiscoveryModel {
     @ObservationIgnored private var client: APIClient?
     @ObservationIgnored private var lease: DiscoveryLease?
     @ObservationIgnored private var walkPermit: AuthenticatedRadioPermit?
-    @ObservationIgnored private var walkConsent: PocketTestWindow?
+    @ObservationIgnored private var walkConsent: DiscoveryConsent?
     @ObservationIgnored private var outbox = DiscoveryOutbox()
     @ObservationIgnored private var generation = UUID()
     @ObservationIgnored private var loop: Task<Void, Never>?
@@ -50,14 +51,45 @@ final class ConnectedDiscoveryModel {
     @ObservationIgnored private var revocation: (client: APIClient, sessionId: String)?
     @ObservationIgnored private var revocationTask: Task<Void, Never>?
     @ObservationIgnored private var revocationBudget: LimitedBackgroundExecution?
+    @ObservationIgnored private var retryStart: Task<Void, Never>?
+    @ObservationIgnored private var pausingRadio = false
+    @ObservationIgnored private let preferences: UserDefaults
+    @ObservationIgnored private let clientFactory: ((APIConfiguration) -> APIClient)?
+    @ObservationIgnored private let canAccessCredentials: () -> Bool
+    @ObservationIgnored private let supportsBluetooth: Bool
+    @ObservationIgnored private let automaticallyRefreshes: Bool
+    private static let preferenceKey = "discoveryOptIn"
 
-    init(allowsBackground: Bool = false) {
+    init(
+        allowsBackground: Bool = false, preferences: UserDefaults = .standard,
+        clientFactory: ((APIConfiguration) -> APIClient)? = nil,
+        canAccessCredentials: @escaping () -> Bool = {
+            UIApplication.shared.applicationState == .active && UIApplication.shared.isProtectedDataAvailable
+        },
+        supportsBluetooth: Bool = !BluetoothDiscoveryService.isSimulator,
+        automaticallyRefreshes: Bool = true
+    ) {
         self.allowsBackground = allowsBackground
+        self.preferences = preferences
+        self.clientFactory = clientFactory
+        self.canAccessCredentials = canAccessCredentials
+        self.supportsBluetooth = supportsBluetooth
+        self.automaticallyRefreshes = automaticallyRefreshes
+        if allowsBackground, let data = preferences.data(forKey: Self.preferenceKey) {
+            optIn = try? JSONDecoder().decode(DiscoveryOptIn.self, from: data)
+        }
         radio.onEncounter = { [weak self] encounter in self?.enqueue(encounter) }
         radio.onExchangeCompleted = { [weak self] in self?.requestBackgroundPass() }
+        radio.onActivity = { [weak self] in self?.requestBackgroundPass() }
+        radio.onPermissionDenied = { [weak self] in self?.stop(reason: "Bluetooth permission was revoked") }
         radio.onStopped = { [weak self] in
-            guard let self, self.isRunning else { return }
-            self.stop(reason: self.radio.status)
+            guard let self, self.isRunning, !self.pausingRadio else { return }
+            if self.allowsBackground, self.radio.stopCause != .preempted {
+                self.pause(reason: "Paused — waiting to renew discovery")
+                if self.radio.stopCause == .failed { self.nextRotation = Date().addingTimeInterval(15) }
+            } else {
+                self.stop(reason: self.radio.status)
+            }
         }
     }
 
@@ -66,6 +98,55 @@ final class ConnectedDiscoveryModel {
         expiryWatchdog?.cancel()
         backgroundUpload?.cancel()
         revocationTask?.cancel()
+        retryStart?.cancel()
+    }
+
+    var isEnabled: Bool { allowsBackground ? optIn != nil : isRunning || isStarting }
+
+    var discoveryStatus: String {
+        guard isEnabled else { return "Off" }
+        if isStarting { return "Starting…" }
+        guard isRunning, radio.isRequested, walkRemaining > 0 else { return "Paused — waiting to resume" }
+        if !radio.isScanning || !radio.isAdvertising { return "Paused — \(radio.bluetoothStatus)" }
+        return isApplicationActive ? "Discovering" : "Background — best effort"
+    }
+
+    func enable(for account: Account) {
+        guard allowsBackground, !revocationPending else { return }
+        do {
+            let configuration = try APIConfiguration(
+                address: preferences.string(forKey: "apiAddress") ?? "",
+                allowInsecureHTTP: Self.allowsInsecureHTTP)
+            let preference = DiscoveryOptIn(accountID: account.user.id, server: configuration.baseURL)
+            try save(preference)
+            user = account.user
+            Task {
+                guard self.optIn?.id == preference.id else { return }
+                await self.start()
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func save(_ preference: DiscoveryOptIn) throws {
+        preferences.set(try JSONEncoder().encode(preference), forKey: Self.preferenceKey)
+        optIn = preference
+    }
+
+    func restore(for account: Account) async {
+        guard allowsBackground, let optIn else { return }
+        guard
+            let configuration = try? APIConfiguration(
+                address: preferences.string(forKey: "apiAddress") ?? "",
+                allowInsecureHTTP: Self.allowsInsecureHTTP),
+            optIn.matches(accountID: account.user.id, server: configuration.baseURL)
+        else {
+            stop(reason: "Account or API changed")
+            return
+        }
+        user = account.user
+        if !isRunning { await start() }
     }
 
     var walkRemaining: TimeInterval {
@@ -81,20 +162,22 @@ final class ConnectedDiscoveryModel {
     }
 
     private func configuredClient() throws -> APIClient {
-        let address = UserDefaults.standard.string(forKey: "apiAddress") ?? ""
+        let address = preferences.string(forKey: "apiAddress") ?? ""
         let configuration = try APIConfiguration(address: address, allowInsecureHTTP: Self.allowsInsecureHTTP)
         apiAddress = configuration.baseURL.absoluteString
+        if let clientFactory { return clientFactory(configuration) }
         return APIClient(
             configuration: configuration, tokens: KeychainTokenStore(server: configuration.baseURL))
     }
 
     func refresh() async {
         if isRunning, allowsBackground {
+            if !radio.isRequested { nextRotation = .distantPast }
             await step(operation: generation)
             return
         }
         guard !isRunning, !isStarting, !isRefreshing else { return }
-        guard UIApplication.shared.isProtectedDataAvailable else {
+        guard canAccessCredentials() else {
             errorMessage = "Unlock the phone to access the saved account."
             return
         }
@@ -107,8 +190,7 @@ final class ConnectedDiscoveryModel {
             let signedIn = try await api.currentAccount().user
             guard generation == operation else { return }
             let contextMatches = try await api.usesSameCredential(as: configuredClient())
-            guard generation == operation, UIApplication.shared.applicationState == .active,
-                UIApplication.shared.isProtectedDataAvailable, contextMatches
+            guard generation == operation, canAccessCredentials(), contextMatches
             else { return }
             client = api
             user = signedIn
@@ -129,15 +211,15 @@ final class ConnectedDiscoveryModel {
 
     func start() async {
         guard !isStarting, !isRunning, !isRefreshing, !revocationPending,
-            !BluetoothDiscoveryService.isSimulator
+            supportsBluetooth
         else { return }
-        guard UIApplication.shared.applicationState == .active,
-            UIApplication.shared.isProtectedDataAvailable
-        else {
+        guard canAccessCredentials() else {
             errorMessage = "Open the app and unlock the phone before starting."
             return
         }
         isStarting = true
+        retryStart?.cancel()
+        retryStart = nil
         isApplicationActive = true
         let operation = UUID()
         generation = operation
@@ -145,17 +227,30 @@ final class ConnectedDiscoveryModel {
         status = "Starting an authenticated discovery session"
         defer {
             isStarting = false
-            if generation != operation, !revocationPending, !isRunning { status = "Discovery stopped" }
+            if generation == operation { scheduleStartRetry() }
         }
         do {
             let api = try await configuredClient().capturingCurrentCredential()
             let signedIn = try await api.currentAccount().user
             guard generation == operation else { return }
+            if allowsBackground {
+                let server = try APIConfiguration(
+                    address: apiAddress, allowInsecureHTTP: Self.allowsInsecureHTTP
+                ).baseURL
+                if let optIn, !optIn.matches(accountID: signedIn.id, server: server) {
+                    stop(reason: "Account or API changed")
+                    return
+                }
+                if optIn == nil {
+                    let preference = DiscoveryOptIn(accountID: signedIn.id, server: server)
+                    try save(preference)
+                }
+                walkConsent = optIn.map { DiscoveryConsent(untilStopped: $0.id) }
+            }
             let requestStartedAt = Date()
             let requestStartedUptime = ProcessInfo.processInfo.systemUptime
             let issued = try await api.startDiscovery()
-            guard generation == operation, UIApplication.shared.applicationState == .active,
-                UIApplication.shared.isProtectedDataAvailable
+            guard generation == operation, canAccessCredentials()
             else {
                 scheduleRevocation(issued.sessionId, using: api)
                 return
@@ -181,9 +276,6 @@ final class ConnectedDiscoveryModel {
             matchCount = 0
             firstMatchElapsed = nil
             startedUptime = requestStartedUptime
-            if allowsBackground {
-                walkConsent = PocketTestWindow(at: requestStartedAt, uptime: requestStartedUptime)
-            }
             isRunning = true
             let token = try applyLease(
                 issued, operation: operation, requestStartedAt: requestStartedAt,
@@ -192,11 +284,17 @@ final class ConnectedDiscoveryModel {
             radio.start(token: token, authenticatedPermit: walkPermit)
             guard radio.isRequested else { throw APIError.invalidResponse }
             status =
-                allowsBackground ? "Five-minute authenticated walk active" : "Discovery session active"
+                allowsBackground ? "Discovery enabled until you turn it off" : "Discovery session active"
             startForegroundLoop(operation: operation)
         } catch {
             guard generation == operation else { return }
-            if lease != nil {
+            if error as? APIError == .unauthenticated || error as? APIError == .onboardingRequired {
+                stop(reason: "Sign in and finish your profile to use discovery")
+            } else if optIn != nil {
+                pause(reason: "Paused — could not start discovery")
+                nextRotation = Date().addingTimeInterval(15)
+                if isRunning { startForegroundLoop(operation: operation) }
+            } else if lease != nil {
                 stop(reason: "Discovery could not start")
             } else {
                 status = "Discovery could not start"
@@ -205,9 +303,30 @@ final class ConnectedDiscoveryModel {
         }
     }
 
+    private func scheduleStartRetry() {
+        guard automaticallyRefreshes, isEnabled, isApplicationActive, !isRunning else { return }
+        retryStart?.cancel()
+        retryStart = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(15)) } catch { return }
+            guard let self, self.isEnabled, self.isApplicationActive else { return }
+            self.retryStart = nil
+            await self.start()
+        }
+    }
+
+    private func pause(reason: String) {
+        pausingRadio = true
+        radio.stop(reason: reason)
+        pausingRadio = false
+        walkPermit = nil
+        tokenExpiresAt = nil
+        nextRotation = .distantPast
+        status = reason
+    }
+
     private func startForegroundLoop(operation: UUID) {
         loop?.cancel()
-        guard isRunning, isApplicationActive else { return }
+        guard automaticallyRefreshes, isRunning, isApplicationActive else { return }
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, self.isRunning, self.generation == operation else { return }
@@ -239,7 +358,7 @@ final class ConnectedDiscoveryModel {
         lease = issued
         tokenExpiresAt = deadline
         nextRotation =
-            issued.expiresAt == issued.sessionExpiresAt
+            !allowsBackground && issued.expiresAt == issued.sessionExpiresAt
             ? .distantFuture : Date().addingTimeInterval(120)
         expiryWatchdog?.cancel()
         expiryWatchdog = Task { [weak self] in
@@ -249,7 +368,11 @@ final class ConnectedDiscoveryModel {
             guard let self, self.isRunning, self.generation == operation,
                 self.lease?.token == issued.token
             else { return }
-            self.stop(reason: "Discovery consent or token reached its safe expiry deadline")
+            if self.allowsBackground {
+                self.pause(reason: "Paused — discovery token expired")
+            } else {
+                self.stop(reason: "Discovery token reached its safe expiry deadline")
+            }
         }
         return token
     }
@@ -259,8 +382,10 @@ final class ConnectedDiscoveryModel {
         isApplicationActive = active
         radio.setApplicationActive(active)
         if !active {
+            retryStart?.cancel()
+            retryStart = nil
             if isStarting {
-                stop(reason: "Start canceled when the app entered the background")
+                // An issued lease is revoked by start() before another attempt.
                 return
             }
             loop?.cancel()
@@ -268,11 +393,12 @@ final class ConnectedDiscoveryModel {
             if isRunning { requestBackgroundPass() }
         } else if isRunning {
             cancelBackgroundPass()
-            guard walkRemaining > 0 else {
-                stop(reason: "Authenticated walk consent or token expired")
-                return
-            }
             startForegroundLoop(operation: generation)
+        } else if isEnabled, user != nil {
+            Task {
+                guard self.isEnabled else { return }
+                await self.start()
+            }
         }
     }
 
@@ -290,14 +416,16 @@ final class ConnectedDiscoveryModel {
     }
 
     private func requestBackgroundPass() {
-        guard allowsBackground, isRunning, !isApplicationActive, outbox.nextReady() != nil else { return }
+        guard allowsBackground, isRunning, !isApplicationActive,
+            outbox.nextReady() != nil || Date() >= nextRotation
+        else { return }
         wantsBackgroundPass = true
         launchBackgroundPassIfIdle()
     }
 
     private func launchBackgroundPassIfIdle() {
         guard wantsBackgroundPass, !networkBusy, backgroundUpload == nil,
-            allowsBackground, isRunning, !isApplicationActive, walkRemaining > 0
+            allowsBackground, isRunning, !isApplicationActive, isEnabled
         else { return }
         wantsBackgroundPass = false
         guard backgroundPolicy.begin(at: ProcessInfo.processInfo.systemUptime) else {
@@ -350,7 +478,7 @@ final class ConnectedDiscoveryModel {
     private func step(operation: UUID, background: Bool = false) async {
         guard isRunning, generation == operation, !networkBusy, let api = client, let current = lease
         else { return }
-        guard background ? (!isApplicationActive && walkRemaining > 0) : isApplicationActive else {
+        guard background ? (!isApplicationActive && isEnabled) : isApplicationActive else {
             return
         }
         networkBusy = true
@@ -359,10 +487,12 @@ final class ConnectedDiscoveryModel {
             launchBackgroundPassIfIdle()
         }
         if !background {
-            guard UIApplication.shared.isProtectedDataAvailable else { return }
+            guard canAccessCredentials() else { return }
             do {
                 let contextMatches = try await api.usesSameCredential(as: configuredClient())
-                guard isRunning, generation == operation, !Task.isCancelled else { return }
+                guard isRunning, generation == operation, isApplicationActive, canAccessCredentials(),
+                    !Task.isCancelled
+                else { return }
                 guard contextMatches else {
                     stop(reason: "Account or API changed; start a fresh discovery session")
                     user = nil
@@ -372,30 +502,70 @@ final class ConnectedDiscoveryModel {
                 errorMessage = "Unlock and refresh to confirm the current account."
                 return
             }
-            if Date() >= nextRotation {
-                nextRotation = Date().addingTimeInterval(5)
-                do {
-                    let startedAt = Date()
-                    let uptime = ProcessInfo.processInfo.systemUptime
-                    let rotated = try await api.rotateDiscovery(sessionId: current.sessionId)
-                    guard isRunning, generation == operation, isApplicationActive, !Task.isCancelled
-                    else { return }
-                    let token = try applyLease(
-                        rotated, operation: operation, requestStartedAt: startedAt,
-                        requestStartedUptime: uptime)
-                    radio.rotateToken(to: token, authenticatedPermit: walkPermit)
-                    errorMessage = nil
-                } catch is CancellationError { return } catch {
-                    guard isRunning, generation == operation else { return }
-                    if error as? APIError == .unauthenticated || error as? APIError == .server(410) {
-                        stop(reason: "The authenticated discovery session ended")
-                        return
-                    }
-                    errorMessage = "Token refresh failed. Radio access ends at the current safe deadline."
+        }
+        if Date() >= nextRotation || (outbox.isFull && outbox.pending.isEmpty) {
+            nextRotation = Date().addingTimeInterval(5)
+            do {
+                let startedAt = Date()
+                let uptime = ProcessInfo.processInfo.systemUptime
+                let replacing =
+                    allowsBackground
+                    && ((walkPermit?.validity.sessionRemaining(uptime: uptime) ?? 0) <= 120
+                        || (outbox.isFull && outbox.pending.isEmpty))
+                let rotated: DiscoveryLease
+                if replacing {
+                    rotated = try await api.startDiscovery()
+                } else {
+                    rotated = try await api.rotateDiscovery(sessionId: current.sessionId)
                 }
+                guard isRunning, generation == operation, !Task.isCancelled else {
+                    if replacing { scheduleRevocation(rotated.sessionId, using: api) }
+                    return
+                }
+                let token = try applyLease(
+                    rotated, operation: operation, requestStartedAt: startedAt,
+                    requestStartedUptime: uptime)
+                if replacing {
+                    outbox = DiscoveryOutbox()
+                    pendingUploads = 0
+                    matches = WalkMatchTracker()
+                    pausingRadio = true
+                    radio.stop(reason: "Renewing discovery session")
+                    pausingRadio = false
+                }
+                if radio.isRequested {
+                    radio.rotateToken(to: token, authenticatedPermit: walkPermit)
+                } else {
+                    radio.setApplicationActive(isApplicationActive)
+                    radio.start(token: token, authenticatedPermit: walkPermit)
+                }
+                guard isRunning, generation == operation else { return }
+                guard radio.isRequested else {
+                    pause(reason: "Paused — Bluetooth could not start")
+                    nextRotation = Date().addingTimeInterval(15)
+                    return
+                }
+                status = "Discovery enabled until you turn it off"
+                errorMessage = nil
+            } catch is CancellationError { return } catch {
+                guard isRunning, generation == operation else { return }
+                if error as? APIError == .unauthenticated || error as? APIError == .onboardingRequired {
+                    stop(reason: "The authenticated discovery session ended")
+                    return
+                }
+                if error as? APIError == .server(410), allowsBackground {
+                    pause(reason: "Paused — renewing the expired session")
+                } else if error as? APIError == .server(410) {
+                    stop(reason: "The discovery session ended")
+                    return
+                }
+                if error as? APIError == .rateLimited {
+                    nextRotation = Date().addingTimeInterval(60)
+                }
+                errorMessage = "Token refresh failed. Radio access ends at the current safe deadline."
             }
         }
-
+        guard let activeLease = lease else { return }
         for _ in 0..<(background ? BackgroundUploadPolicy.maximumReports : 1) {
             guard isRunning, generation == operation, !Task.isCancelled,
                 !background || (!isApplicationActive && walkRemaining > 0),
@@ -403,7 +573,7 @@ final class ConnectedDiscoveryModel {
             else { break }
             do {
                 let receipt = try await api.observeEncounter(
-                    sessionId: current.sessionId, peerToken: pending.peerToken, observationId: pending.id)
+                    sessionId: activeLease.sessionId, peerToken: pending.peerToken, observationId: pending.id)
                 guard isRunning, generation == operation, !Task.isCancelled else { return }
                 if pending.awaitingMatchUntil == nil { submittedReports += 1 }
                 if receipt.status == .recorded {
@@ -446,7 +616,7 @@ final class ConnectedDiscoveryModel {
 
     private func recordMatch(_ receipt: ObservationReceipt) {
         guard matches.ingest(receipt) else { return }
-        matchCount = matches.matchIds.count
+        matchCount += 1
         if firstMatchElapsed == nil {
             firstMatchElapsed = max(0, ProcessInfo.processInfo.systemUptime - startedUptime)
         }
@@ -468,6 +638,10 @@ final class ConnectedDiscoveryModel {
     }
 
     func stop(reason: String = "Discovery stopped") {
+        optIn = nil
+        if allowsBackground { preferences.removeObject(forKey: Self.preferenceKey) }
+        retryStart?.cancel()
+        retryStart = nil
         generation = UUID()
         loop?.cancel()
         expiryWatchdog?.cancel()
@@ -521,6 +695,11 @@ final class ConnectedDiscoveryModel {
                 self?.isRevoking = false
                 self?.revocationBudget?.end()
                 self?.revocationBudget = nil
+                if let self, self.revocation?.sessionId != pending.sessionId, self.revocationPending {
+                    self.retryRevocation()
+                } else {
+                    self?.scheduleStartRetry()
+                }
             }
             do {
                 try await pending.client.stopDiscovery(sessionId: pending.sessionId)

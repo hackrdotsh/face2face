@@ -23,10 +23,10 @@
                         )
                         .font(.title2.bold())
                         Text(
-                            "Sign in on Account first. Starting discovery opts you in to sharing your name after both devices report the exchange."
+                            "Sign in on Account first. Starting discovery opts you in to anonymous matches after both phones report the exchange."
                         )
                         Text(
-                            "Names are account claims. Bluetooth reports do not verify identity or physical proximity."
+                            "Bluetooth reports do not verify identity or physical proximity."
                         )
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -35,10 +35,10 @@
                 if model.allowsBackground {
                     Section {
                         Text(
-                            "Start unlocked. This memory-only test can run for up to five minutes when you leave the tab or lock the phone. iOS may delay radio events or deny uploads."
+                            "Start unlocked. Discovery stays enabled until you stop it. iOS may delay radio events or deny background execution."
                         )
                         Text(
-                            "No signed-in walk is restored after process death. Tokens still expire; a fresh Start is required."
+                            "After process death, reopen the app to resume. Only the account-bound opt-in preference is saved; radio tokens and credentials are not restored from preferences."
                         )
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -72,13 +72,13 @@
                         )
                         .foregroundStyle(.secondary)
                     }
-                    if model.isRunning || model.isStarting {
+                    if model.isEnabled || model.isStarting {
                         Button(model.isStarting ? "Cancel start" : "Stop discovery") { model.stop() }
                             .buttonStyle(.bordered)
                     } else {
                         Button(
                             model.allowsBackground
-                                ? "Start five-minute Walk test" : "Start connected discovery"
+                                ? "Start discovery" : "Start connected discovery"
                         ) { Task { await model.start() } }
                         .buttonStyle(.borderedProminent)
                         .disabled(
@@ -107,7 +107,7 @@
                     if model.allowsBackground {
                         TimelineView(.periodic(from: .now, by: 1)) { _ in
                             LabeledContent(
-                                "Safe walk time remaining", value: "\(Int(ceil(model.walkRemaining))) seconds"
+                                "Current token valid for", value: "\(Int(ceil(model.walkRemaining))) seconds"
                             )
                         }
                         LabeledContent("App", value: model.isApplicationActive ? "Foreground" : "Background")

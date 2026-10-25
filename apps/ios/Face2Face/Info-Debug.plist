@@ -15,7 +15,7 @@
     <key>UILaunchScreen</key><dict/>
     <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
     <key>UIBackgroundModes</key><array><string>bluetooth-central</string><string>bluetooth-peripheral</string></array>
-    <key>NSBluetoothAlwaysUsageDescription</key><string>Discover nearby Face2Face test devices and exchange anonymous session tokens during foreground tests or an explicitly started five-minute Pocket or Walk test.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key><string>While discovery is on, face2face uses Bluetooth to swap short-lived anonymous tokens with other phones nearby. Debug builds also include separate Bluetooth tests.</string>
     <key>NSLocalNetworkUsageDescription</key><string>Connect to your development API on your local network.</string>
     <key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><true/></dict>
 </dict>

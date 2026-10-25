@@ -13,6 +13,7 @@ struct DiscoveryLogEntry: Identifiable {
 @MainActor
 @Observable
 final class BluetoothDiscoveryService: NSObject {
+    enum StopCause { case requested, expired, preempted, failed }
     private static weak var activeOwner: BluetoothDiscoveryService?
     private static let serviceID = CBUUID(string: "C5D1A704-9D2E-4B29-A541-2C3138E64001")
     private static let tokenID = CBUUID(string: "C5D1A704-9D2E-4B29-A541-2C3138E64002")
@@ -39,10 +40,13 @@ final class BluetoothDiscoveryService: NSObject {
     private(set) var exchangeStatus = "Idle"
     private(set) var lastIssue: String?
     private(set) var session: DiscoverySession?
+    private(set) var stopCause = StopCause.requested
     private(set) var events: [DiscoveryLogEntry] = []
 
     @ObservationIgnored var onEncounter: ((DiscoveryEncounter) -> Void)?
     @ObservationIgnored var onExchangeCompleted: (() -> Void)?
+    @ObservationIgnored var onActivity: (() -> Void)?
+    @ObservationIgnored var onPermissionDenied: (() -> Void)?
     @ObservationIgnored private var authenticatedPermit: AuthenticatedRadioPermit?
     @ObservationIgnored private var expiryGeneration = UUID()
     @ObservationIgnored var onStopped: (() -> Void)?
@@ -121,7 +125,7 @@ final class BluetoothDiscoveryService: NSObject {
             return
         }
         if let owner = Self.activeOwner, owner !== self {
-            owner.stop(reason: "Another discovery test was started")
+            owner.stop(reason: "Another discovery test was started", cause: .preempted)
         }
         Self.activeOwner = self
         self.pocketWindow = pocketWindow
@@ -134,6 +138,7 @@ final class BluetoothDiscoveryService: NSObject {
         events = []
         lastIssue = nil
         isRequested = true
+        stopCause = .requested
         status = "Starting discovery"
         bluetoothStatus = "Checking Bluetooth"
         log("Started a fresh anonymous test session.")
@@ -184,7 +189,7 @@ final class BluetoothDiscoveryService: NSObject {
     private func allowRadioOperations() -> Bool {
         guard isRequested else { return false }
         guard consentIsCurrent else {
-            stop(reason: expiryReason)
+            stop(reason: expiryReason, cause: .expired)
             return false
         }
         return true
@@ -206,7 +211,7 @@ final class BluetoothDiscoveryService: NSObject {
         pocketExpiry = Task { [weak self] in
             do { try await Task.sleep(for: .seconds(remaining)) } catch { return }
             guard let self, self.expiryGeneration == stamp else { return }
-            self.stop(reason: self.expiryReason)
+            self.stop(reason: self.expiryReason, cause: .expired)
         }
     }
 
@@ -298,8 +303,9 @@ final class BluetoothDiscoveryService: NSObject {
         log("Rotated the anonymous discovery token.")
     }
 
-    func stop(reason: String = "Stopped") {
+    func stop(reason: String = "Stopped", cause: StopCause = .requested) {
         guard isRequested || central != nil || advertiser != nil else { return }
+        stopCause = cause
         isRequested = false
         heartbeat?.cancel()
         heartbeat = nil
@@ -358,6 +364,8 @@ final class BluetoothDiscoveryService: NSObject {
         if states.contains(.unauthorized) {
             bluetoothStatus = "Permission denied"
             status = "Allow Face2Face Bluetooth access in Settings, then return here."
+            onPermissionDenied?()
+            return
         } else if states.contains(.unsupported) {
             bluetoothStatus = "Unsupported"
             status = "This device does not support the Bluetooth test."
@@ -595,6 +603,7 @@ extension BluetoothDiscoveryService: @preconcurrency CBCentralManagerDelegate {
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         guard central === self.central else { return }
+        onActivity?()
         centralStateReported = true
         if isRestorationPending {
             finishRestorationWithoutState()
@@ -608,7 +617,9 @@ extension BluetoothDiscoveryService: @preconcurrency CBCentralManagerDelegate {
         _ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
         advertisementData: [String: Any], rssi: NSNumber
     ) {
-        guard central === self.central, allowRadioOperations(), serviceReady else { return }
+        guard central === self.central else { return }
+        onActivity?()
+        guard allowRadioOperations(), serviceReady else { return }
         tick()
         guard isRequested else { return }
         // Device names, RSSI, addresses and account data are deliberately not recorded.
@@ -734,6 +745,7 @@ extension BluetoothDiscoveryService: @preconcurrency CBPeripheralManagerDelegate
 
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         guard peripheral === advertiser else { return }
+        onActivity?()
         advertiserStateReported = true
         if isRestorationPending {
             finishRestorationWithoutState()
@@ -748,7 +760,7 @@ extension BluetoothDiscoveryService: @preconcurrency CBPeripheralManagerDelegate
             return
         }
         guard error == nil else {
-            stop(reason: "Could not publish the Bluetooth service")
+            stop(reason: "Could not publish the Bluetooth service", cause: .failed)
             lastIssue = "Tap Start discovery to try publishing the service again."
             return
         }
@@ -761,7 +773,7 @@ extension BluetoothDiscoveryService: @preconcurrency CBPeripheralManagerDelegate
         guard peripheral === advertiser, allowRadioOperations(), serviceReady else { return }
         advertisingPending = false
         guard error == nil else {
-            stop(reason: "Could not advertise the Bluetooth service")
+            stop(reason: "Could not advertise the Bluetooth service", cause: .failed)
             lastIssue = "Tap Start discovery to try advertising again."
             return
         }
@@ -772,10 +784,11 @@ extension BluetoothDiscoveryService: @preconcurrency CBPeripheralManagerDelegate
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
         guard peripheral === advertiser else { return }
+        onActivity?()
         pruneInboundReads()
         guard isRequested, consentIsCurrent, serviceReady, let token = session?.token else {
             peripheral.respond(to: request, withResult: .insufficientAuthorization)
-            if !consentIsCurrent { stop(reason: expiryReason) }
+            if !consentIsCurrent { stop(reason: expiryReason, cause: .expired) }
             return
         }
         guard request.characteristic.uuid == Self.tokenID else {
@@ -804,11 +817,12 @@ extension BluetoothDiscoveryService: @preconcurrency CBPeripheralManagerDelegate
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
         guard peripheral === advertiser, let request = requests.first else { return }
+        onActivity?()
         pruneInboundReads()
         // One response for the whole batch, and no partial application of malformed writes.
         guard isRequested, consentIsCurrent, serviceReady, let token = session?.token else {
             peripheral.respond(to: request, withResult: .insufficientAuthorization)
-            if !consentIsCurrent { stop(reason: expiryReason) }
+            if !consentIsCurrent { stop(reason: expiryReason, cause: .expired) }
             return
         }
         guard requests.count == 1, request.characteristic.uuid == Self.tokenID else {

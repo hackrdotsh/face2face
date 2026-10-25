@@ -32,6 +32,21 @@ targets:
           INFOPLIST_FILE: Face2Face/Info-Debug.plist
         Release:
           INFOPLIST_FILE: Face2Face/Info-Release.plist
+  Face2FaceTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Face2FaceTests
+    dependencies:
+      - target: Face2Face
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: systems.rocky.face2face.tests
+        PRODUCT_NAME: Face2FaceTests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Face2Face.app/Face2Face"
+        BUNDLE_LOADER: "$(TEST_HOST)"
   Face2FaceUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -52,4 +67,5 @@ schemes:
         Face2Face: all
     test:
       targets:
+        - Face2FaceTests
         - Face2FaceUITests

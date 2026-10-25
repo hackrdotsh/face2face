@@ -5,7 +5,8 @@ The current build has sign-in with an emailed code, a verified password, or a
 passkey, password reset, and profile onboarding. The login screen uses the animated
 meadow and glass form; the account screen shares this style. Profile onboarding is server-driven,
 with one field per step.
-An opt-in, five-minute [StreetPass discovery](docs/architecture.md#streetpass-discovery)
+An opt-in [StreetPass discovery](docs/architecture.md#streetpass-discovery) mode stays
+enabled until you turn it off and
 turns a reciprocal Bluetooth match into an anonymous chance to connect. It is not
 validated on hardware yet, and a match does not prove that two people were near.
 

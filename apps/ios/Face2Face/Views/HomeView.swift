@@ -46,6 +46,9 @@ struct HomeView: View {
         .activityAlert(passkeyEnrollment.activity)
         .sheet(isPresented: $showingSettings) { SettingsView(session: session) }
         .accessibilityIdentifier("accountHome")
+        .task(id: account.user.id) {
+            await ConnectedDiscoveryModel.backgroundWalk.restore(for: account)
+        }
     }
 
     private var profileCard: some View {
@@ -66,10 +69,6 @@ struct HomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
                 Button {
-                    let walk = ConnectedDiscoveryModel.backgroundWalk
-                    if walk.isRunning || walk.isStarting {
-                        walk.stop(reason: "Stopped when you signed out")
-                    }
                     Task { await session.signOut() }
                 } label: {
                     Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
@@ -134,7 +133,7 @@ struct HomeView: View {
 
     private var discoveryCard: some View {
         card {
-            DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk)
+            DiscoverySection(model: ConnectedDiscoveryModel.backgroundWalk, account: account)
         }
     }
 

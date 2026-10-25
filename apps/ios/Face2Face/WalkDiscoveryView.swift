@@ -51,13 +51,13 @@
                         .padding(.vertical, 8)
                     }
 
-                    if model.isRunning || model.isStarting {
+                    if model.isEnabled || model.isStarting {
                         Button(model.isStarting ? "Cancel start" : "Stop walk", role: .destructive) {
                             model.stop()
                         }
                         .frame(minHeight: 44)
                     } else {
-                        Button("Start five-minute walk") { Task { await model.start() } }
+                        Button("Start discovery") { Task { await model.start() } }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.large)
                             .frame(minHeight: 44)
@@ -82,7 +82,8 @@
                         WalkProgressRow(
                             title: "Match recorded", isComplete: hasMatch)
                         TimelineView(.periodic(from: .now, by: 1)) { _ in
-                            LabeledContent("Safe time remaining") {
+                            Text(model.discoveryStatus)
+                            LabeledContent("Current token valid for") {
                                 Text("\(Int(ceil(model.walkRemaining))) seconds")
                                     .monospacedDigit()
                             }
@@ -91,7 +92,7 @@
                         Text("This walk")
                     } footer: {
                         Text(
-                            "Leaving this tab keeps the walk active until its consent or token expires. Stop ends the radio immediately."
+                            "Discovery stays enabled until Stop. The radio pauses if it cannot renew its short-lived token."
                         )
                     }
                 } else {
@@ -112,9 +113,11 @@
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         }
-                        Text("Start unlocked. Up to five minutes; no automatic restart after process death.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        Text(
+                            "Start unlocked. After the app is terminated, reopen it to resume discovery for the same account."
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                     }
                 }
 

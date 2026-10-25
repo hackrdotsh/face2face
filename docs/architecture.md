@@ -414,8 +414,9 @@ attendees), and the viewer's `attending` and `isAuthor`. It also includes
 
 ## StreetPass discovery
 
-Discovery is opt-in, lasts up to five minutes, and is not validated on hardware
-yet. Phones swap short-lived random tokens over Bluetooth and report what they
+Discovery is opt-in and stays enabled until turned off. Radio activity may pause;
+continuous and locked-screen operation are not validated on hardware yet.
+Phones swap short-lived random tokens over Bluetooth and report what they
 heard. When two phones report each other within two minutes, the server calls
 `recordEncounter`, so a match becomes a normal pending chance with an
 `encounter` notification. Code is in `apps/api/src/discovery` and
@@ -470,10 +471,27 @@ Errors are `400 invalid_request`, `400 self_encounter`, `403 onboarding_required
 ### iPhone
 
 - Release builds show a **Discover people nearby** toggle on the home screen. It
-  runs the five-minute Walk and shows the time left and the match count.
+  saves an opt-in for that account and API, and shows the current status and match count.
+  There is no fixed consent timeout. Turning it off, signing out, changing the API,
+  or losing Bluetooth permission clears the opt-in and stops the radio immediately.
+- Tokens still expire after at most five minutes. While foregrounded, the app rotates
+  tokens roughly every two minutes and replaces the server lease before its 30-minute
+  deadline. A full, drained report buffer also starts a fresh lease; buffers remain bounded.
+  Retries retain observation IDs within a lease; pending old-lease reports are discarded
+  when a lease is replaced, not sent under a new session.
+- A missed renewal stops the radio at the token's safe deadline and shows **Paused**,
+  without silently switching off the preference. Returning to the foreground retries.
+  Renewal failures retry with a delay; rate limits defer renewal for a minute.
+- Only the account/API-bound opt-in is stored in preferences. Tokens, captured bearer
+  credentials, peer observations, and authenticated radio state remain memory-only.
+  After process death, reopening the app resumes only after confirming the same
+  signed-in account. No authenticated Bluetooth restoration or force-quit wakeup is promised.
 - Debug builds add Walk, Connected, Pocket, and Device test tabs beside the
   account screen. The Device and Pocket tests are anonymous and never reach the API.
-- In the background, iOS gives only short upload passes. A phone that reports
+- In the background, Bluetooth callbacks may request token renewal and uploads within
+  the existing finite execution budget. There are no timer-driven background renewals.
+  Without callbacks or an execution grant, discovery pauses when the token expires.
+  A phone that reports
   first sees the match when it returns to the foreground.
 - The iPhone app has no Passed screen yet. Check a match's chance in the web client.
 
@@ -494,6 +512,13 @@ or blocked and expires their earlier pending chance first. It tests no Bluetooth
    and no second chance may appear.
 6. Turn discovery off on one phone. The other phone must not record a new match.
 7. Repeat with one phone in the background, then locked, and write down the results.
+8. Keep both apps foregrounded beyond five minutes and across a 30-minute lease boundary.
+   Verify token/session renewal and new reciprocal matches without touching the toggle.
+9. Interrupt networking through token expiry. Confirm the toggle remains on, the status
+   becomes Paused, and foreground renewal resumes once networking returns.
+10. Turn discovery off during renewal, then relaunch. Confirm it stays off. Repeat with
+    sign-out, an account/API change, and revoked Bluetooth permission. Never resume a
+    previous account's opt-in for a different account.
 
 ## Before real users
 
