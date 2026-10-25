@@ -171,7 +171,6 @@ enum Forest3DAssets {
         material.writesDepth = false
         let bubble = ModelEntity(mesh: .generatePlane(width: 0.65, height: 0.65), materials: [material])
         bubble.name = "greeting-bubble"
-        bubble.components.set(BillboardComponent())
         bubble.isEnabled = false
         return bubble
     }
