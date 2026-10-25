@@ -31,6 +31,10 @@ public struct ChatSummary: Decodable, Sendable, Identifiable {
     public let lastMessage: ChatMessage?
     public let unreadCount: Int
     public var title: String { connection.publicTownFriend?.name ?? "Anonymous connection" }
+    public func replacingConnection(_ value: TownConnection) -> ChatSummary? {
+        guard value.id == id, value.isFriend else { return nil }
+        return ChatSummary(id: id, connection: value, lastMessage: lastMessage, unreadCount: unreadCount)
+    }
 }
 
 public struct ChatMessagePage: Decodable, Sendable {

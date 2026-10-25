@@ -66,3 +66,33 @@ import Testing
     #expect(connection.publicTownFriend == nil)
     #expect(connection.you?.decision == nil)
 }
+
+@Test func profileConsentUsesAuthenticatedEndpointAndNeverRevealsOneSidedIdentity() async throws {
+    let transport = StubTransport([
+        response(
+            json:
+                #"{"connection":{"id":"chat","status":"private","sharedInterests":[],"expiresAt":"2026-10-26T00:00:00Z","you":{"publicAt":"2026-10-25T00:00:00Z"},"them":{"userId":"hidden","name":"Hidden","avatar":{"seed":"AAAAAAAAAAAAAAAAAAAAAA"}}}}"#
+        ),
+        response(
+            json:
+                #"{"connection":{"id":"chat","status":"public","sharedInterests":[],"expiresAt":"2026-10-26T00:00:00Z","you":{"publicAt":"2026-10-25T00:00:00Z"},"them":{"userId":"peer","name":"Peer","avatar":{"seed":"AAAAAAAAAAAAAAAAAAAAAA"}}}}"#
+        ),
+    ])
+    let client = APIClient(
+        configuration: try configuration(), tokens: MemoryTokens("signed"), transport: transport)
+    let waiting = try await client.agreeToPublicConnection("chat")
+    #expect(waiting.hasChosenProfileSharing && !waiting.canOfferProfileSharing)
+    #expect(waiting.publicTownFriend == nil)
+    let shared = try await client.agreeToPublicConnection("chat")
+    #expect(shared.publicTownFriend?.name == "Peer")
+    let requests = await transport.requests
+    #expect(requests.count == 2)
+    #expect(
+        requests.allSatisfy {
+            $0.url?.path == "/api/connections/chat/public" && $0.httpMethod == "POST"
+                && $0.value(forHTTPHeaderField: "Authorization") == "Bearer signed"
+                && String(decoding: $0.httpBody!, as: UTF8.self) == "{}"
+        })
+    await #expect(throws: APIError.invalidResponse) { try await client.agreeToPublicConnection("../peer") }
+    #expect(await transport.requests.count == 2)
+}

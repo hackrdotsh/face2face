@@ -40,6 +40,8 @@ public struct TownConnection: Decodable, Sendable, Identifiable {
 
     public var isFriend: Bool { status == "private" || status == "public" }
     public var isPending: Bool { status == "pending" }
+    public var canOfferProfileSharing: Bool { status == "private" && you != nil && you?.publicAt == nil }
+    public var hasChosenProfileSharing: Bool { you?.publicAt != nil }
 
     public var publicTownFriend: PublicTownFriend? { PublicTownFriend(connection: self) }
 }
