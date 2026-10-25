@@ -16,7 +16,7 @@ transport does not follow redirects with credentials.
 
 `GET /health` checks the Worker response, not database readiness. `/api/auth/*`
 handles authentication. `GET /api/me` returns the authenticated person's ID, name,
-email, avatar, and whether onboarding is complete. `GET /api/coordinator` calls that person's SQLite-backed Durable Object.
+email, avatar, status message, and whether onboarding is complete. `GET /api/coordinator` calls that person's SQLite-backed Durable Object.
 Neither protected route accepts a user ID from the caller.
 
 Swift core tests run on Linux and Mac. Keychain and SwiftUI need Apple's SDKs;
@@ -169,6 +169,17 @@ Coordinates are in a unit square:
 web and Swift tests both check it. Change the drawing in both clients and the
 fixture together.
 
+### Status messages
+
+A person can set one line of text, up to 80 Unicode code points. Only public
+connections see it, on the public profile and in a speech bubble above the
+person in the plaza. Each bubble shows for 4 seconds after a gap of 8 to 20
+seconds, timed by `TownStatusBubble`. With Reduce Motion it stays shown.
+- `PUT /api/profile/status` takes `{ "statusMessage": string | null }`. The
+  server collapses whitespace to single spaces and trims it. Empty text clears
+  it. It returns `{ statusMessage }`, or `400 status_too_long`. It needs
+  finished onboarding.
+
 ### Passkeys
 
 Passkey challenges travel in a signed cookie. The iPhone transport ignores
@@ -243,7 +254,8 @@ the table.
 
 Until a connection is public, a participant sees only the shared interests and
 their own choices. They do not see the other person's ID, name, or decision.
-A public connection adds the other person's name, avatar, age, and interests.
+A public connection adds the other person's name, avatar, age, interests, and
+status message.
 
 Routes, all behind `requireOnboarded`:
 - `GET /api/connections`
