@@ -114,6 +114,7 @@ struct SignInView: View {
                         .accessibilityLabel("Email")
                         .accessibilityIdentifier("emailField")
                 }
+                .focusTarget { focusedField.wrappedValue = .email }
 
                 if model.method != .emailCode {
                     MeadowField(
@@ -140,6 +141,7 @@ struct SignInView: View {
                         .accessibilityLabel("Password")
                         .accessibilityIdentifier("passwordField")
                     }
+                    .focusTarget { focusedField.wrappedValue = .password }
                     .transition(modeTransition)
                 }
             }
@@ -212,6 +214,7 @@ struct SignInView: View {
                         .onSubmit(submitCode)
                         .accessibilityLabel("New password")
                 }
+                .focusTarget { focusedField.wrappedValue = .newPassword }
                 .modifier(entrance(2))
             }
 

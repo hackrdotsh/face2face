@@ -61,6 +61,7 @@ struct OnboardingStepView: View {
                 .padding(.horizontal, 16)
                 .frame(minHeight: 56)
                 .meadowWell()
+                .focusTarget { textFocused.wrappedValue = true }
                 .accessibilityLabel(field.label)
         case .date:
             DatePicker(
@@ -88,6 +89,7 @@ struct OnboardingStepView: View {
                     .padding(.horizontal, 16)
                     .frame(minHeight: 52)
                     .meadowWell()
+                    .focusTarget { textFocused.wrappedValue = true }
                     .accessibilityLabel("Description")
             }
         case .image:

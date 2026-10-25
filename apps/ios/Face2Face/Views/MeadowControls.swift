@@ -59,6 +59,17 @@ struct MeadowField<Content: View>: View {
 }
 
 extension View {
+    /// Widens a text field's tap area to this view plus `outset` on every side.
+    /// The field keeps its own taps, so cursor placement still works.
+    func focusTarget(outset: CGFloat = 6, _ focus: @escaping () -> Void) -> some View {
+        padding(outset)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: focus)
+            .padding(-outset)
+    }
+}
+
+extension View {
     /// The field fill and hairline border shared by inputs.
     func meadowWell(selected: Bool = false) -> some View {
         background(MeadowPalette.field, in: RoundedRectangle(cornerRadius: MeadowRadius.control))

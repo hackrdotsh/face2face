@@ -75,6 +75,23 @@ final class LoginTests: XCTestCase {
         }
     }
 
+    func testTappingAroundATextFieldFocusesIt() {
+        let app = launchApp()
+        openCreateAccount(in: app)
+        let email = app.textFields["emailField"]
+        let password = app.secureTextFields["passwordField"]
+        // The symbol at the leading edge of the well, outside the text field itself.
+        password.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(
+            CGVector(dx: -24, dy: 0)
+        )
+        .tap()
+        XCTAssertTrue(hasFocus(password))
+        // Just below the email well, which is 52 points tall around its field.
+        email.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).withOffset(CGVector(dx: 0, dy: 29))
+            .tap()
+        XCTAssertTrue(hasFocus(email))
+    }
+
     func testGreetingAnimationKeepsWelcomeInteractive() {
         let app = launchApp(openLogin: false)
         capture("Approaching walker")
@@ -176,6 +193,14 @@ final class LoginTests: XCTestCase {
         app.keyboards.buttons.matching(
             NSPredicate(format: "label ==[c] 'next' OR identifier == 'Next:'")
         ).firstMatch
+    }
+
+    private func hasFocus(_ element: XCUIElement) -> Bool {
+        for _ in 0..<10 {
+            if (element.value(forKey: "hasKeyboardFocus") as? Bool) == true { return true }
+            RunLoop.current.run(until: .now + 0.2)
+        }
+        return false
     }
 
     private func openCreateAccount(in app: XCUIApplication) {
