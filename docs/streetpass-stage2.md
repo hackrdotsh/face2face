@@ -1,5 +1,10 @@
 # Stage 2: authenticated encounter handoff
 
+> **Superseded.** This records an earlier trial. Matches no longer reveal names,
+> `GET /api/encounters` is gone, observations go to `POST /api/discovery/observe`,
+> and the local API runs on port 8080. See
+> [StreetPass discovery](architecture.md#streetpass-discovery) for the current contract.
+
 Stage 2 connects the foreground Bluetooth experiment to the API. It is available in the
 Debug app's **Connected test** tab. The independent **Device test** tab remains the Stage 1,
 account-free hardware control.

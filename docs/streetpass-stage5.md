@@ -1,5 +1,10 @@
 # Stage 5: live Walk flow and repeatable encounter reveals
 
+> **Superseded.** This records an earlier trial. Matches no longer reveal names,
+> `GET /api/encounters` is gone, observations go to `POST /api/discovery/observe`,
+> and the local API runs on port 8080. See
+> [StreetPass discovery](architecture.md#streetpass-discovery) for the current contract.
+
 The Walk tab now presents a live encounter flow instead of the full diagnostic form.
 The existing Connected, Device, and Pocket controls stay available. Native changes remain
 Debug-only, on the separate StreetPass branch.

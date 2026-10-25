@@ -1,5 +1,10 @@
 # Stage 6: two-iPhone validation
 
+> **Superseded.** This records an earlier trial. Matches no longer reveal names,
+> `GET /api/encounters` is gone, observations go to `POST /api/discovery/observe`,
+> and the local API runs on port 8080. See
+> [StreetPass discovery](architecture.md#streetpass-discovery) for the current contract.
+
 Status: **hardware gate pending**. The Mac/API rehearsal has passed; no physical radio trial
 has been completed. Keep the foreground demo as a candidate until both phones pass it.
 

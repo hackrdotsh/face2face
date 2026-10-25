@@ -1,5 +1,10 @@
 # Stage 4: five-minute authenticated Walk experiment
 
+> **Superseded.** This records an earlier trial. Matches no longer reveal names,
+> `GET /api/encounters` is gone, observations go to `POST /api/discovery/observe`,
+> and the local API runs on port 8080. See
+> [StreetPass discovery](architecture.md#streetpass-discovery) for the current contract.
+
 The Debug app's **Walk test** combines server-issued Bluetooth locators with a bounded,
 explicitly started background walk. The existing Connected test stays foreground-only;
 Pocket test remains the independent anonymous restoration experiment.
