@@ -39,6 +39,7 @@ describe("onboarding API", () => {
       ["name", null],
       ["birthDate", null],
       ["gender", null],
+      ["interests", null],
       ["photo", null],
     ]);
     const gender = state.fields.find((field) => field.key === "gender");
@@ -63,6 +64,7 @@ describe("onboarding API", () => {
       ["name", "Sam"],
       ["birthDate", "1995-02-03"],
       ["gender", { optionId: "male" }],
+      ["interests", null],
       ["photo", null],
     ]);
     const me = await callAPI("/api/me", { headers: bearerHeaders(token) });
@@ -70,6 +72,33 @@ describe("onboarding API", () => {
       user: { name: "Sam" },
       onboardingComplete: true,
     });
+  });
+
+  it("lists picked interests and only takes them through the interests API", async () => {
+    const token = await signInWithEmailCode("interests@example.test");
+    await patchOnboarding(token, {
+      name: "Sam",
+      birthDate: "1995-02-03",
+      gender: { optionId: "male" },
+    });
+    const picked = await callAPI("/api/interests", {
+      method: "PUT",
+      headers: { ...bearerHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ interestIds: ["yoga", "coffee"] }),
+    });
+    expect(picked.status).toBe(200);
+    const state = await (
+      await callAPI("/api/onboarding", { headers: bearerHeaders(token) })
+    ).json<OnboardingResponse>();
+    expect(
+      state.fields.find((field) => field.key === "interests"),
+    ).toMatchObject({
+      type: "interests",
+      required: false,
+      value: ["coffee", "yoga"],
+    });
+    const rejected = await patchOnboarding(token, { interests: ["jazz"] });
+    expect(rejected.status).toBe(400);
   });
 
   it("stores a custom description for the other gender option", async () => {
@@ -142,6 +171,7 @@ describe("onboarding field registry", () => {
     genderDescription: null,
     genderOptions: [],
     photo: null,
+    interestIds: [],
   };
   const context = { snapshot: completedSnapshot, today: "2026-10-24" };
 

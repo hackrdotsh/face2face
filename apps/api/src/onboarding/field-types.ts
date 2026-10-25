@@ -20,10 +20,10 @@ export interface FieldConstraints {
 
 export interface FieldDescription {
   key: string;
-  type: "text" | "date" | "singleChoice" | "image";
+  type: "text" | "date" | "singleChoice" | "image" | "interests";
   label: string;
   required: boolean;
-  value: string | ChoiceValue | ProfilePhoto | null;
+  value: string | string[] | ChoiceValue | ProfilePhoto | null;
   constraints?: FieldConstraints;
   options?: ChoiceOption[];
 }

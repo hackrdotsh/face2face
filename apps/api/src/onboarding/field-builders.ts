@@ -163,3 +163,20 @@ export function photoField(
     parse: () => ({ ok: false, message: "Upload the photo instead." }),
   };
 }
+
+/** Ids of the person's interests. Set through `/api/interests`, never by an onboarding update. */
+export function interestsField(
+  field: Omit<FieldBase<string[]>, "write">,
+): OnboardingField {
+  return {
+    key: field.key,
+    describe: ({ snapshot }) => ({
+      key: field.key,
+      type: "interests",
+      label: field.label,
+      required: field.required,
+      value: field.read(snapshot),
+    }),
+    parse: () => ({ ok: false, message: "Pick interests instead." }),
+  };
+}

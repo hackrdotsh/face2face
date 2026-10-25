@@ -1,5 +1,6 @@
 import {
   birthDateField,
+  interestsField,
   photoField,
   singleChoiceField,
   textField,
@@ -44,6 +45,13 @@ export const onboardingFields: OnboardingField[] = [
         genderDescription: gender.description ?? null,
       },
     }),
+  }),
+  interestsField({
+    key: "interests",
+    label: "Interests",
+    required: false,
+    read: (snapshot) =>
+      snapshot.interestIds.length > 0 ? snapshot.interestIds : null,
   }),
   photoField({
     key: "photo",

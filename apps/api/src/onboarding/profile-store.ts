@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import type { Database } from "../db/client";
-import { gender, profile, user } from "../db/schema";
+import { gender, profile, profileInterest, user } from "../db/schema";
 import type { PhotoViewer, ProfilePhoto } from "../profiles/person";
 import type { ChoiceOption } from "./field-types";
 
@@ -11,6 +11,7 @@ export interface ProfileSnapshot {
   genderDescription: string | null;
   genderOptions: ChoiceOption[];
   photo: ProfilePhoto | null;
+  interestIds: string[];
 }
 
 export interface ProfileChanges {
@@ -27,7 +28,7 @@ export async function loadProfileSnapshot(
   viewPhoto: PhotoViewer,
   userId: string,
 ): Promise<ProfileSnapshot> {
-  const [account, genderOptions] = await Promise.all([
+  const [account, genderOptions, interests] = await Promise.all([
     db
       .select({
         name: user.name,
@@ -49,11 +50,21 @@ export async function loadProfileSnapshot(
       .from(gender)
       .where(eq(gender.active, true))
       .orderBy(asc(gender.sortOrder)),
+    db
+      .select({ id: profileInterest.interestId })
+      .from(profileInterest)
+      .where(eq(profileInterest.userId, userId))
+      .orderBy(asc(profileInterest.interestId)),
   ]);
   if (!account) throw new Error("Signed-in user is missing from the database");
   const { photoId, ...fields } = account;
   const photo = photoId ? await viewPhoto(photoId) : null;
-  return { ...fields, genderOptions, photo };
+  return {
+    ...fields,
+    genderOptions,
+    photo,
+    interestIds: interests.map((row) => row.id),
+  };
 }
 
 export async function saveProfileChanges(
