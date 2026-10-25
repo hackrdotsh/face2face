@@ -173,3 +173,18 @@ private let leaseJSON =
         requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer signed-auth-token" })
     #expect(await tokens.load() == "new-account-token")
 }
+
+@Test func discoveryOutboxRechecksAPendingReportWithTheSameIDUntilTheWindowCloses() throws {
+    let start = Date(timeIntervalSince1970: 100)
+    var outbox = DiscoveryOutbox()
+    outbox.enqueue(DiscoveryToken(), at: start)
+    let report = try #require(outbox.nextReady(at: start))
+    #expect(outbox.awaitMatch(report.id, at: start) == true)
+    #expect(outbox.nextReady(at: start.addingTimeInterval(4)) == nil)
+    let recheck = try #require(outbox.nextReady(at: start.addingTimeInterval(5)))
+    #expect(recheck.id == report.id)
+    #expect(recheck.attempts == 0)
+    #expect(outbox.awaitMatch(report.id, at: start.addingTimeInterval(119)) == true)
+    #expect(outbox.awaitMatch(report.id, at: start.addingTimeInterval(120)) == false)
+    #expect(outbox.pending.isEmpty)
+}

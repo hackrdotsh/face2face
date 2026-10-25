@@ -46,6 +46,8 @@ public struct PendingDiscoveryObservation: Identifiable, Sendable, Equatable {
     public let peerToken: DiscoveryToken
     public private(set) var attempts = 0
     public private(set) var nextAttemptAt: Date
+    /// Set after the first `pending` receipt. Rechecks stop when the reciprocal window closes.
+    public private(set) var awaitingMatchUntil: Date?
 
     init(peerToken: DiscoveryToken, at date: Date) {
         id = UUID()
@@ -57,11 +59,22 @@ public struct PendingDiscoveryObservation: Identifiable, Sendable, Equatable {
         attempts += 1
         nextAttemptAt = date.addingTimeInterval(rateLimited ? 60 : min(60, pow(2, Double(attempts))))
     }
+
+    mutating func awaitMatch(at date: Date) -> Bool {
+        let deadline = awaitingMatchUntil ?? date.addingTimeInterval(DiscoveryOutbox.matchWindow)
+        guard date < deadline else { return false }
+        awaitingMatchUntil = deadline
+        nextAttemptAt = date.addingTimeInterval(DiscoveryOutbox.matchRecheckInterval)
+        return true
+    }
 }
 
 /// Memory-only, scoped to one discovery session. Retries keep the original observation ID.
 public struct DiscoveryOutbox: Sendable {
     public static let limit = 100
+    /// Matches the server's two-minute reciprocal window.
+    public static let matchWindow: TimeInterval = 120
+    public static let matchRecheckInterval: TimeInterval = 5
     public private(set) var pending: [PendingDiscoveryObservation] = []
     private var seen: Set<DiscoveryToken> = []
 
@@ -81,6 +94,18 @@ public struct DiscoveryOutbox: Sendable {
 
     public mutating func acknowledge(_ id: UUID) {
         pending.removeAll { $0.id == id }
+    }
+
+    /// Keeps a report that got a `pending` receipt and resends it with the same ID, so this
+    /// phone learns about a match the peer completes. Returns false once the window closes.
+    @discardableResult
+    public mutating func awaitMatch(_ id: UUID, at date: Date = Date()) -> Bool {
+        guard let index = pending.firstIndex(where: { $0.id == id }) else { return false }
+        guard pending[index].awaitMatch(at: date) else {
+            pending.remove(at: index)
+            return false
+        }
+        return true
     }
 
     /// Five attempts maximum, including rate-limited attempts. Returns false when discarded.
